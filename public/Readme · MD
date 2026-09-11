@@ -1,64 +1,67 @@
-# Site Chat — messaging, file sharing & calls
+# Kenya Campus Hub / Site Chat — connected & fixed
 
-Real-time chat you can drop into your existing site: text messages, images,
-videos, audio, documents, voice notes, and one-to-one voice/video calls.
+## What was actually wrong
 
-## Run it standalone (fastest way to try it)
+`server.js` already had a huge, well-built Socket.IO chat backend (presence,
+1:1 + group chat, calls, reactions, pins, disappearing messages, friend
+requests, invite links...). But `client.js` (the "Site Chat" UI in
+`nodi.html`) had fully-built front-end features whose events the server
+**never listened for**, so those buttons quietly did nothing:
+
+| Client feature              | Event(s)                                                            | Status before |
+|------------------------------|-----------------------------------------------------------------------|---------------|
+| Block contact                | `block-user`                                                          | no server handler |
+| Clear chat                   | `clear-chat`                                                           | no server handler |
+| Status / Stories             | `get-statuses`, `post-status`, `view-status`, `delete-status`         | no server handler |
+| Channels                     | `get-channels`, `create-channel`                                      | no server handler |
+| Communities                  | `get-communities`, `create-community`                                 | no server handler |
+| Star a message (context menu)| `message-context-action`                                              | no server handler |
+
+I added all six to `server.js`, in the same style as the existing code
+(best-effort JSON files under the OS temp dir — same approach already used
+for chat history, groups, and the users registry). I also wired **block**
+into the existing `chat-message` handler so a block actually stops messages
+in both directions, not just the button.
+
+I verified every event `client.js` emits now has a matching `server.js`
+listener, and every event `server.js` emits has a matching `client.js`
+listener — so the whole socket surface is fully connected in both
+directions.
+
+One honest limitation: this server has no persistent "who's friends with
+whom" list server-side (that already lived only in each browser's
+localStorage, by the original design). So Status privacy options ("My
+contacts" / "Only share with...") are stored but not enforced — every
+signed-in user can currently see every status. Doing that properly needs a
+real server-side contacts list, which is a bigger change than a wiring fix.
+
+## What I could *not* verify or include
+
+Only `server.js`, `client.js`, `nodi.html`, and `nodi.css` were uploaded.
+`server.js` also serves `public/index.html`, `public/article.html`, and an
+articles/news feature (`data/articles.json`, `ai-updater.js`) — none of
+those files were provided, so I added tiny placeholder `index.html` /
+`article.html` pages (linking through to the chat) just so those two routes
+don't 500. Drop your real versions into `public/` to replace them.
+
+I also don't have network access in this environment, so I could not run
+`npm install` or actually boot the server to test it live — everything
+above was verified by static analysis (`node --check` passes, and every
+socket event was cross-referenced by name between client and server). Run
+it locally to confirm before deploying.
+
+## Running it
 
 ```bash
 npm install
+cp .env.example .env    # optional - chat works with none of these set
 npm start
 ```
 
-Open `http://localhost:3000` in two different browser windows (or two
-devices on the same network), enter two different names, and chat between
-them.
+Then open **http://localhost:3000/nodi.html** — that's the chat app. Open it
+in two browser tabs/windows with two different names to test 1:1 chat,
+calls, groups, statuses, etc.
 
-## How it works
-
-- **server.js** — Express serves the `public/` folder, Socket.io handles
-  real-time messaging and call signaling, and `multer` handles file uploads
-  (saved to `public/uploads/`).
-- **public/index.html / style.css / client.js** — the chat UI: message
-  list, file/voice-note attach buttons, and the call overlay. All calling
-  logic uses the browser's built-in WebRTC — media streams go directly
-  between the two browsers, the server only relays the initial connection
-  info (signaling), so it stays fast and cheap to run.
-
-## Merging into your existing server.js
-
-If you already have a `server.js` running your site, don't run two
-servers — merge this one in instead:
-
-1. Copy `public/index.html`, `public/style.css`, `public/client.js` into
-   your existing `public/` (or static) folder — put them in a `/chat`
-   subfolder if you don't want them to replace your homepage, e.g.
-   `public/chat/index.html`, and link to `/chat` from your site.
-2. In your existing server.js, add:
-   ```js
-   const http = require("http");
-   const { Server } = require("socket.io");
-   const server = http.createServer(app); // `app` = your existing Express app
-   const io = new Server(server);
-   // ...paste the upload route and io.on("connection", ...) block from
-   // this project's server.js...
-   server.listen(PORT, ...); // instead of app.listen(...)
-   ```
-3. Add the two dependencies to your `package.json`: `socket.io`, `multer`,
-   `nanoid`.
-
-## Notes & limits (read before you rely on this in production)
-
-- **No accounts yet.** Anyone who types a name can join — there's no
-  password or identity check. If your site already has logins, replace
-  the "join" step with your real user ID/name instead of a free-text box.
-- **No chat history.** Messages live only in the browser tab; nothing is
-  saved to a database. Add one (e.g. MongoDB/Postgres) if you need people
-  to see old messages after refreshing.
-- **Calls are one-to-one**, not group calls.
-- **HTTPS is required for calling/mic/camera to work** once this is live
-  on a real domain (browsers block camera/mic access on plain HTTP,
-  `localhost` is exempted for testing).
-- File uploads are capped at 100MB and stored directly on disk — fine for
-  testing, but for production you'll likely want cloud storage (S3, etc.)
-  and virus scanning if strangers can upload.
+`GROQ_API_KEY` / `NEWSDATA_API_KEY` / `GIPHY_API_KEY` are all optional — the
+chat feature works fully without them; they only power the AI assistant and
+news-related endpoints elsewhere in `server.js`.

@@ -5203,10 +5203,37 @@ function sendText() {
         textInput.value.trim();
 
 
-    if (
-        !text ||
-        !activeChat
-    ) {
+    if (!activeChat) {
+        return;
+    }
+
+    // a pending attachment (picked via the attach menu) takes priority -
+    // whatever is currently typed becomes its caption
+    if (pendingFile) {
+
+        const file = pendingFile;
+        const forcedKind = pendingForcedKind;
+        const viewOnce = pendingViewOnce;
+        const replyTo = replyingTo
+            ? {
+                id: replyingTo.id,
+                name: replyingTo.from.id === (me && me.id) ? "You" : replyingTo.from.name,
+                preview: messagePreviewText(replyingTo)
+            }
+            : null;
+
+        clearMediaPreview();
+
+        uploadAndSend(file, forcedKind, { caption: text, viewOnce, replyTo });
+
+        textInput.value = "";
+        clearReplyPreview();
+
+        return;
+
+    }
+
+    if (!text) {
         return;
     }
 
@@ -5354,7 +5381,7 @@ socket.on(
 
         // any message that isn't ours gets a notification sound,
         // whether or not that chat happens to be open right now
-        if (msg.from.id !== me.id) {
+        if (msg.from.id !== me.id && !isChatMuted(convoKey)) {
 
             playNotificationSound();
 
@@ -6720,49 +6747,34 @@ function renderAttachment(
 // FILE SHARING
 // ============================================================
 
-if (attachBtn) {
+// attachBtn now opens the attach-menu dropdown (Document / Photos & Videos /
+// Camera / Contact / Poll / Location) instead of jumping straight to the
+// file picker - see the ATTACH MENU section (bottom of file) for the
+// dropdown wiring and for what each option does with fileInput.
 
-    attachBtn.addEventListener(
-        "click",
-        () => {
-
-            if (fileInput) {
-
-                fileInput.click();
-
-            }
-
-        }
-    );
-
-}
-
+let pendingFile = null;
+let pendingForcedKind = null;
+let pendingViewOnce = false;
 
 if (fileInput) {
 
     fileInput.addEventListener(
         "change",
-        async () => {
+        () => {
 
             const file =
                 fileInput.files[0];
-
-
-            fileInput.value =
-                "";
-
 
             if (
                 !file ||
                 !activeChat
             ) {
+                fileInput.value = "";
                 return;
             }
 
-
-            await uploadAndSend(
-                file
-            );
+            pendingFile = file;
+            showMediaPreview(file);
 
         }
     );
@@ -6770,9 +6782,100 @@ if (fileInput) {
 }
 
 
+function showMediaPreview(file) {
+
+    const bar = document.getElementById("mediaPreviewBar");
+    const thumb = document.getElementById("mediaPreviewThumb");
+    const nameEl = document.getElementById("mediaPreviewName");
+    const sizeEl = document.getElementById("mediaPreviewSize");
+
+    if (!bar) return;
+
+    if (nameEl) nameEl.textContent = file.name || "attachment";
+
+    if (sizeEl) {
+
+        const kb = file.size / 1024;
+        sizeEl.textContent =
+            kb > 1024
+                ? `${(kb / 1024).toFixed(1)} MB`
+                : `${Math.max(1, Math.round(kb))} KB`;
+
+    }
+
+    if (thumb) {
+
+        if (file.type && file.type.startsWith("image/")) {
+
+            thumb.innerHTML = "";
+            thumb.style.backgroundImage = `url("${URL.createObjectURL(file)}")`;
+            thumb.classList.add("has-image");
+
+        } else {
+
+            thumb.style.backgroundImage = "";
+            thumb.classList.remove("has-image");
+
+            const icon =
+                file.type && file.type.startsWith("video/") ? "fa-file-video" :
+                file.type && file.type.startsWith("audio/") ? "fa-file-audio" :
+                "fa-file";
+
+            thumb.innerHTML = `<i class="fa-regular ${icon}"></i>`;
+
+        }
+
+    }
+
+    bar.classList.remove("hidden");
+
+}
+
+
+function clearMediaPreview() {
+
+    pendingFile = null;
+    pendingForcedKind = null;
+    pendingViewOnce = false;
+
+    const bar = document.getElementById("mediaPreviewBar");
+    if (bar) bar.classList.add("hidden");
+
+    const viewOnceBtn = document.getElementById("viewOnceToggleBtn");
+    if (viewOnceBtn) {
+        viewOnceBtn.classList.remove("active");
+        viewOnceBtn.setAttribute("aria-pressed", "false");
+    }
+
+    if (fileInput) fileInput.value = "";
+
+}
+
+
+(function wireMediaPreviewBar() {
+
+    const closeBtn = document.getElementById("mediaPreviewClose");
+    const viewOnceBtn = document.getElementById("viewOnceToggleBtn");
+
+    if (closeBtn) {
+        closeBtn.addEventListener("click", clearMediaPreview);
+    }
+
+    if (viewOnceBtn) {
+        viewOnceBtn.addEventListener("click", () => {
+            pendingViewOnce = !pendingViewOnce;
+            viewOnceBtn.classList.toggle("active", pendingViewOnce);
+            viewOnceBtn.setAttribute("aria-pressed", String(pendingViewOnce));
+        });
+    }
+
+})();
+
+
 async function uploadAndSend(
     file,
-    forcedKind
+    forcedKind,
+    extra
 ) {
 
     const formData =
@@ -6826,7 +6929,10 @@ async function uploadAndSend(
                 toId:
                     activeChat.id,
                 attachment:
-                    data
+                    data,
+                caption: (extra && extra.caption) || undefined,
+                viewOnce: !!(extra && extra.viewOnce),
+                replyTo: (extra && extra.replyTo) || undefined
             }
         );
 
@@ -10259,3 +10365,1663 @@ window.addEventListener(
 
     }
 );
+
+// ============================================================
+// ============================================================
+//  NEW FEATURE WIRING (Status, Channels, Communities, Calls tab,
+//  chat lock / secret code / wallpaper, polls, share contact,
+//  archived chats, in-chat search, message context menu,
+//  attach menu, export/clear chat)
+//
+//  These sections wire up markup that was added to nodi.html.
+//  Anything that needs the server (statuses, channels,
+//  communities, polls, shared contacts) emits a socket event
+//  and listens for a matching one - the server-side handlers
+//  for those are the next pass. Everything else (locks, mute,
+//  wallpaper, archive, search, export) works fully client-side.
+// ============================================================
+// ============================================================
+
+function $id(id) { return document.getElementById(id); }
+
+function openModal(el) { if (el) el.classList.remove("hidden"); }
+function closeModal(el) { if (el) el.classList.add("hidden"); }
+
+// clicking the dimmed backdrop of any .modal-overlay closes it
+document.addEventListener("click", (e) => {
+    if (e.target && e.target.classList && e.target.classList.contains("modal-overlay")) {
+        e.target.classList.add("hidden");
+    }
+});
+
+
+// ============================================================
+// SIDEBAR NAV TABS (Chats / Status / Calls)
+// ============================================================
+
+(function wireSidebarNavTabs() {
+
+    const tabs = document.querySelectorAll("#sidebarNavTabs .sidebar-nav-tab");
+    const views = {
+        chats: $id("chatsView"),
+        status: $id("statusView"),
+        calls: $id("callsView")
+    };
+
+    if (!tabs.length) return;
+
+    tabs.forEach(tab => {
+        tab.addEventListener("click", () => {
+
+            const view = tab.dataset.sidebarView;
+            if (!view || !views[view]) return;
+
+            tabs.forEach(t => t.classList.toggle("active", t === tab));
+
+            Object.keys(views).forEach(key => {
+                if (views[key]) views[key].classList.toggle("hidden", key !== view);
+            });
+
+            if (view === "status") {
+                const dot = $id("statusUnreadDot");
+                if (dot) dot.classList.add("hidden");
+                requestStatuses();
+            }
+
+            if (view === "calls") {
+                renderCallHistory();
+            }
+
+        });
+    });
+
+})();
+
+
+// ============================================================
+// ARCHIVED CHATS
+// ============================================================
+
+function getArchivedChats() {
+    try {
+        return JSON.parse(localStorage.getItem("siteChatArchived") || "[]");
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveArchivedChats(list) {
+    localStorage.setItem("siteChatArchived", JSON.stringify(list));
+}
+
+function isChatArchived(id) {
+    return getArchivedChats().includes(id);
+}
+
+function setChatArchived(id, archived) {
+    const list = getArchivedChats();
+    const idx = list.indexOf(id);
+    if (archived && idx === -1) list.push(id);
+    if (!archived && idx !== -1) list.splice(idx, 1);
+    saveArchivedChats(list);
+    renderArchivedChatsList();
+}
+
+function renderArchivedChatsList() {
+
+    const toggle = $id("archivedChatsToggle");
+    const listEl = $id("archivedChatsList");
+    const countEl = $id("archivedCount");
+
+    const archived = getArchivedChats();
+
+    if (toggle) toggle.classList.toggle("hidden", archived.length === 0);
+    if (countEl) countEl.textContent = String(archived.length);
+
+    if (!listEl) return;
+
+    if (!archived.length) {
+        listEl.innerHTML = "";
+        return;
+    }
+
+    listEl.innerHTML = archived.map(id => {
+
+        const group = myGroups.get(id);
+        const profile = friendProfiles[id];
+        const name = group ? group.name : (profile ? profile.name : (usersOnline[id] ? usersOnline[id].name : "Chat"));
+
+        return `
+            <div class="friend-item archived-chat-item" data-id="${id}">
+                <span class="find-text"><strong>${escapeHtml(name || "Chat")}</strong></span>
+                <button class="unarchive-btn" data-id="${id}" title="Unarchive"><i class="fa-solid fa-box-open"></i></button>
+            </div>
+        `;
+
+    }).join("");
+
+    listEl.querySelectorAll(".archived-chat-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+            if (e.target.closest(".unarchive-btn")) return;
+            const id = item.dataset.id;
+            const group = myGroups.get(id);
+            openChat(id, group ? group.name : ((friendProfiles[id] && friendProfiles[id].name) || (usersOnline[id] && usersOnline[id].name) || "Chat"), group);
+        });
+    });
+
+    listEl.querySelectorAll(".unarchive-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            setChatArchived(btn.dataset.id, false);
+        });
+    });
+
+}
+
+if ($id("archivedChatsToggle")) {
+    $id("archivedChatsToggle").addEventListener("click", () => {
+        const listEl = $id("archivedChatsList");
+        if (listEl) listEl.classList.toggle("hidden");
+    });
+}
+
+renderArchivedChatsList();
+
+
+// ============================================================
+// CHAT LOCK (PIN-protected chats) + SECRET CODE
+// ============================================================
+
+function getLockedChats() {
+    try {
+        return JSON.parse(localStorage.getItem("siteChatLockedChats") || "[]");
+    } catch (e) {
+        return [];
+    }
+}
+
+function saveLockedChats(list) {
+    localStorage.setItem("siteChatLockedChats", JSON.stringify(list));
+}
+
+function isChatLocked(id) {
+    return getLockedChats().includes(id);
+}
+
+function getChatLockPin() {
+    return localStorage.getItem("siteChatLockPin") || "";
+}
+
+function getSecretCode() {
+    return localStorage.getItem("siteChatSecretCode") || "";
+}
+
+let chatLockModalMode = "set"; // "set" | "unlock-folder"
+
+function openChatLockModal(mode) {
+
+    chatLockModalMode = mode;
+
+    const modal = $id("chatLockModal");
+    const title = $id("chatLockModalTitle");
+    const text = $id("chatLockModalText");
+    const pinInput = $id("chatLockPinInput");
+    const err = $id("chatLockError");
+
+    if (!modal) return;
+
+    if (pinInput) pinInput.value = "";
+    if (err) err.classList.add("hidden");
+
+    const hasPin = !!getChatLockPin();
+
+    if (mode === "set") {
+        if (title) title.textContent = activeChat && isChatLocked(activeChat.id) ? "Unlock this chat" : "Lock this chat";
+        if (text) text.textContent = hasPin
+            ? "Enter your PIN to continue."
+            : "Create a PIN. Locked chats move to a separate folder that only opens with this PIN.";
+    } else {
+        if (title) title.textContent = "Locked Chats";
+        if (text) text.textContent = "Enter your PIN or secret code to view locked chats.";
+    }
+
+    openModal(modal);
+    if (pinInput) pinInput.focus();
+
+}
+
+function submitChatLockPin() {
+
+    const pinInput = $id("chatLockPinInput");
+    const err = $id("chatLockError");
+    const pin = pinInput ? pinInput.value.trim() : "";
+
+    if (!pin) return;
+
+    const storedPin = getChatLockPin();
+
+    if (!storedPin) {
+        // first time - this PIN becomes the lock PIN
+        localStorage.setItem("siteChatLockPin", pin);
+        finishChatLockAction();
+        return;
+    }
+
+    if (pin === storedPin || (chatLockModalMode === "unlock-folder" && pin === getSecretCode() && getSecretCode())) {
+        finishChatLockAction();
+        return;
+    }
+
+    if (err) err.classList.remove("hidden");
+
+}
+
+function finishChatLockAction() {
+
+    closeModal($id("chatLockModal"));
+
+    if (chatLockModalMode === "set" && activeChat) {
+
+        const locked = getLockedChats();
+        const idx = locked.indexOf(activeChat.id);
+
+        if (idx === -1) {
+            locked.push(activeChat.id);
+        } else {
+            locked.splice(idx, 1);
+        }
+
+        saveLockedChats(locked);
+        renderLockedChatsFolder();
+
+    } else if (chatLockModalMode === "unlock-folder") {
+
+        renderLockedChatsFolder(true);
+
+    }
+
+}
+
+function renderLockedChatsFolder(revealed) {
+
+    const toggle = $id("lockedChatsToggle");
+    const locked = getLockedChats();
+
+    if (toggle) toggle.classList.toggle("hidden", locked.length === 0);
+
+    if (!toggle) return;
+
+    toggle.onclick = () => {
+
+        if (!revealed) {
+            openChatLockModal("unlock-folder");
+            return;
+        }
+
+        const names = locked.map(id => {
+            const group = myGroups.get(id);
+            return (group && group.name) || (friendProfiles[id] && friendProfiles[id].name) || (usersOnline[id] && usersOnline[id].name) || "Chat";
+        });
+
+        showNiceAlert(names.length ? `Locked chats: ${names.join(", ")}` : "No locked chats yet.", { title: "Locked Chats", icon: "fa-lock" });
+
+    };
+
+}
+
+if ($id("closeChatLockModal")) $id("closeChatLockModal").addEventListener("click", () => closeModal($id("chatLockModal")));
+if ($id("chatLockSubmitBtn")) $id("chatLockSubmitBtn").addEventListener("click", submitChatLockPin);
+if ($id("chatLockPinInput")) $id("chatLockPinInput").addEventListener("keydown", (e) => { if (e.key === "Enter") submitChatLockPin(); });
+
+if ($id("chatLockOption")) {
+    $id("chatLockOption").addEventListener("click", () => {
+        closeModal($id("disappearingMenu"));
+        if (!activeChat) return;
+        openChatLockModal("set");
+    });
+}
+
+// Secret code modal (lets the user set an alternate unlock code for
+// the Locked Chats folder, opened from Privacy & security)
+if ($id("closeSecretCodeModal")) $id("closeSecretCodeModal").addEventListener("click", () => closeModal($id("secretCodeModal")));
+
+if ($id("saveSecretCodeBtn")) {
+    $id("saveSecretCodeBtn").addEventListener("click", () => {
+
+        const code = $id("secretCodeInput") ? $id("secretCodeInput").value.trim() : "";
+        const confirm = $id("secretCodeConfirmInput") ? $id("secretCodeConfirmInput").value.trim() : "";
+
+        if (!code || code.length < 4) {
+            showNiceAlert("Secret code must be at least 4 characters.", { title: "Try again" });
+            return;
+        }
+
+        if (code !== confirm) {
+            showNiceAlert("Codes don't match.", { title: "Try again" });
+            return;
+        }
+
+        localStorage.setItem("siteChatSecretCode", code);
+
+        if ($id("secretCodeReplacePinToggle") && $id("secretCodeReplacePinToggle").checked) {
+            localStorage.setItem("siteChatLockPin", code);
+        }
+
+        closeModal($id("secretCodeModal"));
+        showNiceAlert("Secret code saved.", { title: "Done", icon: "fa-circle-check" });
+
+    });
+}
+
+function openSecretCodeModal() {
+    const modal = $id("secretCodeModal");
+    if ($id("secretCodeInput")) $id("secretCodeInput").value = "";
+    if ($id("secretCodeConfirmInput")) $id("secretCodeConfirmInput").value = "";
+    openModal(modal);
+}
+
+renderLockedChatsFolder();
+
+
+// ============================================================
+// CHAT WALLPAPER
+// ============================================================
+
+function getChatWallpaper(id) {
+    try {
+        return JSON.parse(localStorage.getItem("siteChatWallpapers") || "{}")[id] || "default";
+    } catch (e) {
+        return "default";
+    }
+}
+
+function setChatWallpaper(id, wallpaper) {
+    let map = {};
+    try { map = JSON.parse(localStorage.getItem("siteChatWallpapers") || "{}"); } catch (e) {}
+    map[id] = wallpaper;
+    localStorage.setItem("siteChatWallpapers", JSON.stringify(map));
+    applyChatWallpaper();
+}
+
+function applyChatWallpaper() {
+
+    const messagesEl = $id("messages");
+    if (!messagesEl || !activeChat) return;
+
+    messagesEl.className = messagesEl.className.replace(/\bwallpaper-\S+/g, "").trim();
+    if (!messagesEl.classList.contains("messages")) messagesEl.classList.add("messages");
+
+    const wp = getChatWallpaper(activeChat.id);
+    if (wp && wp !== "default") messagesEl.classList.add(`wallpaper-${wp}`);
+
+}
+
+if ($id("closeChatWallpaperModal")) $id("closeChatWallpaperModal").addEventListener("click", () => closeModal($id("chatWallpaperModal")));
+
+if ($id("chatWallpaperOption")) {
+    $id("chatWallpaperOption").addEventListener("click", () => {
+
+        closeModal($id("disappearingMenu"));
+        if (!activeChat) return;
+
+        const grid = $id("wallpaperSwatchGrid");
+        const current = getChatWallpaper(activeChat.id);
+
+        if (grid) {
+            grid.querySelectorAll(".wallpaper-swatch").forEach(sw => {
+                sw.classList.toggle("selected", sw.dataset.wallpaper === current);
+            });
+        }
+
+        openModal($id("chatWallpaperModal"));
+
+    });
+}
+
+(function wireWallpaperGrid() {
+    const grid = $id("wallpaperSwatchGrid");
+    if (!grid) return;
+    grid.addEventListener("click", (e) => {
+        const swatch = e.target.closest(".wallpaper-swatch");
+        if (!swatch || !activeChat) return;
+        grid.querySelectorAll(".wallpaper-swatch").forEach(sw => sw.classList.remove("selected"));
+        swatch.classList.add("selected");
+        setChatWallpaper(activeChat.id, swatch.dataset.wallpaper);
+    });
+})();
+
+if ($id("resetWallpaperBtn")) {
+    $id("resetWallpaperBtn").addEventListener("click", () => {
+        if (!activeChat) return;
+        setChatWallpaper(activeChat.id, "default");
+        const grid = $id("wallpaperSwatchGrid");
+        if (grid) {
+            grid.querySelectorAll(".wallpaper-swatch").forEach(sw => sw.classList.toggle("selected", sw.dataset.wallpaper === "default"));
+        }
+    });
+}
+
+
+// ============================================================
+// CHAT MUTE
+// ============================================================
+
+function getMutedChats() {
+    try {
+        return JSON.parse(localStorage.getItem("siteChatMuted") || "[]");
+    } catch (e) {
+        return [];
+    }
+}
+
+function isChatMuted(id) {
+    return getMutedChats().includes(id);
+}
+
+function toggleChatMuted(id) {
+    const list = getMutedChats();
+    const idx = list.indexOf(id);
+    if (idx === -1) list.push(id); else list.splice(idx, 1);
+    localStorage.setItem("siteChatMuted", JSON.stringify(list));
+    return idx === -1;
+}
+
+if ($id("muteChatOption")) {
+    $id("muteChatOption").addEventListener("click", () => {
+        closeModal($id("disappearingMenu"));
+        if (!activeChat) return;
+        const nowMuted = toggleChatMuted(activeChat.id);
+        const label = $id("muteChatOption").querySelector("span");
+        if (label) label.innerHTML = nowMuted
+            ? '<i class="fa-solid fa-bell"></i> Unmute notifications'
+            : '<i class="fa-solid fa-bell-slash"></i> Mute notifications';
+    });
+}
+
+
+// ============================================================
+// VIEW CONTACT / ADVANCED PRIVACY / BLOCK (chat more-options)
+// ============================================================
+
+if ($id("viewContactOption")) {
+    $id("viewContactOption").addEventListener("click", () => {
+        closeModal($id("disappearingMenu"));
+        if (!activeChat) return;
+        if (activeChat.isGroup) {
+            if (typeof openGroupInfoModal === "function") openGroupInfoModal();
+        } else {
+            showNiceAlert(activeChat.name, { title: "Contact", icon: "fa-user" });
+        }
+    });
+}
+
+if ($id("advancedPrivacyOption")) {
+    $id("advancedPrivacyOption").addEventListener("click", () => {
+        closeModal($id("disappearingMenu"));
+        showNiceAlert("Advanced chat privacy settings for this chat.", { title: "Advanced privacy", icon: "fa-shield-halved" });
+    });
+}
+
+if ($id("blockContactOption")) {
+    $id("blockContactOption").addEventListener("click", () => {
+        closeModal($id("disappearingMenu"));
+        if (!activeChat || activeChat.isGroup) return;
+        if (typeof handleFriendAction === "function") {
+            handleFriendAction(activeChat.id, "block");
+        } else {
+            socket.emit("block-user", { userId: activeChat.id });
+        }
+    });
+}
+
+
+// ============================================================
+// EXPORT CHAT / CLEAR CHAT / ARCHIVE CHAT
+// ============================================================
+
+if ($id("exportChatOption")) {
+    $id("exportChatOption").addEventListener("click", () => {
+        closeModal($id("disappearingMenu"));
+        if (!activeChat) return;
+        openModal($id("exportChatModal"));
+    });
+}
+if ($id("closeExportChatModal")) $id("closeExportChatModal").addEventListener("click", () => closeModal($id("exportChatModal")));
+
+if ($id("exportChatConfirmBtn")) {
+    $id("exportChatConfirmBtn").addEventListener("click", () => {
+
+        if (!activeChat) return;
+
+        const msgs = conversations[activeChat.id] || [];
+        const includeMedia = $id("exportIncludeMediaToggle") ? $id("exportIncludeMediaToggle").checked : true;
+
+        const lines = msgs.map(m => {
+            const who = (m.from && m.from.id) === (me && me.id) ? "You" : (m.from && m.from.name) || "Them";
+            const when = m.time ? new Date(m.time).toLocaleString() : "";
+            const body = m.text || (m.attachment ? (includeMedia ? `[attachment: ${m.attachment.name || m.attachment.kind || "file"}${m.attachment.url ? " - " + m.attachment.url : ""}]` : "[attachment omitted]") : "");
+            return `[${when}] ${who}: ${body}`;
+        });
+
+        const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `chat-with-${(activeChat.name || "chat").replace(/\s+/g, "_")}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        closeModal($id("exportChatModal"));
+
+    });
+}
+
+if ($id("archiveChatOption")) {
+    $id("archiveChatOption").addEventListener("click", () => {
+        closeModal($id("disappearingMenu"));
+        if (!activeChat) return;
+        setChatArchived(activeChat.id, !isChatArchived(activeChat.id));
+    });
+}
+
+if ($id("closeClearChatModal")) $id("closeClearChatModal").addEventListener("click", () => closeModal($id("clearChatModal")));
+
+if ($id("clearChatOption")) {
+    $id("clearChatOption").addEventListener("click", () => {
+        closeModal($id("disappearingMenu"));
+        if (!activeChat) return;
+        openModal($id("clearChatModal"));
+    });
+}
+
+if ($id("clearChatConfirmBtn")) {
+    $id("clearChatConfirmBtn").addEventListener("click", () => {
+
+        if (!activeChat) return;
+
+        const deleteStarred = $id("clearChatDeleteStarredToggle") ? $id("clearChatDeleteStarredToggle").checked : false;
+
+        conversations[activeChat.id] = deleteStarred
+            ? []
+            : (conversations[activeChat.id] || []).filter(m => m.starred);
+
+        if (typeof renderMessages === "function") renderMessages();
+
+        socket.emit("clear-chat", { chatId: activeChat.id, deleteStarred });
+
+        closeModal($id("clearChatModal"));
+
+    });
+}
+
+
+// ============================================================
+// SEARCH IN CHAT
+// ============================================================
+
+let chatSearchMatches = [];
+let chatSearchIndex = -1;
+
+function openChatSearchBar() {
+    const bar = $id("chatSearchBar");
+    if (!bar || !activeChat) return;
+    bar.classList.remove("hidden");
+    if ($id("chatSearchBarInput")) {
+        $id("chatSearchBarInput").value = "";
+        $id("chatSearchBarInput").focus();
+    }
+    chatSearchMatches = [];
+    chatSearchIndex = -1;
+    updateChatSearchCount();
+}
+
+function closeChatSearchBar() {
+    closeModal(null);
+    const bar = $id("chatSearchBar");
+    if (bar) bar.classList.add("hidden");
+    document.querySelectorAll(".msg-search-highlight").forEach(el => el.classList.remove("msg-search-highlight"));
+}
+
+function updateChatSearchCount() {
+    const countEl = $id("chatSearchMatchCount");
+    if (!countEl) return;
+    countEl.textContent = chatSearchMatches.length
+        ? `${chatSearchIndex + 1}/${chatSearchMatches.length}`
+        : "0/0";
+}
+
+function runChatSearch(query) {
+
+    document.querySelectorAll(".msg-search-highlight").forEach(el => el.classList.remove("msg-search-highlight"));
+
+    chatSearchMatches = [];
+    chatSearchIndex = -1;
+
+    if (!query || !query.trim()) {
+        updateChatSearchCount();
+        return;
+    }
+
+    const q = query.trim().toLowerCase();
+    const bubbles = document.querySelectorAll("#messages .message, #messages .msg-bubble, #messages [data-msg-id]");
+
+    bubbles.forEach(el => {
+        if (el.textContent && el.textContent.toLowerCase().includes(q)) {
+            chatSearchMatches.push(el);
+        }
+    });
+
+    updateChatSearchCount();
+
+    if (chatSearchMatches.length) jumpToChatSearchMatch(0);
+
+}
+
+function jumpToChatSearchMatch(index) {
+
+    if (!chatSearchMatches.length) return;
+
+    chatSearchIndex = (index + chatSearchMatches.length) % chatSearchMatches.length;
+
+    document.querySelectorAll(".msg-search-highlight").forEach(el => el.classList.remove("msg-search-highlight"));
+
+    const el = chatSearchMatches[chatSearchIndex];
+    if (el) {
+        el.classList.add("msg-search-highlight");
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    updateChatSearchCount();
+
+}
+
+if ($id("searchInChatBtn")) $id("searchInChatBtn").addEventListener("click", openChatSearchBar);
+if ($id("chatSearchCloseBtn")) $id("chatSearchCloseBtn").addEventListener("click", closeChatSearchBar);
+if ($id("chatSearchBarInput")) $id("chatSearchBarInput").addEventListener("input", (e) => runChatSearch(e.target.value));
+if ($id("chatSearchNextBtn")) $id("chatSearchNextBtn").addEventListener("click", () => jumpToChatSearchMatch(chatSearchIndex + 1));
+if ($id("chatSearchPrevBtn")) $id("chatSearchPrevBtn").addEventListener("click", () => jumpToChatSearchMatch(chatSearchIndex - 1));
+
+
+// ============================================================
+// MESSAGE CONTEXT MENU (right-click / long-press on a message)
+// ============================================================
+
+(function wireMsgContextMenu() {
+
+    const menu = $id("msgContextMenu");
+    if (!menu) return;
+
+    function itemsFor(msgEl) {
+
+        const items = [
+            { icon: "fa-reply", label: "Reply", action: "reply" },
+            { icon: "fa-share", label: "Forward", action: "forward" },
+            { icon: "fa-star", label: "Star", action: "star" },
+            { icon: "fa-copy", label: "Copy", action: "copy" },
+            { icon: "fa-thumbtack", label: "Pin", action: "pin" },
+            { icon: "fa-trash", label: "Delete", action: "delete", danger: true }
+        ];
+
+        return items.map(it =>
+            `<button class="msg-context-menu-item${it.danger ? " danger" : ""}" data-action="${it.action}">
+                <i class="fa-solid ${it.icon}"></i> ${it.label}
+            </button>`
+        ).join("");
+
+    }
+
+    function findMsgId(el) {
+        const target = el.closest("[data-msg-id]") || el.closest(".message") || el.closest(".msg-bubble");
+        return target ? (target.dataset.msgId || target.id) : null;
+    }
+
+    function showMenuAt(x, y, msgEl) {
+        menu.innerHTML = itemsFor(msgEl);
+        menu.style.left = `${x}px`;
+        menu.style.top = `${y}px`;
+        menu.dataset.forMsg = findMsgId(msgEl) || "";
+        menu.classList.remove("hidden");
+    }
+
+    const messagesEl = $id("messages");
+    if (messagesEl) {
+
+        messagesEl.addEventListener("contextmenu", (e) => {
+            const bubble = e.target.closest(".message, .msg-bubble, [data-msg-id]");
+            if (!bubble) return;
+            e.preventDefault();
+            showMenuAt(e.clientX, e.clientY, bubble);
+        });
+
+        let pressTimer = null;
+        messagesEl.addEventListener("touchstart", (e) => {
+            const bubble = e.target.closest(".message, .msg-bubble, [data-msg-id]");
+            if (!bubble) return;
+            const touch = e.touches[0];
+            pressTimer = setTimeout(() => showMenuAt(touch.clientX, touch.clientY, bubble), 500);
+        });
+        messagesEl.addEventListener("touchend", () => clearTimeout(pressTimer));
+        messagesEl.addEventListener("touchmove", () => clearTimeout(pressTimer));
+
+    }
+
+    menu.addEventListener("click", (e) => {
+
+        const btn = e.target.closest(".msg-context-menu-item");
+        if (!btn) return;
+
+        const msgId = menu.dataset.forMsg;
+        const action = btn.dataset.action;
+
+        socket.emit("message-context-action", { action, msgId, chatId: activeChat && activeChat.id });
+
+        if (action === "copy") {
+            const el = document.querySelector(`[data-msg-id="${msgId}"]`) || document.getElementById(msgId);
+            if (el) navigator.clipboard && navigator.clipboard.writeText(el.textContent.trim());
+        }
+
+        menu.classList.add("hidden");
+
+    });
+
+    document.addEventListener("click", (e) => {
+        if (!menu.contains(e.target)) menu.classList.add("hidden");
+    });
+
+})();
+
+
+// ============================================================
+// ATTACH MENU (Document / Photos & Videos / Camera / Contact /
+// Poll / Location)
+// ============================================================
+
+(function wireAttachMenu() {
+
+    const menu = $id("attachMenu");
+    const btn = attachBtn;
+
+    if (!menu || !btn) return;
+
+    btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!activeChat) return;
+        const opening = menu.classList.contains("hidden");
+        menu.classList.toggle("hidden", !opening);
+        btn.setAttribute("aria-expanded", String(opening));
+    });
+
+    document.addEventListener("click", (e) => {
+        if (!menu.contains(e.target) && e.target !== btn) {
+            menu.classList.add("hidden");
+            btn.setAttribute("aria-expanded", "false");
+        }
+    });
+
+    function pickFile(accept, forcedKind, capture) {
+        if (!fileInput) return;
+        fileInput.accept = accept;
+        pendingForcedKind = forcedKind || null;
+        if (capture) fileInput.setAttribute("capture", capture); else fileInput.removeAttribute("capture");
+        fileInput.click();
+        menu.classList.add("hidden");
+    }
+
+    if ($id("attachDocumentOption")) $id("attachDocumentOption").addEventListener("click", () => pickFile("*/*", "document"));
+    if ($id("attachGalleryOption")) $id("attachGalleryOption").addEventListener("click", () => pickFile("image/*,video/*", null));
+    if ($id("attachCameraOption")) $id("attachCameraOption").addEventListener("click", () => pickFile("image/*", "image", "environment"));
+
+    if ($id("attachContactOption")) {
+        $id("attachContactOption").addEventListener("click", () => {
+            menu.classList.add("hidden");
+            openShareContactModal();
+        });
+    }
+
+    if ($id("attachPollOption")) {
+        $id("attachPollOption").addEventListener("click", () => {
+            menu.classList.add("hidden");
+            openCreatePollModal();
+        });
+    }
+
+    if ($id("attachLocationOption")) {
+        $id("attachLocationOption").addEventListener("click", () => {
+
+            menu.classList.add("hidden");
+            if (!activeChat) return;
+
+            if (!navigator.geolocation) {
+                showNiceAlert("Location isn't available on this device.", { title: "Can't share location" });
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    socket.emit("chat-message", {
+                        toId: activeChat.id,
+                        attachment: {
+                            kind: "location",
+                            lat: pos.coords.latitude,
+                            lng: pos.coords.longitude
+                        }
+                    });
+                },
+                () => showNiceAlert("Couldn't get your location.", { title: "Location unavailable" })
+            );
+
+        });
+    }
+
+})();
+
+
+// ============================================================
+// SHARE CONTACT
+// ============================================================
+
+function openShareContactModal() {
+
+    const modal = $id("shareContactModal");
+    if (!modal) return;
+
+    renderShareContactList("");
+    if ($id("shareContactSearchInput")) $id("shareContactSearchInput").value = "";
+
+    openModal(modal);
+
+}
+
+let selectedShareContactId = null;
+
+function renderShareContactList(query) {
+
+    const listEl = $id("shareContactList");
+    if (!listEl) return;
+
+    const q = (query || "").toLowerCase();
+
+    const friends = Object.keys(friendProfiles)
+        .map(id => ({ id, name: friendProfiles[id].name || "Friend" }))
+        .filter(f => f.name.toLowerCase().includes(q));
+
+    listEl.innerHTML = friends.length
+        ? friends.map(f => `
+            <label class="modal-picker-item">
+                <input type="radio" name="shareContactPick" data-id="${f.id}">
+                ${escapeHtml(f.name)}
+            </label>
+        `).join("")
+        : '<div class="add-participant-empty">No friends to share yet.</div>';
+
+    listEl.querySelectorAll("input[type=radio]").forEach(radio => {
+        radio.addEventListener("change", () => { selectedShareContactId = radio.dataset.id; });
+    });
+
+}
+
+if ($id("shareContactSearchInput")) {
+    $id("shareContactSearchInput").addEventListener("input", (e) => renderShareContactList(e.target.value));
+}
+
+if ($id("closeShareContactModal")) $id("closeShareContactModal").addEventListener("click", () => closeModal($id("shareContactModal")));
+
+if ($id("sendContactBtn")) {
+    $id("sendContactBtn").addEventListener("click", () => {
+
+        if (!activeChat || !selectedShareContactId) {
+            showNiceAlert("Pick a contact to share first.", { title: "No contact selected" });
+            return;
+        }
+
+        const profile = friendProfiles[selectedShareContactId];
+
+        socket.emit("chat-message", {
+            toId: activeChat.id,
+            attachment: {
+                kind: "contact",
+                contactId: selectedShareContactId,
+                name: (profile && profile.name) || "Contact"
+            }
+        });
+
+        closeModal($id("shareContactModal"));
+
+    });
+}
+
+
+// ============================================================
+// POLLS
+// ============================================================
+
+function openCreatePollModal() {
+
+    const modal = $id("createPollModal");
+    if (!modal) return;
+
+    if ($id("pollQuestionInput")) $id("pollQuestionInput").value = "";
+    if ($id("pollMultiAnswerToggle")) $id("pollMultiAnswerToggle").checked = false;
+
+    const list = $id("pollOptionsList");
+    if (list) {
+        list.innerHTML = `
+            <div class="poll-option-row"><input class="modal-text-input poll-option-input" type="text" maxlength="80" placeholder="Option 1"></div>
+            <div class="poll-option-row"><input class="modal-text-input poll-option-input" type="text" maxlength="80" placeholder="Option 2"></div>
+        `;
+    }
+
+    openModal(modal);
+
+}
+
+if ($id("closeCreatePollModal")) $id("closeCreatePollModal").addEventListener("click", () => closeModal($id("createPollModal")));
+
+if ($id("addPollOptionBtn")) {
+    $id("addPollOptionBtn").addEventListener("click", () => {
+        const list = $id("pollOptionsList");
+        if (!list) return;
+        const count = list.querySelectorAll(".poll-option-row").length + 1;
+        if (count > 12) return;
+        const row = document.createElement("div");
+        row.className = "poll-option-row";
+        row.innerHTML = `<input class="modal-text-input poll-option-input" type="text" maxlength="80" placeholder="Option ${count}">`;
+        list.appendChild(row);
+    });
+}
+
+if ($id("createPollBtn")) {
+    $id("createPollBtn").addEventListener("click", () => {
+
+        if (!activeChat) return;
+
+        const question = $id("pollQuestionInput") ? $id("pollQuestionInput").value.trim() : "";
+        const options = Array.from(document.querySelectorAll("#pollOptionsList .poll-option-input"))
+            .map(inp => inp.value.trim())
+            .filter(Boolean);
+
+        if (!question || options.length < 2) {
+            showNiceAlert("Add a question and at least two options.", { title: "Poll incomplete" });
+            return;
+        }
+
+        socket.emit("chat-message", {
+            toId: activeChat.id,
+            attachment: {
+                kind: "poll",
+                question,
+                options,
+                allowMultiple: $id("pollMultiAnswerToggle") ? $id("pollMultiAnswerToggle").checked : false
+            }
+        });
+
+        closeModal($id("createPollModal"));
+
+    });
+}
+
+
+// ============================================================
+// STATUS / STORIES
+// ============================================================
+
+let myStatusColor = "green";
+let statusMediaFile = null;
+
+function requestStatuses() {
+    socket.emit("get-statuses");
+}
+
+function renderStatusList(statuses) {
+
+    const listEl = $id("statusList");
+    const emptyEl = $id("noStatusUpdates");
+    if (!listEl) return;
+
+    if (!statuses || !statuses.length) {
+        if (emptyEl) emptyEl.classList.remove("hidden");
+        listEl.querySelectorAll(".status-item").forEach(el => el.remove());
+        return;
+    }
+
+    if (emptyEl) emptyEl.classList.add("hidden");
+
+    listEl.querySelectorAll(".status-item").forEach(el => el.remove());
+
+    statuses.forEach((group, idx) => {
+        const item = document.createElement("button");
+        item.className = "find-friend-btn status-item";
+        item.innerHTML = `
+            <span class="find-icon"><span class="avatar-inner">${escapeHtml((group.name || "?")[0] || "?")}</span></span>
+            <span class="find-text">
+                <strong>${escapeHtml(group.name || "Someone")}</strong>
+                <small>${group.updates ? group.updates.length : 0} update(s)</small>
+            </span>
+        `;
+        item.addEventListener("click", () => openStatusViewer(statuses, idx));
+        listEl.appendChild(item);
+    });
+
+}
+
+socket.on("statuses", (statuses) => renderStatusList(statuses));
+
+socket.on("status-posted", () => requestStatuses());
+
+if ($id("addStatusBtn")) $id("addStatusBtn").addEventListener("click", openCreateStatusModal);
+
+function openCreateStatusModal() {
+
+    const modal = $id("createStatusModal");
+    if (!modal) return;
+
+    if ($id("statusTextInput")) $id("statusTextInput").value = "";
+    if ($id("statusCaptionInput")) $id("statusCaptionInput").value = "";
+    statusMediaFile = null;
+
+    const preview = $id("statusMediaPreview");
+    if (preview) { preview.innerHTML = ""; preview.classList.add("hidden"); }
+
+    openModal(modal);
+
+}
+
+if ($id("closeCreateStatusModal")) $id("closeCreateStatusModal").addEventListener("click", () => closeModal($id("createStatusModal")));
+
+(function wireStatusComposeTabs() {
+
+    const tabs = document.querySelectorAll(".status-compose-tab");
+    tabs.forEach(tab => {
+        tab.addEventListener("click", () => {
+            tabs.forEach(t => t.classList.toggle("active", t === tab));
+            const which = tab.dataset.statusTab;
+            if ($id("statusTextTabContent")) $id("statusTextTabContent").classList.toggle("hidden", which !== "text");
+            if ($id("statusMediaTabContent")) $id("statusMediaTabContent").classList.toggle("hidden", which !== "media");
+        });
+    });
+
+})();
+
+(function wireStatusColorSwatches() {
+
+    const grid = $id("statusColorSwatchGrid");
+    if (!grid) return;
+
+    grid.addEventListener("click", (e) => {
+        const sw = e.target.closest(".status-color-swatch");
+        if (!sw) return;
+        grid.querySelectorAll(".status-color-swatch").forEach(s => s.classList.remove("selected"));
+        sw.classList.add("selected");
+        myStatusColor = sw.dataset.statusColor;
+    });
+
+})();
+
+if ($id("statusMediaPickBtn") && $id("statusMediaInput")) {
+    $id("statusMediaPickBtn").addEventListener("click", () => $id("statusMediaInput").click());
+}
+
+if ($id("statusMediaInput")) {
+    $id("statusMediaInput").addEventListener("change", () => {
+
+        const file = $id("statusMediaInput").files[0];
+        if (!file) return;
+
+        statusMediaFile = file;
+
+        const preview = $id("statusMediaPreview");
+        if (preview) {
+            preview.classList.remove("hidden");
+            if (file.type.startsWith("image/")) {
+                preview.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="">`;
+            } else {
+                preview.innerHTML = `<i class="fa-solid fa-video"></i> ${escapeHtml(file.name)}`;
+            }
+        }
+
+    });
+}
+
+if ($id("postStatusBtn")) {
+    $id("postStatusBtn").addEventListener("click", async () => {
+
+        const activeTab = document.querySelector(".status-compose-tab.active");
+        const isMedia = activeTab && activeTab.dataset.statusTab === "media";
+        const privacy = $id("statusPrivacySelect") ? $id("statusPrivacySelect").value : "contacts";
+
+        if (isMedia) {
+
+            if (!statusMediaFile) {
+                showNiceAlert("Choose a photo or video first.", { title: "Nothing to post" });
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", statusMediaFile);
+
+            try {
+                const res = await fetch("/upload", { method: "POST", body: formData });
+                const data = await res.json();
+                socket.emit("post-status", {
+                    kind: "media",
+                    url: data.url,
+                    caption: $id("statusCaptionInput") ? $id("statusCaptionInput").value.trim() : "",
+                    privacy
+                });
+            } catch (err) {
+                showNiceAlert("Couldn't upload that file right now.", { title: "Upload failed" });
+                return;
+            }
+
+        } else {
+
+            const text = $id("statusTextInput") ? $id("statusTextInput").value.trim() : "";
+
+            if (!text) {
+                showNiceAlert("Write something first.", { title: "Nothing to post" });
+                return;
+            }
+
+            socket.emit("post-status", { kind: "text", text, color: myStatusColor, privacy });
+
+        }
+
+        closeModal($id("createStatusModal"));
+
+    });
+}
+
+
+// ---- Status viewer (full-screen playback) ----
+
+let statusViewerGroups = [];
+let statusViewerGroupIdx = 0;
+let statusViewerUpdateIdx = 0;
+let statusViewerTimer = null;
+
+function openStatusViewer(groups, groupIdx) {
+
+    statusViewerGroups = groups;
+    statusViewerGroupIdx = groupIdx;
+    statusViewerUpdateIdx = 0;
+
+    openModal($id("statusViewerOverlay"));
+    playCurrentStatus();
+
+}
+
+function currentStatusGroup() { return statusViewerGroups[statusViewerGroupIdx]; }
+function currentStatusUpdate() {
+    const g = currentStatusGroup();
+    return g && g.updates ? g.updates[statusViewerUpdateIdx] : null;
+}
+
+function playCurrentStatus() {
+
+    clearTimeout(statusViewerTimer);
+
+    const group = currentStatusGroup();
+    const update = currentStatusUpdate();
+
+    if (!group || !update) {
+        closeModal($id("statusViewerOverlay"));
+        return;
+    }
+
+    if ($id("statusViewerName")) $id("statusViewerName").textContent = group.name || "";
+    if ($id("statusViewerAvatar")) $id("statusViewerAvatar").textContent = (group.name || "?")[0] || "?";
+    if ($id("statusViewerTime")) $id("statusViewerTime").textContent = update.time ? new Date(update.time).toLocaleTimeString() : "Just now";
+
+    const content = $id("statusViewerContent");
+    if (content) {
+        if (update.kind === "media") {
+            content.innerHTML = update.url && /\.(mp4|webm|mov)$/i.test(update.url)
+                ? `<video src="${update.url}" autoplay muted playsinline></video>`
+                : `<img src="${update.url}" alt="">`;
+        } else {
+            content.innerHTML = `<div class="status-text-slide status-color-${update.color || "green"}">${escapeHtml(update.text || "")}</div>`;
+        }
+    }
+
+    const bars = $id("statusProgressBars");
+    if (bars) {
+        bars.innerHTML = group.updates.map((u, i) => `<span class="status-progress-bar${i < statusViewerUpdateIdx ? " done" : ""}${i === statusViewerUpdateIdx ? " active" : ""}"></span>`).join("");
+    }
+
+    const viewCountWrap = $id("statusViewCountWrap");
+    const isMine = me && group.id === me.id;
+    if (viewCountWrap) viewCountWrap.classList.toggle("hidden", !isMine);
+    if (isMine && $id("statusViewCount")) $id("statusViewCount").textContent = String((update.viewers || []).length);
+
+    if (!isMine) socket.emit("view-status", { statusId: update.id, ownerId: group.id });
+
+    statusViewerTimer = setTimeout(nextStatus, 5000);
+
+}
+
+function nextStatus() {
+
+    const group = currentStatusGroup();
+    if (!group) return;
+
+    if (statusViewerUpdateIdx < group.updates.length - 1) {
+        statusViewerUpdateIdx++;
+        playCurrentStatus();
+    } else if (statusViewerGroupIdx < statusViewerGroups.length - 1) {
+        statusViewerGroupIdx++;
+        statusViewerUpdateIdx = 0;
+        playCurrentStatus();
+    } else {
+        closeModal($id("statusViewerOverlay"));
+    }
+
+}
+
+function prevStatus() {
+
+    if (statusViewerUpdateIdx > 0) {
+        statusViewerUpdateIdx--;
+        playCurrentStatus();
+    } else if (statusViewerGroupIdx > 0) {
+        statusViewerGroupIdx--;
+        statusViewerUpdateIdx = Math.max(0, (currentStatusGroup().updates.length - 1));
+        playCurrentStatus();
+    }
+
+}
+
+if ($id("statusViewerNextZone")) $id("statusViewerNextZone").addEventListener("click", nextStatus);
+if ($id("statusViewerPrevZone")) $id("statusViewerPrevZone").addEventListener("click", prevStatus);
+
+if ($id("statusViewerCloseBtn")) {
+    $id("statusViewerCloseBtn").addEventListener("click", () => {
+        clearTimeout(statusViewerTimer);
+        closeModal($id("statusViewerOverlay"));
+    });
+}
+
+if ($id("statusViewerMuteBtn")) {
+    $id("statusViewerMuteBtn").addEventListener("click", () => {
+        const icon = $id("statusViewerMuteBtn").querySelector("i");
+        const muted = icon && icon.classList.contains("fa-volume-xmark");
+        if (icon) {
+            icon.classList.toggle("fa-volume-high", muted);
+            icon.classList.toggle("fa-volume-xmark", !muted);
+        }
+        const media = document.querySelector("#statusViewerContent video");
+        if (media) media.muted = !muted;
+    });
+}
+
+if ($id("statusViewerMoreBtn")) {
+    $id("statusViewerMoreBtn").addEventListener("click", () => {
+        const update = currentStatusUpdate();
+        const group = currentStatusGroup();
+        if (!update || !group) return;
+        if (me && group.id === me.id) {
+            if (confirm("Delete this status update?")) {
+                socket.emit("delete-status", { statusId: update.id });
+                closeModal($id("statusViewerOverlay"));
+            }
+        }
+    });
+}
+
+if ($id("statusReplySendBtn")) {
+    $id("statusReplySendBtn").addEventListener("click", () => {
+
+        const input = $id("statusReplyInput");
+        const text = input ? input.value.trim() : "";
+        const update = currentStatusUpdate();
+        const group = currentStatusGroup();
+
+        if (!text || !update || !group) return;
+
+        socket.emit("chat-message", {
+            toId: group.id,
+            text: `Replying to status: ${text}`
+        });
+
+        if (input) input.value = "";
+
+    });
+}
+
+
+// ============================================================
+// CALLS TAB
+// ============================================================
+
+function getCallHistory() {
+    try {
+        return JSON.parse(localStorage.getItem("siteChatCallHistory") || "[]");
+    } catch (e) {
+        return [];
+    }
+}
+
+function logCallHistory(entry) {
+    const list = getCallHistory();
+    list.unshift(Object.assign({ time: Date.now() }, entry));
+    localStorage.setItem("siteChatCallHistory", JSON.stringify(list.slice(0, 100)));
+    renderCallHistory();
+}
+
+function renderCallHistory() {
+
+    const listEl = $id("callHistoryList");
+    const emptyEl = $id("noCallHistory");
+    if (!listEl) return;
+
+    const history = getCallHistory();
+
+    listEl.querySelectorAll(".call-history-item").forEach(el => el.remove());
+
+    if (!history.length) {
+        if (emptyEl) emptyEl.classList.remove("hidden");
+        return;
+    }
+
+    if (emptyEl) emptyEl.classList.add("hidden");
+
+    history.forEach(entry => {
+        const item = document.createElement("div");
+        item.className = "find-friend-btn call-history-item";
+        const icon = entry.direction === "outgoing" ? "fa-arrow-up-right-from-square" : entry.direction === "missed" ? "fa-phone-slash" : "fa-arrow-down-left";
+        item.innerHTML = `
+            <span class="find-icon"><i class="fa-solid ${entry.callType === "video" ? "fa-video" : "fa-phone"}"></i></span>
+            <span class="find-text">
+                <strong>${escapeHtml(entry.name || "Unknown")}</strong>
+                <small><i class="fa-solid ${icon}"></i> ${new Date(entry.time).toLocaleString()}</small>
+            </span>
+        `;
+        item.addEventListener("click", () => {
+            if (entry.id) {
+                openChat(entry.id, entry.name, myGroups.get(entry.id));
+                startCall(entry.callType || "audio");
+            }
+        });
+        listEl.appendChild(item);
+    });
+
+}
+
+if ($id("newCallBtn")) {
+    $id("newCallBtn").addEventListener("click", () => {
+        if (typeof openFindFriendPanel === "function") openFindFriendPanel();
+    });
+}
+
+// best-effort call history logging, hooking the existing call events
+socket.on("incoming-call", ({ fromId, fromName, callType }) => {
+    logCallHistory({ id: fromId, name: fromName, callType, direction: "incoming" });
+});
+
+(function wireOutgoingCallLog() {
+    if (audioCallBtn) {
+        audioCallBtn.addEventListener("click", () => {
+            if (activeChat && !activeChat.isGroup) logCallHistory({ id: activeChat.id, name: activeChat.name, callType: "audio", direction: "outgoing" });
+        });
+    }
+    if (videoCallBtn) {
+        videoCallBtn.addEventListener("click", () => {
+            if (activeChat && !activeChat.isGroup) logCallHistory({ id: activeChat.id, name: activeChat.name, callType: "video", direction: "outgoing" });
+        });
+    }
+})();
+
+renderCallHistory();
+
+
+// ============================================================
+// CHANNELS
+// ============================================================
+
+let channelIconUrl = null;
+
+function requestChannels() { socket.emit("get-channels"); }
+
+function renderChannelsList(channels) {
+
+    const listEl = $id("channelsList");
+    if (!listEl) return;
+
+    listEl.innerHTML = (channels || []).map(ch => `
+        <div class="friend-item channel-item" data-id="${ch.id}">
+            <span class="find-icon"><i class="fa-solid fa-bullhorn"></i></span>
+            <span class="find-text"><strong>${escapeHtml(ch.name)}</strong></span>
+        </div>
+    `).join("");
+
+    listEl.querySelectorAll(".channel-item").forEach(item => {
+        item.addEventListener("click", () => {
+            const ch = (channels || []).find(c => c.id === item.dataset.id);
+            openChat(item.dataset.id, ch ? ch.name : "Channel", ch ? { memberIds: [], adminIds: [me.id], icon: ch.icon, description: ch.description } : null);
+        });
+    });
+
+}
+
+socket.on("channels-list", (channels) => renderChannelsList(channels));
+
+if ($id("newChannelBtn")) {
+    $id("newChannelBtn").addEventListener("click", () => {
+        channelIconUrl = null;
+        if ($id("newChannelNameInput")) $id("newChannelNameInput").value = "";
+        if ($id("newChannelDescInput")) $id("newChannelDescInput").value = "";
+        if ($id("channelIconInner")) { $id("channelIconInner").style.backgroundImage = ""; $id("channelIconInner").innerHTML = '<i class="fa-solid fa-bullhorn"></i>'; }
+        openModal($id("newChannelModal"));
+    });
+}
+
+if ($id("closeNewChannelModal")) $id("closeNewChannelModal").addEventListener("click", () => closeModal($id("newChannelModal")));
+
+if ($id("channelIcon") && $id("channelIconInput")) {
+    $id("channelIcon").addEventListener("click", () => $id("channelIconInput").click());
+}
+
+if ($id("channelIconInput")) {
+    $id("channelIconInput").addEventListener("change", async () => {
+
+        const file = $id("channelIconInput").files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const res = await fetch("/upload", { method: "POST", body: formData });
+            const data = await res.json();
+            channelIconUrl = data.url;
+            if ($id("channelIconInner")) {
+                $id("channelIconInner").style.backgroundImage = `url("${data.url}")`;
+                $id("channelIconInner").innerHTML = "";
+            }
+        } catch (err) {
+            showNiceAlert("Couldn't upload that image.", { title: "Upload failed" });
+        }
+
+    });
+}
+
+if ($id("createChannelBtn")) {
+    $id("createChannelBtn").addEventListener("click", () => {
+
+        const name = $id("newChannelNameInput") ? $id("newChannelNameInput").value.trim() : "";
+
+        if (!name) {
+            showNiceAlert("Give your channel a name first.", { title: "Name required" });
+            return;
+        }
+
+        socket.emit("create-channel", {
+            name,
+            description: $id("newChannelDescInput") ? $id("newChannelDescInput").value.trim() : "",
+            icon: channelIconUrl
+        });
+
+        closeModal($id("newChannelModal"));
+
+    });
+}
+
+
+// ============================================================
+// COMMUNITIES
+// ============================================================
+
+let communityIconUrl = null;
+let selectedCommunityGroups = new Set();
+
+function requestCommunities() { socket.emit("get-communities"); }
+
+function renderCommunitiesList(communities) {
+
+    const listEl = $id("communitiesList");
+    if (!listEl) return;
+
+    listEl.innerHTML = (communities || []).map(c => `
+        <div class="friend-item community-item" data-id="${c.id}">
+            <span class="find-icon"><i class="fa-solid fa-people-roof"></i></span>
+            <span class="find-text"><strong>${escapeHtml(c.name)}</strong></span>
+        </div>
+    `).join("");
+
+    listEl.querySelectorAll(".community-item").forEach(item => {
+        item.addEventListener("click", () => {
+            const c = (communities || []).find(x => x.id === item.dataset.id);
+            showNiceAlert(c ? c.description || "Community" : "Community", { title: c ? c.name : "Community", icon: "fa-people-roof" });
+        });
+    });
+
+}
+
+socket.on("communities-list", (communities) => renderCommunitiesList(communities));
+
+if ($id("newCommunityBtn")) {
+    $id("newCommunityBtn").addEventListener("click", () => {
+
+        communityIconUrl = null;
+        selectedCommunityGroups = new Set();
+
+        if ($id("newCommunityNameInput")) $id("newCommunityNameInput").value = "";
+        if ($id("newCommunityDescInput")) $id("newCommunityDescInput").value = "";
+        if ($id("communityIconInner")) { $id("communityIconInner").style.backgroundImage = ""; $id("communityIconInner").innerHTML = '<i class="fa-solid fa-people-roof"></i>'; }
+
+        const groupsList = $id("newCommunityGroupsList");
+        if (groupsList) {
+            const groups = Array.from(myGroups.values());
+            groupsList.innerHTML = groups.length
+                ? groups.map(g => `
+                    <label class="modal-picker-item">
+                        <input type="checkbox" data-id="${g.id}">
+                        ${escapeHtml(g.name)}
+                    </label>
+                `).join("")
+                : '<div class="add-participant-empty">No groups yet - create one first.</div>';
+
+            groupsList.querySelectorAll("input[type=checkbox]").forEach(box => {
+                box.addEventListener("change", () => {
+                    if (box.checked) selectedCommunityGroups.add(box.dataset.id);
+                    else selectedCommunityGroups.delete(box.dataset.id);
+                });
+            });
+        }
+
+        openModal($id("newCommunityModal"));
+
+    });
+}
+
+if ($id("closeNewCommunityModal")) $id("closeNewCommunityModal").addEventListener("click", () => closeModal($id("newCommunityModal")));
+
+if ($id("communityIcon") && $id("communityIconInput")) {
+    $id("communityIcon").addEventListener("click", () => $id("communityIconInput").click());
+}
+
+if ($id("communityIconInput")) {
+    $id("communityIconInput").addEventListener("change", async () => {
+
+        const file = $id("communityIconInput").files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const res = await fetch("/upload", { method: "POST", body: formData });
+            const data = await res.json();
+            communityIconUrl = data.url;
+            if ($id("communityIconInner")) {
+                $id("communityIconInner").style.backgroundImage = `url("${data.url}")`;
+                $id("communityIconInner").innerHTML = "";
+            }
+        } catch (err) {
+            showNiceAlert("Couldn't upload that image.", { title: "Upload failed" });
+        }
+
+    });
+}
+
+if ($id("createCommunityBtn")) {
+    $id("createCommunityBtn").addEventListener("click", () => {
+
+        const name = $id("newCommunityNameInput") ? $id("newCommunityNameInput").value.trim() : "";
+
+        if (!name) {
+            showNiceAlert("Give your community a name first.", { title: "Name required" });
+            return;
+        }
+
+        socket.emit("create-community", {
+            name,
+            description: $id("newCommunityDescInput") ? $id("newCommunityDescInput").value.trim() : "",
+            icon: communityIconUrl,
+            groupIds: Array.from(selectedCommunityGroups)
+        });
+
+        closeModal($id("newCommunityModal"));
+
+    });
+}
+
+
+// ============================================================
+// HOOK INTO openChat() FOR WALLPAPER / SEARCH-BAR RESET
+// ============================================================
+
+(function wrapOpenChatForNewFeatures() {
+
+    const originalOpenChat = openChat;
+
+    openChat = function (...args) {
+
+        originalOpenChat.apply(this, args);
+
+        applyChatWallpaper();
+        closeChatSearchBar();
+
+        const muteOption = $id("muteChatOption");
+        if (muteOption && activeChat) {
+            const label = muteOption.querySelector("span");
+            if (label) label.innerHTML = isChatMuted(activeChat.id)
+                ? '<i class="fa-solid fa-bell"></i> Unmute notifications'
+                : '<i class="fa-solid fa-bell-slash"></i> Mute notifications';
+        }
+
+    };
+
+})();
+
+
+// ============================================================
+// INITIAL LOAD (once we've joined)
+// ============================================================
+
+socket.on("joined", () => {
+    requestStatuses();
+    requestChannels();
+    requestCommunities();
+});

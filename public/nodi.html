@@ -201,117 +201,445 @@
         </div>
 
 
-        <!-- Find Friend -->
+        <!-- =====================================================
+             SIDEBAR NAV TABS: Chats / Status / Calls
+        ====================================================== -->
 
-        <button
-            id="findFriendBtn"
-            class="find-friend-btn">
+        <div id="sidebarNavTabs" class="sidebar-nav-tabs">
 
-            <span class="find-icon">
+            <button class="sidebar-nav-tab active" data-sidebar-view="chats" title="Chats">
+                <i class="fa-solid fa-comment"></i>
+                <span>Chats</span>
+            </button>
+
+            <button class="sidebar-nav-tab" data-sidebar-view="status" title="Status">
+                <i class="fa-solid fa-circle-notch"></i>
+                <span>Status</span>
+                <span id="statusUnreadDot" class="status-unread-dot hidden"></span>
+            </button>
+
+            <button class="sidebar-nav-tab" data-sidebar-view="calls" title="Calls">
+                <i class="fa-solid fa-phone"></i>
+                <span>Calls</span>
+            </button>
+
+        </div>
+
+
+        <!-- =====================================================
+             CHATS VIEW (default)
+        ====================================================== -->
+
+        <div id="chatsView" class="sidebar-view">
+
+            <!-- Search chats -->
+
+            <div class="sidebar-search">
+
                 <i class="fa-solid fa-magnifying-glass"></i>
-            </span>
 
-            <span class="find-text">
+                <input
+                    id="chatSearchInput"
+                    type="text"
+                    placeholder="Search or start a new chat"
+                    autocomplete="off">
 
-                <strong>
-                    Find Friend
-                </strong>
-
-                <small>
-                    Discover people on Site Chat
-                </small>
-
-            </span>
-
-            <span class="find-arrow">
-                <i class="fa-solid fa-chevron-right"></i>
-            </span>
-
-        </button>
+            </div>
 
 
-        <!-- New Group -->
+            <!-- Find Friend -->
 
-        <button
-            id="newGroupBtn"
-            class="find-friend-btn new-group-btn">
+            <button
+                id="findFriendBtn"
+                class="find-friend-btn">
 
-            <span class="find-icon">
-                <i class="fa-solid fa-user-group"></i>
-            </span>
+                <span class="find-icon">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </span>
 
-            <span class="find-text">
+                <span class="find-text">
 
-                <strong>
-                    New Group
-                </strong>
+                    <strong>
+                        Find Friend
+                    </strong>
 
-                <small>
-                    Chat and call with several friends at once
-                </small>
+                    <small>
+                        Discover people on Site Chat
+                    </small>
 
-            </span>
+                </span>
 
-            <span class="find-arrow">
-                <i class="fa-solid fa-chevron-right"></i>
-            </span>
+                <span class="find-arrow">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </span>
 
-        </button>
-
-
-        <!-- Groups Heading -->
-
-        <div class="friends-heading">
-            <span>
-                GROUPS
-            </span>
-        </div>
+            </button>
 
 
-        <!-- Groups List -->
+            <!-- New Group -->
 
-        <div
-            id="groupsList"
-            class="friends-list groups-list">
-        </div>
+            <button
+                id="newGroupBtn"
+                class="find-friend-btn new-group-btn">
 
-
-        <!-- Friends Heading -->
-
-        <div class="friends-heading">
-
-            <span>
-                MY FRIENDS
-            </span>
-
-            <span
-                id="onlineFriendsCount"
-                class="friends-count">
-                0
-            </span>
-
-        </div>
-
-
-        <!-- Friends List -->
-
-        <div
-            id="friendsList"
-            class="friends-list">
-
-            <div class="no-friends">
-
-                <div class="no-friends-icon">
+                <span class="find-icon">
                     <i class="fa-solid fa-user-group"></i>
-                </div>
+                </span>
 
-                <strong>
-                    No friends yet
-                </strong>
+                <span class="find-text">
+
+                    <strong>
+                        New Group
+                    </strong>
+
+                    <small>
+                        Chat and call with several friends at once
+                    </small>
+
+                </span>
+
+                <span class="find-arrow">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </span>
+
+            </button>
+
+
+            <!-- New Community -->
+
+            <button
+                id="newCommunityBtn"
+                class="find-friend-btn new-community-btn">
+
+                <span class="find-icon">
+                    <i class="fa-solid fa-people-roof"></i>
+                </span>
+
+                <span class="find-text">
+
+                    <strong>
+                        New Community
+                    </strong>
+
+                    <small>
+                        Bring several groups together
+                    </small>
+
+                </span>
+
+                <span class="find-arrow">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </span>
+
+            </button>
+
+
+            <!-- New Channel -->
+
+            <button
+                id="newChannelBtn"
+                class="find-friend-btn new-channel-btn">
+
+                <span class="find-icon">
+                    <i class="fa-solid fa-bullhorn"></i>
+                </span>
+
+                <span class="find-text">
+
+                    <strong>
+                        New Channel
+                    </strong>
+
+                    <small>
+                        Broadcast updates to followers
+                    </small>
+
+                </span>
+
+                <span class="find-arrow">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </span>
+
+            </button>
+
+
+            <!-- Communities Heading -->
+
+            <div class="friends-heading">
+                <span>
+                    COMMUNITIES
+                </span>
+            </div>
+
+
+            <!-- Communities List -->
+
+            <div
+                id="communitiesList"
+                class="friends-list communities-list">
+            </div>
+
+
+            <!-- Channels Heading -->
+
+            <div class="friends-heading">
+                <span>
+                    CHANNELS
+                </span>
+            </div>
+
+
+            <!-- Channels List -->
+
+            <div
+                id="channelsList"
+                class="friends-list channels-list">
+            </div>
+
+
+            <!-- Groups Heading -->
+
+            <div class="friends-heading">
+                <span>
+                    GROUPS
+                </span>
+            </div>
+
+
+            <!-- Groups List -->
+
+            <div
+                id="groupsList"
+                class="friends-list groups-list">
+            </div>
+
+
+            <!-- Friends Heading -->
+
+            <div class="friends-heading">
 
                 <span>
-                    Find someone to start chatting.
+                    MY FRIENDS
                 </span>
+
+                <span
+                    id="onlineFriendsCount"
+                    class="friends-count">
+                    0
+                </span>
+
+            </div>
+
+
+            <!-- Friends List -->
+
+            <div
+                id="friendsList"
+                class="friends-list">
+
+                <div class="no-friends">
+
+                    <div class="no-friends-icon">
+                        <i class="fa-solid fa-user-group"></i>
+                    </div>
+
+                    <strong>
+                        No friends yet
+                    </strong>
+
+                    <span>
+                        Find someone to start chatting.
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <!-- Locked Chats folder -->
+
+            <button
+                id="lockedChatsToggle"
+                class="locked-chats-toggle-btn hidden">
+
+                <span class="find-icon locked-chats-icon">
+                    <i class="fa-solid fa-lock"></i>
+                </span>
+
+                <span class="find-text">
+                    <strong>Locked Chats</strong>
+                </span>
+
+                <span class="find-arrow">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </span>
+
+            </button>
+
+
+            <!-- Archived Chats (collapsible) -->
+
+            <button
+                id="archivedChatsToggle"
+                class="archived-toggle-btn hidden">
+
+                <span class="find-icon">
+                    <i class="fa-solid fa-box-archive"></i>
+                </span>
+
+                <span class="find-text">
+                    <strong>Archived</strong>
+                </span>
+
+                <span id="archivedCount" class="friends-count">
+                    0
+                </span>
+
+            </button>
+
+            <div
+                id="archivedChatsList"
+                class="friends-list archived-chats-list hidden">
+            </div>
+
+        </div>
+
+
+        <!-- =====================================================
+             STATUS VIEW
+        ====================================================== -->
+
+        <div id="statusView" class="sidebar-view hidden">
+
+            <!-- My status -->
+
+            <button
+                id="addStatusBtn"
+                class="find-friend-btn add-status-btn">
+
+                <span class="find-icon status-add-icon">
+                    <span id="myStatusAvatarInner" class="avatar-inner">M</span>
+                    <span class="status-add-plus">
+                        <i class="fa-solid fa-plus"></i>
+                    </span>
+                </span>
+
+                <span class="find-text">
+
+                    <strong>
+                        My Status
+                    </strong>
+
+                    <small>
+                        Tap to add a status update
+                    </small>
+
+                </span>
+
+            </button>
+
+
+            <!-- Recent updates heading -->
+
+            <div class="friends-heading">
+                <span>
+                    RECENT UPDATES
+                </span>
+            </div>
+
+
+            <!-- Status List -->
+
+            <div
+                id="statusList"
+                class="friends-list status-list">
+
+                <div class="no-friends" id="noStatusUpdates">
+
+                    <div class="no-friends-icon">
+                        <i class="fa-regular fa-circle"></i>
+                    </div>
+
+                    <strong>
+                        No status updates
+                    </strong>
+
+                    <span>
+                        Updates from friends will show up here.
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- =====================================================
+             CALLS VIEW
+        ====================================================== -->
+
+        <div id="callsView" class="sidebar-view hidden">
+
+            <!-- New call -->
+
+            <button
+                id="newCallBtn"
+                class="find-friend-btn">
+
+                <span class="find-icon">
+                    <i class="fa-solid fa-phone-volume"></i>
+                </span>
+
+                <span class="find-text">
+
+                    <strong>
+                        New Call
+                    </strong>
+
+                    <small>
+                        Start a voice or video call
+                    </small>
+
+                </span>
+
+                <span class="find-arrow">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </span>
+
+            </button>
+
+
+            <!-- Recent calls heading -->
+
+            <div class="friends-heading">
+                <span>
+                    RECENT CALLS
+                </span>
+            </div>
+
+
+            <!-- Call History List -->
+
+            <div
+                id="callHistoryList"
+                class="friends-list call-history-list">
+
+                <div class="no-friends" id="noCallHistory">
+
+                    <div class="no-friends-icon">
+                        <i class="fa-solid fa-phone"></i>
+                    </div>
+
+                    <strong>
+                        No recent calls
+                    </strong>
+
+                    <span>
+                        Your call history will appear here.
+                    </span>
+
+                </div>
 
             </div>
 
@@ -409,6 +737,48 @@
                     <span>
                         <i class="fa-solid fa-circle"></i>
                         People online
+                    </span>
+
+                    <span>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </span>
+
+                </button>
+
+
+                <button data-account-view="starred">
+
+                    <span>
+                        <i class="fa-solid fa-star"></i>
+                        Starred messages
+                    </span>
+
+                    <span>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </span>
+
+                </button>
+
+
+                <button data-account-view="privacy">
+
+                    <span>
+                        <i class="fa-solid fa-lock"></i>
+                        Privacy &amp; security
+                    </span>
+
+                    <span>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </span>
+
+                </button>
+
+
+                <button data-account-view="linked-devices">
+
+                    <span>
+                        <i class="fa-solid fa-display"></i>
+                        Linked devices
                     </span>
 
                     <span>
@@ -534,7 +904,20 @@
                 </button>
 
 
-                <!-- Chat options (disappearing messages, etc.) -->
+                <!-- Search in chat -->
+
+                <button
+                    id="searchInChatBtn"
+                    class="call-btn"
+                    title="Search in chat"
+                    aria-label="Search in chat">
+
+                    <i class="fa-solid fa-magnifying-glass"></i>
+
+                </button>
+
+
+                <!-- Chat options (disappearing messages, mute, wallpaper, lock, etc.) -->
 
                 <div class="disappearing-menu-wrap">
 
@@ -566,6 +949,54 @@
                             role="none">
                         </div>
 
+                        <div class="disappearing-menu-label">
+                            <i class="fa-solid fa-sliders"></i>
+                            <span>More options</span>
+                        </div>
+
+                        <div
+                            id="chatMoreOptionsList"
+                            class="disappearing-options-list"
+                            role="none">
+
+                            <button id="viewContactOption" class="disappearing-option" role="menuitem">
+                                <span><i class="fa-solid fa-user"></i> View contact</span>
+                            </button>
+
+                            <button id="muteChatOption" class="disappearing-option" role="menuitem">
+                                <span><i class="fa-solid fa-bell-slash"></i> Mute notifications</span>
+                            </button>
+
+                            <button id="chatWallpaperOption" class="disappearing-option" role="menuitem">
+                                <span><i class="fa-solid fa-image"></i> Wallpaper</span>
+                            </button>
+
+                            <button id="chatLockOption" class="disappearing-option" role="menuitem">
+                                <span><i class="fa-solid fa-lock"></i> Lock chat</span>
+                            </button>
+
+                            <button id="advancedPrivacyOption" class="disappearing-option" role="menuitem">
+                                <span><i class="fa-solid fa-shield-halved"></i> Advanced chat privacy</span>
+                            </button>
+
+                            <button id="exportChatOption" class="disappearing-option" role="menuitem">
+                                <span><i class="fa-solid fa-file-export"></i> Export chat</span>
+                            </button>
+
+                            <button id="archiveChatOption" class="disappearing-option" role="menuitem">
+                                <span><i class="fa-solid fa-box-archive"></i> Archive chat</span>
+                            </button>
+
+                            <button id="clearChatOption" class="disappearing-option" role="menuitem">
+                                <span><i class="fa-solid fa-broom"></i> Clear chat</span>
+                            </button>
+
+                            <button id="blockContactOption" class="disappearing-option disappearing-option-danger" role="menuitem">
+                                <span><i class="fa-solid fa-ban"></i> Block contact</span>
+                            </button>
+
+                        </div>
+
                     </div>
 
                 </div>
@@ -573,6 +1004,34 @@
             </div>
 
         </header>
+
+
+        <!-- Message search bar (find within this chat) -->
+        <div id="chatSearchBar" class="chat-search-bar hidden">
+
+            <i class="fa-solid fa-magnifying-glass"></i>
+
+            <input
+                id="chatSearchBarInput"
+                type="text"
+                placeholder="Search messages"
+                autocomplete="off">
+
+            <span id="chatSearchMatchCount" class="chat-search-match-count"></span>
+
+            <button id="chatSearchPrevBtn" class="chat-search-nav-btn" title="Previous match" aria-label="Previous match">
+                <i class="fa-solid fa-chevron-up"></i>
+            </button>
+
+            <button id="chatSearchNextBtn" class="chat-search-nav-btn" title="Next match" aria-label="Next match">
+                <i class="fa-solid fa-chevron-down"></i>
+            </button>
+
+            <button id="chatSearchCloseBtn" class="chat-search-nav-btn" title="Close search" aria-label="Close search">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+        </div>
 
 
         <!-- Pinned message banner -->
@@ -583,6 +1042,10 @@
                 <i class="fa-solid fa-xmark"></i>
             </button>
         </div>
+
+
+        <!-- Floating message context menu (reply/forward/star/edit/pin/delete/react/copy) -->
+        <div id="msgContextMenu" class="msg-context-menu hidden" role="menu"></div>
 
 
         <!-- =================================================
@@ -694,6 +1157,39 @@
         <div id="mentionDropdown" class="mention-dropdown hidden"></div>
 
 
+        <!-- Attachment / media preview bar (shown before sending a file) -->
+        <div id="mediaPreviewBar" class="media-preview-bar hidden">
+
+            <button id="mediaPreviewClose" class="media-preview-close" title="Remove attachment" aria-label="Remove attachment">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+
+            <div id="mediaPreviewThumb" class="media-preview-thumb">
+                <i class="fa-regular fa-file"></i>
+            </div>
+
+            <div class="media-preview-info">
+                <strong id="mediaPreviewName">attachment</strong>
+                <small id="mediaPreviewSize"></small>
+            </div>
+
+            <button
+                id="viewOnceToggleBtn"
+                class="media-preview-view-once"
+                title="Send as view once"
+                aria-label="Send as view once"
+                aria-pressed="false">
+
+                <span class="view-once-icon-stack">
+                    <i class="fa-regular fa-circle"></i>
+                    <span>1</span>
+                </span>
+
+            </button>
+
+        </div>
+
+
         <!-- =================================================
              MESSAGE COMPOSER
         ================================================== -->
@@ -704,15 +1200,55 @@
 
             <!-- Upload -->
 
-            <button
-                id="attachBtn"
-                class="composer-icon"
-                title="Upload file"
-                aria-label="Upload file">
+            <div class="attach-menu-wrap">
 
-                <i class="fa-solid fa-paperclip"></i>
+                <button
+                    id="attachBtn"
+                    class="composer-icon"
+                    title="Attach"
+                    aria-label="Attach"
+                    aria-haspopup="true"
+                    aria-expanded="false">
 
-            </button>
+                    <i class="fa-solid fa-paperclip"></i>
+
+                </button>
+
+                <div id="attachMenu" class="attach-menu hidden" role="menu">
+
+                    <button id="attachDocumentOption" class="attach-menu-item" role="menuitem">
+                        <span class="attach-menu-icon attach-icon-document"><i class="fa-solid fa-file-lines"></i></span>
+                        <span>Document</span>
+                    </button>
+
+                    <button id="attachGalleryOption" class="attach-menu-item" role="menuitem">
+                        <span class="attach-menu-icon attach-icon-gallery"><i class="fa-regular fa-image"></i></span>
+                        <span>Photos &amp; Videos</span>
+                    </button>
+
+                    <button id="attachCameraOption" class="attach-menu-item" role="menuitem">
+                        <span class="attach-menu-icon attach-icon-camera"><i class="fa-solid fa-camera"></i></span>
+                        <span>Camera</span>
+                    </button>
+
+                    <button id="attachContactOption" class="attach-menu-item" role="menuitem">
+                        <span class="attach-menu-icon attach-icon-contact"><i class="fa-solid fa-address-card"></i></span>
+                        <span>Contact</span>
+                    </button>
+
+                    <button id="attachPollOption" class="attach-menu-item" role="menuitem">
+                        <span class="attach-menu-icon attach-icon-poll"><i class="fa-solid fa-square-poll-vertical"></i></span>
+                        <span>Poll</span>
+                    </button>
+
+                    <button id="attachLocationOption" class="attach-menu-item" role="menuitem">
+                        <span class="attach-menu-icon attach-icon-location"><i class="fa-solid fa-location-dot"></i></span>
+                        <span>Location</span>
+                    </button>
+
+                </div>
+
+            </div>
 
 
             <input
@@ -1432,6 +1968,561 @@
         <button id="joinGroupInviteBtn" class="modal-primary-btn">
             <i class="fa-solid fa-user-group"></i>
             Join group
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     CREATE POLL MODAL
+========================================================= -->
+
+<div id="createPollModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+        <div class="modal-head">
+            <strong>Create poll</strong>
+            <button id="closeCreatePollModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <input
+            id="pollQuestionInput"
+            class="modal-text-input"
+            type="text"
+            maxlength="150"
+            placeholder="Ask a question">
+
+        <div class="modal-hint">
+            Options
+        </div>
+
+        <div id="pollOptionsList" class="poll-options-list">
+
+            <div class="poll-option-row">
+                <input class="modal-text-input poll-option-input" type="text" maxlength="80" placeholder="Option 1">
+            </div>
+
+            <div class="poll-option-row">
+                <input class="modal-text-input poll-option-input" type="text" maxlength="80" placeholder="Option 2">
+            </div>
+
+        </div>
+
+        <button id="addPollOptionBtn" class="modal-secondary-btn">
+            <i class="fa-solid fa-plus"></i>
+            Add option
+        </button>
+
+        <label class="group-info-toggle-row">
+            <span>
+                <strong>Allow multiple answers</strong>
+                <small>Voters can select more than one option</small>
+            </span>
+            <input type="checkbox" id="pollMultiAnswerToggle">
+        </label>
+
+        <button id="createPollBtn" class="modal-primary-btn">
+            Create poll
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     SHARE CONTACT MODAL
+========================================================= -->
+
+<div id="shareContactModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+        <div class="modal-head">
+            <strong>Share contact</strong>
+            <button id="closeShareContactModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="friend-search">
+            <span><i class="fa-solid fa-magnifying-glass"></i></span>
+            <input id="shareContactSearchInput" type="text" placeholder="Search friends..." autocomplete="off">
+        </div>
+
+        <div class="modal-hint">
+            Select a contact to share
+        </div>
+
+        <div id="shareContactList" class="modal-picker-list"></div>
+
+        <button id="sendContactBtn" class="modal-primary-btn">
+            Send contact
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     CHAT WALLPAPER MODAL
+========================================================= -->
+
+<div id="chatWallpaperModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+        <div class="modal-head">
+            <strong>Chat wallpaper</strong>
+            <button id="closeChatWallpaperModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="modal-hint">
+            Choose a background for this chat
+        </div>
+
+        <div id="wallpaperSwatchGrid" class="wallpaper-swatch-grid">
+            <button class="wallpaper-swatch wallpaper-default selected" data-wallpaper="default" title="Default"></button>
+            <button class="wallpaper-swatch wallpaper-slate" data-wallpaper="slate" title="Slate"></button>
+            <button class="wallpaper-swatch wallpaper-forest" data-wallpaper="forest" title="Forest"></button>
+            <button class="wallpaper-swatch wallpaper-sunset" data-wallpaper="sunset" title="Sunset"></button>
+            <button class="wallpaper-swatch wallpaper-ocean" data-wallpaper="ocean" title="Ocean"></button>
+            <button class="wallpaper-swatch wallpaper-plum" data-wallpaper="plum" title="Plum"></button>
+            <button class="wallpaper-swatch wallpaper-midnight" data-wallpaper="midnight" title="Midnight"></button>
+            <button class="wallpaper-swatch wallpaper-pattern" data-wallpaper="pattern" title="Doodle pattern"></button>
+        </div>
+
+        <button id="resetWallpaperBtn" class="modal-secondary-btn">
+            Reset to default
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     CHAT LOCK / UNLOCK MODAL (PIN entry)
+========================================================= -->
+
+<div id="chatLockModal" class="modal-overlay hidden">
+
+    <div class="modal-card chat-lock-card">
+
+        <div class="modal-head">
+            <strong id="chatLockModalTitle">Lock this chat</strong>
+            <button id="closeChatLockModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="chat-lock-icon">
+            <i class="fa-solid fa-lock"></i>
+        </div>
+
+        <p id="chatLockModalText" class="modal-hint chat-lock-text">
+            Locked chats move to a separate folder that only opens with your PIN.
+        </p>
+
+        <input
+            id="chatLockPinInput"
+            class="modal-text-input chat-lock-pin-input"
+            type="password"
+            inputmode="numeric"
+            maxlength="6"
+            placeholder="Enter PIN">
+
+        <div id="chatLockError" class="chat-lock-error hidden">Incorrect PIN, try again.</div>
+
+        <button id="chatLockSubmitBtn" class="modal-primary-btn">
+            Continue
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     SECRET CODE SETUP MODAL (for the Locked Chats folder)
+========================================================= -->
+
+<div id="secretCodeModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+        <div class="modal-head">
+            <strong>Secret code</strong>
+            <button id="closeSecretCodeModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <p class="modal-hint">
+            Set a secret code that's different from your phone's or app's PIN so your Locked Chats folder stays hidden from view.
+        </p>
+
+        <input
+            id="secretCodeInput"
+            class="modal-text-input"
+            type="password"
+            maxlength="20"
+            placeholder="Create secret code">
+
+        <input
+            id="secretCodeConfirmInput"
+            class="modal-text-input"
+            type="password"
+            maxlength="20"
+            placeholder="Confirm secret code">
+
+        <label class="group-info-toggle-row">
+            <span>
+                <strong>Also require secret code to unlock</strong>
+                <small>Skip the default chat-lock PIN for this folder</small>
+            </span>
+            <input type="checkbox" id="secretCodeReplacePinToggle">
+        </label>
+
+        <button id="saveSecretCodeBtn" class="modal-primary-btn">
+            Save
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     NEW COMMUNITY MODAL
+========================================================= -->
+
+<div id="newCommunityModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+        <div class="modal-head">
+            <strong>New Community</strong>
+            <button id="closeNewCommunityModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="group-info-icon-wrap">
+            <span id="communityIcon" class="group-info-icon">
+                <span id="communityIconInner" class="group-info-icon-inner"><i class="fa-solid fa-people-roof"></i></span>
+                <span class="avatar-edit-badge group-icon-edit-badge" title="Change community icon">
+                    <i class="fa-solid fa-camera"></i>
+                </span>
+            </span>
+            <input id="communityIconInput" type="file" accept="image/*" hidden>
+        </div>
+
+        <input
+            id="newCommunityNameInput"
+            class="modal-text-input"
+            type="text"
+            maxlength="60"
+            placeholder="Community name">
+
+        <textarea
+            id="newCommunityDescInput"
+            class="modal-text-input"
+            maxlength="500"
+            rows="2"
+            placeholder="What's this community about?"></textarea>
+
+        <div class="modal-hint">
+            Add existing groups
+        </div>
+
+        <div id="newCommunityGroupsList" class="modal-picker-list"></div>
+
+        <button id="createCommunityBtn" class="modal-primary-btn">
+            Create community
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     NEW CHANNEL MODAL
+========================================================= -->
+
+<div id="newChannelModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+        <div class="modal-head">
+            <strong>New Channel</strong>
+            <button id="closeNewChannelModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="group-info-icon-wrap">
+            <span id="channelIcon" class="group-info-icon">
+                <span id="channelIconInner" class="group-info-icon-inner"><i class="fa-solid fa-bullhorn"></i></span>
+                <span class="avatar-edit-badge group-icon-edit-badge" title="Change channel icon">
+                    <i class="fa-solid fa-camera"></i>
+                </span>
+            </span>
+            <input id="channelIconInput" type="file" accept="image/*" hidden>
+        </div>
+
+        <input
+            id="newChannelNameInput"
+            class="modal-text-input"
+            type="text"
+            maxlength="60"
+            placeholder="Channel name">
+
+        <textarea
+            id="newChannelDescInput"
+            class="modal-text-input"
+            maxlength="500"
+            rows="2"
+            placeholder="Add a channel description"></textarea>
+
+        <p class="modal-hint">
+            Only you can post in a channel. Followers can react but can't reply in the main feed.
+        </p>
+
+        <button id="createChannelBtn" class="modal-primary-btn">
+            Create channel
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     CREATE STATUS MODAL
+========================================================= -->
+
+<div id="createStatusModal" class="modal-overlay hidden">
+
+    <div class="modal-card status-compose-card">
+
+        <div class="modal-head">
+            <strong>Add status update</strong>
+            <button id="closeCreateStatusModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="status-compose-tabs">
+            <button class="status-compose-tab active" data-status-tab="text">
+                <i class="fa-solid fa-font"></i> Text
+            </button>
+            <button class="status-compose-tab" data-status-tab="media">
+                <i class="fa-regular fa-image"></i> Photo/Video
+            </button>
+        </div>
+
+        <div id="statusTextTabContent" class="status-compose-tab-content">
+
+            <textarea
+                id="statusTextInput"
+                class="modal-text-input status-text-input"
+                maxlength="700"
+                rows="4"
+                placeholder="Type a status..."></textarea>
+
+            <div class="modal-hint">
+                Background color
+            </div>
+
+            <div id="statusColorSwatchGrid" class="wallpaper-swatch-grid">
+                <button class="wallpaper-swatch status-color-swatch selected" data-status-color="green" title="Green"></button>
+                <button class="wallpaper-swatch status-color-swatch" data-status-color="blue" title="Blue"></button>
+                <button class="wallpaper-swatch status-color-swatch" data-status-color="purple" title="Purple"></button>
+                <button class="wallpaper-swatch status-color-swatch" data-status-color="rose" title="Rose"></button>
+                <button class="wallpaper-swatch status-color-swatch" data-status-color="amber" title="Amber"></button>
+                <button class="wallpaper-swatch status-color-swatch" data-status-color="slate" title="Slate"></button>
+            </div>
+
+        </div>
+
+        <div id="statusMediaTabContent" class="status-compose-tab-content hidden">
+
+            <button id="statusMediaPickBtn" class="modal-secondary-btn">
+                <i class="fa-regular fa-image"></i>
+                Choose photo or video
+            </button>
+
+            <input id="statusMediaInput" type="file" accept="image/*,video/*" hidden>
+
+            <div id="statusMediaPreview" class="status-media-preview hidden"></div>
+
+            <input
+                id="statusCaptionInput"
+                class="modal-text-input"
+                type="text"
+                maxlength="200"
+                placeholder="Add a caption...">
+
+        </div>
+
+        <div class="modal-hint">
+            Who can see this
+        </div>
+
+        <select id="statusPrivacySelect" class="modal-text-input status-privacy-select">
+            <option value="contacts">My contacts</option>
+            <option value="contacts-except">My contacts except...</option>
+            <option value="only-share">Only share with...</option>
+        </select>
+
+        <button id="postStatusBtn" class="modal-primary-btn">
+            Post status
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     STATUS VIEWER (full-screen story playback)
+========================================================= -->
+
+<div id="statusViewerOverlay" class="status-viewer-overlay hidden">
+
+    <div class="status-viewer-window">
+
+        <div id="statusProgressBars" class="status-progress-bars"></div>
+
+        <div class="status-viewer-top">
+
+            <div class="status-viewer-user">
+                <span id="statusViewerAvatar" class="status-viewer-avatar">S</span>
+                <div>
+                    <strong id="statusViewerName">Name</strong>
+                    <small id="statusViewerTime">Just now</small>
+                </div>
+            </div>
+
+            <div class="status-viewer-actions">
+                <button id="statusViewerMuteBtn" class="status-viewer-icon-btn" title="Mute" aria-label="Mute status">
+                    <i class="fa-solid fa-volume-high"></i>
+                </button>
+                <button id="statusViewerMoreBtn" class="status-viewer-icon-btn" title="More" aria-label="More options">
+                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                </button>
+                <button id="statusViewerCloseBtn" class="status-viewer-icon-btn" title="Close" aria-label="Close status">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+        </div>
+
+        <div id="statusViewerContent" class="status-viewer-content"></div>
+
+        <button id="statusViewerPrevZone" class="status-viewer-tap-zone status-viewer-prev" aria-label="Previous status"></button>
+        <button id="statusViewerNextZone" class="status-viewer-tap-zone status-viewer-next" aria-label="Next status"></button>
+
+        <div class="status-viewer-bottom">
+
+            <input
+                id="statusReplyInput"
+                type="text"
+                placeholder="Reply to status..."
+                autocomplete="off">
+
+            <button id="statusReplySendBtn" class="status-viewer-icon-btn" title="Send" aria-label="Send reply">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+
+            <div id="statusViewCountWrap" class="status-view-count-wrap hidden">
+                <i class="fa-solid fa-eye"></i>
+                <span id="statusViewCount">0</span>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     EXPORT CHAT MODAL
+========================================================= -->
+
+<div id="exportChatModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+        <div class="modal-head">
+            <strong>Export chat</strong>
+            <button id="closeExportChatModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <p class="modal-hint">
+            Download a copy of this conversation.
+        </p>
+
+        <label class="group-info-toggle-row">
+            <span>
+                <strong>Include media</strong>
+                <small>Photos, videos and voice notes will be bundled in</small>
+            </span>
+            <input type="checkbox" id="exportIncludeMediaToggle" checked>
+        </label>
+
+        <button id="exportChatConfirmBtn" class="modal-primary-btn">
+            <i class="fa-solid fa-file-export"></i>
+            Export chat
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     CLEAR CHAT CONFIRM MODAL
+========================================================= -->
+
+<div id="clearChatModal" class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+        <div class="modal-head">
+            <strong>Clear this chat?</strong>
+            <button id="closeClearChatModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <p class="modal-hint">
+            Messages will be removed from this device. This can't be undone.
+        </p>
+
+        <label class="group-info-toggle-row">
+            <span>
+                <strong>Also delete starred messages</strong>
+            </span>
+            <input type="checkbox" id="clearChatDeleteStarredToggle">
+        </label>
+
+        <button id="clearChatConfirmBtn" class="modal-danger-btn">
+            <i class="fa-solid fa-broom"></i>
+            Clear chat
         </button>
 
     </div>

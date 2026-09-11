@@ -2095,6 +2095,13 @@ io.on("connection", (socket) => {
                 socket.emit("group-error", { message: "Only admins can send messages in this group." });
                 return;
             }
+        } else if (isBlockedPair(readBlockedStore(), chatUserId, payload.toId)) {
+
+            // one of the two has blocked the other - refuse the send
+            // outright rather than silently swallowing it, so the
+            // sender's UI doesn't show a message that never arrives
+            socket.emit("group-error", { message: "You can't message this contact." });
+            return;
         }
 
         const senderAvatar =
@@ -2732,6 +2739,230 @@ io.on("connection", (socket) => {
         io.to(toId).emit("group-peer-bye", { fromId: chatUserId, callId });
     });
 
+
+    // ------------------------------------------------------
+    // BLOCK USER / CLEAR CHAT
+    // ------------------------------------------------------
+
+    socket.on("block-user", ({ userId } = {}) => {
+
+        if (!userId || !chatUserId) return;
+
+        const store = readBlockedStore();
+        if (!Array.isArray(store[chatUserId])) store[chatUserId] = [];
+
+        if (!store[chatUserId].includes(userId)) {
+            store[chatUserId].push(userId);
+            writeBlockedStore(store);
+        }
+    });
+
+    socket.on("clear-chat", ({ chatId, deleteStarred } = {}) => {
+
+        if (!chatId || !chatUserId) return;
+
+        const store = readChatHistoryStore();
+        const key = isGroupId(chatId) ? chatId : conversationKey(chatUserId, chatId);
+        const convo = getOrCreateConversation(store, key);
+
+        convo.messages = deleteStarred
+            ? []
+            : convo.messages.filter(m => m.starred);
+
+        writeChatHistoryStore(store);
+    });
+
+
+    // ------------------------------------------------------
+    // STATUS / STORIES
+    // ------------------------------------------------------
+
+    socket.on("get-statuses", () => {
+
+        if (!chatUserId) return;
+
+        const store = readStatusesStore();
+        if (pruneExpiredStatuses(store)) writeStatusesStore(store);
+
+        socket.emit("statuses", buildStatusGroups(store));
+    });
+
+    socket.on("post-status", (payload = {}) => {
+
+        if (!chatUserId) return;
+
+        const kind = payload.kind === "media" ? "media" : "text";
+
+        const update = {
+            id: nanoid(10),
+            kind,
+            text: kind === "text" ? String(payload.text || "").slice(0, 700) : null,
+            color: kind === "text" ? String(payload.color || "green").slice(0, 20) : null,
+            url: kind === "media" && isSafeAvatarUrl(payload.url) ? payload.url : null,
+            caption: kind === "media" ? String(payload.caption || "").slice(0, 300) : null,
+            privacy: typeof payload.privacy === "string" ? payload.privacy.slice(0, 30) : "contacts",
+            time: Date.now(),
+            viewers: []
+        };
+
+        if (kind === "text" && !update.text) return;
+        if (kind === "media" && !update.url) return;
+
+        const store = readStatusesStore();
+        pruneExpiredStatuses(store);
+
+        if (!store[chatUserId]) store[chatUserId] = { name: socket.data.name, updates: [] };
+        store[chatUserId].name = socket.data.name;
+        store[chatUserId].updates.push(update);
+
+        writeStatusesStore(store);
+
+        // just a "something changed, go re-fetch" ping - the client
+        // re-requests the full list on receipt (see requestStatuses())
+        io.emit("status-posted", { ownerId: chatUserId });
+    });
+
+    socket.on("view-status", ({ statusId, ownerId } = {}) => {
+
+        if (!statusId || !ownerId || !chatUserId) return;
+
+        const store = readStatusesStore();
+        const owner = store[ownerId];
+        const update = owner && owner.updates.find(u => u.id === statusId);
+
+        if (!update) return;
+
+        if (!Array.isArray(update.viewers)) update.viewers = [];
+
+        if (!update.viewers.some(v => v.id === chatUserId)) {
+            update.viewers.push({ id: chatUserId, name: socket.data.name, at: Date.now() });
+            writeStatusesStore(store);
+        }
+
+        // lets the owner's own open viewer live-update its view count
+        io.to(ownerId).emit("status-posted", { ownerId });
+    });
+
+    socket.on("delete-status", ({ statusId } = {}) => {
+
+        if (!statusId || !chatUserId) return;
+
+        const store = readStatusesStore();
+        const owner = store[chatUserId];
+        if (!owner) return;
+
+        owner.updates = owner.updates.filter(u => u.id !== statusId);
+        if (!owner.updates.length) delete store[chatUserId];
+
+        writeStatusesStore(store);
+
+        io.emit("status-posted", { ownerId: chatUserId });
+    });
+
+
+    // ------------------------------------------------------
+    // CHANNELS
+    // (one-way broadcast rooms - reuses the exact same
+    // memberIds/adminIds shape groups already use, so
+    // chat-message/typing/etc. keep working unchanged once a
+    // channel id is passed in as `toId`)
+    // ------------------------------------------------------
+
+    socket.on("get-channels", () => {
+
+        if (!chatUserId) return;
+
+        socket.emit("channels-list", Object.values(readChannelsStore()));
+    });
+
+    socket.on("create-channel", ({ name, description, icon } = {}) => {
+
+        if (!chatUserId) return;
+
+        const safeName = String(name || "New Channel").slice(0, 60).trim() || "New Channel";
+
+        const channel = {
+            id: "ch_" + nanoid(14),
+            name: safeName,
+            description: String(description || "").slice(0, 300),
+            icon: isSafeAvatarUrl(icon) ? icon : null,
+            createdBy: chatUserId,
+            createdByName: socket.data.name,
+            createdAt: Date.now(),
+            memberIds: [chatUserId],
+            adminIds: [chatUserId]
+        };
+
+        const store = readChannelsStore();
+        store[channel.id] = channel;
+        writeChannelsStore(store);
+
+        socket.join(channel.id);
+
+        io.emit("channels-list", Object.values(store));
+    });
+
+
+    // ------------------------------------------------------
+    // COMMUNITIES
+    // (a named collection of existing groups)
+    // ------------------------------------------------------
+
+    socket.on("get-communities", () => {
+
+        if (!chatUserId) return;
+
+        socket.emit("communities-list", Object.values(readCommunitiesStore()));
+    });
+
+    socket.on("create-community", ({ name, description, icon, groupIds } = {}) => {
+
+        if (!chatUserId) return;
+
+        const safeName = String(name || "New Community").slice(0, 60).trim() || "New Community";
+
+        const community = {
+            id: "cm_" + nanoid(14),
+            name: safeName,
+            description: String(description || "").slice(0, 300),
+            icon: isSafeAvatarUrl(icon) ? icon : null,
+            groupIds: Array.isArray(groupIds) ? groupIds.filter(id => groupsStore.has(id)) : [],
+            createdBy: chatUserId,
+            createdByName: socket.data.name,
+            createdAt: Date.now()
+        };
+
+        const store = readCommunitiesStore();
+        store[community.id] = community;
+        writeCommunitiesStore(store);
+
+        io.emit("communities-list", Object.values(store));
+    });
+
+
+    // ------------------------------------------------------
+    // MESSAGE CONTEXT MENU (right-click / long-press)
+    // Only "star" needs a server round-trip: reply/copy are
+    // handled entirely client-side, and pin/delete already have
+    // their own dedicated events higher up in this file.
+    // ------------------------------------------------------
+
+    socket.on("message-context-action", ({ action, msgId, chatId } = {}) => {
+
+        if (action !== "star" || !msgId || !chatId || !chatUserId) return;
+
+        const store = readChatHistoryStore();
+        const key = isGroupId(chatId) ? chatId : conversationKey(chatUserId, chatId);
+        const convo = getOrCreateConversation(store, key);
+        const stored = convo.messages.find(m => m.id === msgId);
+
+        if (!stored) return;
+
+        stored.starred = !stored.starred;
+        writeChatHistoryStore(store);
+    });
+
+
     socket.on("disconnect", () => {
 
         if (chatUserId && onlineChatUsers.has(chatUserId)) {
@@ -2921,6 +3152,142 @@ function pruneDisappearingMessagesNow() {
 }
 
 setInterval(pruneDisappearingMessagesNow, 60 * 1000);
+
+
+/*
+=========================================================
+SITE CHAT - EXTRA FEATURES
+(status/stories, channels, communities, blocking, clear
+chat, and the message right-click/long-press menu. These
+were fully built on the client (nodi.html/client.js) but
+had no server-side handlers at all, so every one of these
+buttons silently did nothing. They're persisted the same
+lightweight way as the users registry/chat history/groups
+above: a best-effort JSON file in the OS temp dir - good
+enough for a single server instance without a real DB.
+
+NOTE ON PRIVACY: like friends (see FRIEND REQUESTS above),
+this server doesn't keep a persistent contacts graph - that
+lives only in each client's localStorage. So a status's
+"My contacts" / "Only share with..." privacy option is
+stored but not enforced server-side; every status is
+visible to every signed-in user for now. Real per-viewer
+privacy would need a server-side contacts list, which is a
+bigger change than this pass covers.
+=========================================================
+*/
+
+const statusesFile = path.join(os.tmpdir(), "site-chat-statuses.json");
+const channelsFile = path.join(os.tmpdir(), "site-chat-channels.json");
+const communitiesFile = path.join(os.tmpdir(), "site-chat-communities.json");
+const blockedUsersFile = path.join(os.tmpdir(), "site-chat-blocked.json");
+
+const STATUS_LIFETIME_MS = 24 * 60 * 60 * 1000; // stories disappear after 24h
+
+function readJsonStore(file, fallback) {
+
+    try {
+
+        if (!fs.existsSync(file)) return fallback;
+
+        const raw = fs.readFileSync(file, "utf8");
+        if (!raw.trim()) return fallback;
+
+        const data = JSON.parse(raw);
+        return (data && typeof data === "object") ? data : fallback;
+
+    } catch (error) {
+
+        console.error(`Unable to read ${path.basename(file)}:`, error.message);
+        return fallback;
+    }
+}
+
+function writeJsonStore(file, data) {
+
+    try {
+
+        fs.writeFileSync(file, JSON.stringify(data), "utf8");
+
+    } catch (error) {
+
+        console.error(`Unable to write ${path.basename(file)}:`, error.message);
+    }
+}
+
+// ---- statuses / stories ----
+
+function readStatusesStore() { return readJsonStore(statusesFile, {}); }
+function writeStatusesStore(store) { writeJsonStore(statusesFile, store); }
+
+// drops updates older than STATUS_LIFETIME_MS; returns true if anything
+// was actually removed, so callers only write back to disk when needed
+function pruneExpiredStatuses(store) {
+
+    const now = Date.now();
+    let changed = false;
+
+    for (const ownerId of Object.keys(store)) {
+
+        const owner = store[ownerId];
+        if (!owner || !Array.isArray(owner.updates)) continue;
+
+        const kept = owner.updates.filter(u => (u.time + STATUS_LIFETIME_MS) > now);
+
+        if (kept.length !== owner.updates.length) changed = true;
+
+        if (kept.length) owner.updates = kept;
+        else delete store[ownerId];
+    }
+
+    return changed;
+}
+
+// shapes the store into the array-of-groups the client's status list
+// (and viewer) expects, most recently updated owner first
+function buildStatusGroups(store) {
+
+    return Object.keys(store)
+        .map(ownerId => ({
+            id: ownerId,
+            name: store[ownerId].name,
+            updates: store[ownerId].updates
+        }))
+        .filter(group => group.updates.length)
+        .sort((a, b) => {
+
+            const aLatest = a.updates[a.updates.length - 1].time;
+            const bLatest = b.updates[b.updates.length - 1].time;
+
+            return bLatest - aLatest;
+        });
+}
+
+// ---- channels ----
+
+function readChannelsStore() { return readJsonStore(channelsFile, {}); }
+function writeChannelsStore(store) { writeJsonStore(channelsFile, store); }
+
+// ---- communities ----
+
+function readCommunitiesStore() { return readJsonStore(communitiesFile, {}); }
+function writeCommunitiesStore(store) { writeJsonStore(communitiesFile, store); }
+
+// ---- blocking ----
+
+function readBlockedStore() { return readJsonStore(blockedUsersFile, {}); }
+function writeBlockedStore(store) { writeJsonStore(blockedUsersFile, store); }
+
+// true once EITHER side has blocked the other - blocking is treated as
+// mutual (like WhatsApp: once blocked, neither side's messages reach
+// the other) rather than a one-way mute
+function isBlockedPair(store, a, b) {
+
+    const listA = Array.isArray(store[a]) ? store[a] : [];
+    const listB = Array.isArray(store[b]) ? store[b] : [];
+
+    return listA.includes(b) || listB.includes(a);
+}
 
 
 /*
