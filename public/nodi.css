@@ -609,6 +609,60 @@ button {
     font-size: 10px;
 }
 
+/* Status list — round avatar/thumbnail with a WhatsApp-style
+   seen/unseen ring, plus a one-line preview of what was posted */
+.status-item .status-item-ring {
+    width: 46px;
+    height: 46px;
+
+    border-radius: 50%;
+    background: transparent;
+
+    padding: 2px;
+
+    box-sizing: border-box;
+    border: 2.5px solid #64748b;
+}
+
+.status-item.status-ring-unseen .status-item-ring {
+    border-color: #22c55e;
+}
+
+.status-item.status-ring-seen .status-item-ring {
+    border-color: #4b5568;
+}
+
+.status-item .status-item-ring .avatar-inner {
+    width: 100%;
+    height: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+    overflow: hidden;
+
+    background: linear-gradient(135deg, #334155, #1e293b);
+    color: white;
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.status-item-thumb,
+.status-item .status-item-ring .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.status-item .find-text small {
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .find-arrow {
     color: #64748b;
     font-size: 23px;
@@ -851,6 +905,9 @@ button {
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 
     z-index: 50;
+
+    max-height: min(420px, calc(100vh - 100px));
+    overflow-y: auto;
 }
 
 .account-menu button {
@@ -4879,6 +4936,56 @@ img.twemoji {
     box-shadow: none;
 }
 
+/* Decorated confirm() replacement */
+.nice-confirm-icon {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 10px 30px rgba(220, 38, 38, 0.3);
+}
+
+.nice-confirm-icon.info {
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    box-shadow: 0 10px 30px rgba(37, 99, 235, 0.3);
+}
+
+.nice-confirm-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.nice-confirm-cancel,
+.nice-confirm-ok {
+    flex: 1;
+    height: 48px;
+
+    border: none;
+    border-radius: 12px;
+
+    font-size: 14.5px;
+    font-weight: 700;
+
+    transition: 0.2s;
+}
+
+.nice-confirm-cancel {
+    background: #1e293b;
+    color: #cbd5e1;
+    border: 1px solid #293548;
+}
+
+.nice-confirm-cancel:hover {
+    background: #293548;
+    color: white;
+}
+
+.nice-confirm-ok.danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: none;
+}
+
+.nice-confirm-ok.danger:hover {
+    box-shadow: 0 10px 25px rgba(220, 38, 38, 0.35);
+}
+
 
 /* =========================================================
    GROUPS + MULTI-PARTY CALL TILES
@@ -5137,6 +5244,37 @@ img.twemoji {
 
     font-size: 11px;
     color: #64748b;
+}
+
+.modal-picker-avatar {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+    overflow: hidden;
+
+    background: linear-gradient(135deg, #334155, #1e293b);
+    color: white;
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.modal-picker-avatar .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.modal-picker-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .modal-picker-remove {
@@ -5585,6 +5723,23 @@ img.twemoji {
     background-size: 10px 10px;
 }
 
+/* full-chat background when a custom photo wallpaper (from #messages,
+   not the small picker swatch) is applied */
+#messages.wallpaper-custom {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.wallpaper-upload-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+
+    margin-bottom: 12px;
+}
+
 .status-color-swatch[data-status-color="green"]  { background: linear-gradient(135deg, #16a34a, #14532d); }
 .status-color-swatch[data-status-color="blue"]   { background: linear-gradient(135deg, #2563eb, #1e3a8a); }
 .status-color-swatch[data-status-color="purple"] { background: linear-gradient(135deg, #7c3aed, #4c1d95); }
@@ -5793,10 +5948,17 @@ img.twemoji {
     justify-content: center;
 
     border-radius: 50%;
+    overflow: hidden;
 
     background: linear-gradient(135deg, #2563eb, #7c3aed);
 
     font-weight: 700;
+}
+
+.status-viewer-avatar .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .status-viewer-user small {
@@ -5902,5 +6064,24 @@ img.twemoji {
 }
 
 .status-view-count-wrap.hidden {
+    display: none;
+}
+
+.status-like-count-icon {
+    margin-left: 8px;
+    color: #f87171;
+}
+
+#statusViewerLikeBtn i {
+    color: white;
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+#statusViewerLikeBtn.liked i {
+    color: #f87171;
+    transform: scale(1.15);
+}
+
+#statusViewerLikeBtn.hidden {
     display: none;
 }

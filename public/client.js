@@ -171,6 +171,27 @@ const niceAlertMsg =
 const niceAlertOk =
     document.getElementById("niceAlertOk");
 
+const niceConfirmModal =
+    document.getElementById("niceConfirmModal");
+
+const niceConfirmBackdrop =
+    document.getElementById("niceConfirmBackdrop");
+
+const niceConfirmIcon =
+    document.getElementById("niceConfirmIcon");
+
+const niceConfirmTitle =
+    document.getElementById("niceConfirmTitle");
+
+const niceConfirmMsg =
+    document.getElementById("niceConfirmMsg");
+
+const niceConfirmCancel =
+    document.getElementById("niceConfirmCancel");
+
+const niceConfirmOkBtn =
+    document.getElementById("niceConfirmOk");
+
 const app =
     document.getElementById("app");
 
@@ -1082,6 +1103,52 @@ function showNiceAlert(message, { title = "Heads up", icon = "fa-triangle-exclam
 
 
 // ============================================================
+// DECORATED CONFIRM (replaces native confirm() for user prompts)
+// Returns a Promise<boolean> — use with async/await or .then()
+// ============================================================
+
+function showNiceConfirm(message, { title = "Are you sure?", icon = "fa-triangle-exclamation", danger = true, confirmText = "Confirm", cancelText = "Cancel" } = {}) {
+
+    return new Promise((resolve) => {
+
+        if (!niceConfirmModal) {
+            resolve(window.confirm(message));
+            return;
+        }
+
+        if (niceConfirmTitle) niceConfirmTitle.textContent = title;
+        if (niceConfirmMsg) niceConfirmMsg.textContent = message;
+        if (niceConfirmIcon) {
+            niceConfirmIcon.innerHTML = `<i class="fa-solid ${icon}"></i>`;
+            niceConfirmIcon.classList.toggle("info", !danger);
+        }
+        if (niceConfirmOkBtn) {
+            niceConfirmOkBtn.textContent = confirmText;
+            niceConfirmOkBtn.classList.toggle("danger", danger);
+        }
+        if (niceConfirmCancel) niceConfirmCancel.textContent = cancelText;
+
+        niceConfirmModal.classList.remove("hidden");
+
+        const finish = (result) => {
+            niceConfirmModal.classList.add("hidden");
+            niceConfirmOkBtn.removeEventListener("click", onOk);
+            niceConfirmCancel.removeEventListener("click", onCancel);
+            niceConfirmBackdrop.removeEventListener("click", onCancel);
+            resolve(result);
+        };
+
+        const onOk = () => finish(true);
+        const onCancel = () => finish(false);
+
+        niceConfirmOkBtn.addEventListener("click", onOk);
+        niceConfirmCancel.addEventListener("click", onCancel);
+        niceConfirmBackdrop.addEventListener("click", onCancel);
+    });
+}
+
+
+// ============================================================
 // NAME ALREADY TAKEN
 // ============================================================
 
@@ -1633,7 +1700,7 @@ function renderGroupsList() {
         item.innerHTML = `
 
             <div class="friend-avatar">
-                ${avatarMarkup(group.name, null)}
+                ${avatarMarkup(group.name, group.icon || null)}
             </div>
 
             <div class="friend-details">
@@ -1703,7 +1770,7 @@ socket.on("group-created", (group) => upsertGroup(group));
 socket.on("group-updated", (group) => upsertGroup(group));
 
 socket.on("group-error", ({ message } = {}) => {
-    alert(message || "That group action wasn't allowed.");
+    showNiceAlert(message || "That group action wasn't allowed.", { title: "Group", icon: "fa-user-group" });
 });
 
 socket.on("left-group", ({ groupId } = {}) => {
@@ -1740,7 +1807,7 @@ socket.on("removed-from-group", ({ groupId } = {}) => {
         if (messagesEl) messagesEl.innerHTML = "";
     }
 
-    if (group) alert(`You were removed from "${group.name}".`);
+    if (group) showNiceAlert(`You were removed from "${group.name}".`, { title: "Group", icon: "fa-user-group" });
 
 });
 
@@ -1813,7 +1880,7 @@ function openNewGroupModal() {
             const name = (newGroupNameInput && newGroupNameInput.value.trim()) || "New Group";
 
             if (!selected.size) {
-                alert("Pick at least one member for the group.");
+                showNiceAlert("Pick at least one member for the group.", { title: "New group", icon: "fa-user-group" });
                 return;
             }
 
@@ -1896,7 +1963,7 @@ if (groupIconInput) {
         if (!file || !activeChat || !activeChat.isGroup) return;
 
         if (!file.type.startsWith("image/")) {
-            alert("Please choose an image file for the group icon.");
+            showNiceAlert("Please choose an image file for the group icon.", { title: "Group icon", icon: "fa-image" });
             groupIconInput.value = "";
             return;
         }
@@ -1910,14 +1977,14 @@ if (groupIconInput) {
             const data = await res.json();
 
             if (!data || !data.url) {
-                alert("Couldn't upload that image. Please try a different file.");
+                showNiceAlert("Couldn't upload that image. Please try a different file.", { title: "Upload failed", icon: "fa-image" });
                 return;
             }
 
             socket.emit("set-group-icon", { groupId: activeChat.id, iconUrl: data.url });
 
         } catch (error) {
-            alert("Couldn't upload that image right now.");
+            showNiceAlert("Couldn't upload that image right now.", { title: "Upload failed", icon: "fa-image" });
         } finally {
             groupIconInput.value = "";
         }
@@ -2005,11 +2072,16 @@ if (groupInviteCopyBtn) {
 
 if (groupInviteResetBtn) {
 
-    groupInviteResetBtn.addEventListener("click", () => {
+    groupInviteResetBtn.addEventListener("click", async () => {
 
         if (!activeChat || !activeChat.isGroup) return;
 
-        if (!confirm("Reset the invite link? The old link will stop working.")) return;
+        const ok = await showNiceConfirm("Reset the invite link? The old link will stop working.", {
+            title: "Reset invite link",
+            icon: "fa-link-slash",
+            confirmText: "Reset link"
+        });
+        if (!ok) return;
 
         pendingInviteAction = "copy";
         socket.emit("revoke-group-invite", { groupId: activeChat.id });
@@ -2026,10 +2098,10 @@ socket.on("group-invite", ({ groupId, code } = {}) => {
 
         if (navigator.clipboard) {
             navigator.clipboard.writeText(link)
-                .then(() => alert("Invite link copied to clipboard."))
-                .catch(() => alert(link));
+                .then(() => showNiceAlert("Invite link copied to clipboard.", { title: "Invite link", icon: "fa-link" }))
+                .catch(() => showNiceAlert(link, { title: "Invite link", icon: "fa-link" }));
         } else {
-            alert(link);
+            showNiceAlert(link, { title: "Invite link", icon: "fa-link" });
         }
     }
 
@@ -2164,13 +2236,16 @@ function renderGroupInfoModal() {
             activeChat.memberIds.map(id => {
 
                 const isMe = id === me.id;
-                const label = isMe ? "You" : ((usersOnline[id] && usersOnline[id].name) || (friendProfiles[id] && friendProfiles[id].name) || id);
+                const profile = usersOnline[id] || friendProfiles[id] || null;
+                const label = isMe ? "You" : ((profile && profile.name) || id);
+                const avatarUrl = isMe ? (myAvatar || (profile && profile.avatar) || null) : (profile && profile.avatar) || null;
                 const memberIsAdmin = activeChat.adminIds.includes(id);
                 const role = memberIsAdmin ? "Admin" : "";
 
                 return `
                     <div class="modal-picker-item">
-                        ${escapeHtml(label)}
+                        <span class="modal-picker-avatar">${avatarMarkup(label, avatarUrl)}</span>
+                        <span class="modal-picker-label">${escapeHtml(label)}</span>
                         ${role ? `<span class="modal-picker-role">${role}</span>` : ""}
                         ${
                             isAdmin && !isMe
@@ -2187,8 +2262,13 @@ function renderGroupInfoModal() {
             }).join("");
 
         groupInfoMembersList.querySelectorAll("[data-remove-id]").forEach(btn => {
-            btn.addEventListener("click", () => {
-                if (confirm("Remove this member from the group?")) {
+            btn.addEventListener("click", async () => {
+                const ok = await showNiceConfirm("Remove this member from the group?", {
+                    title: "Remove member",
+                    icon: "fa-user-minus",
+                    confirmText: "Remove"
+                });
+                if (ok) {
                     socket.emit("remove-group-member", { groupId: activeChat.id, memberId: btn.dataset.removeId });
                 }
             });
@@ -2236,11 +2316,16 @@ if (chatUserHeaderEl) {
 
 if (groupInfoLeaveBtn) {
 
-    groupInfoLeaveBtn.addEventListener("click", () => {
+    groupInfoLeaveBtn.addEventListener("click", async () => {
 
         if (!activeChat || !activeChat.isGroup) return;
 
-        if (confirm(`Leave "${activeChat.name}"?`)) {
+        const ok = await showNiceConfirm(`Leave "${activeChat.name}"?`, {
+            title: "Leave group",
+            icon: "fa-right-from-bracket",
+            confirmText: "Leave"
+        });
+        if (ok) {
             socket.emit("leave-group", { groupId: activeChat.id });
             closeGroupInfoModal();
         }
@@ -2257,7 +2342,7 @@ if (groupInfoAddMembersBtn) {
         const people = candidateMembers().filter(p => !alreadyIn.has(p.id));
 
         if (!people.length) {
-            alert("No one else to add right now.");
+            showNiceAlert("No one else to add right now.", { title: "Add members", icon: "fa-user-plus" });
             return;
         }
 
@@ -2292,7 +2377,7 @@ if (groupInfoAddMembersBtn) {
                 createGroupBtn.onclick = () => {
 
                     if (!selected.size) {
-                        alert("Pick at least one person to add.");
+                        showNiceAlert("Pick at least one person to add.", { title: "Add members", icon: "fa-user-plus" });
                         return;
                     }
 
@@ -2950,8 +3035,9 @@ socket.on(
         }
 
 
-        alert(
-            `${request.fromName || "Someone"} sent you a friend request.`
+        showNiceAlert(
+            `${request.fromName || "Someone"} sent you a friend request.`,
+            { title: "Friend request", icon: "fa-user-plus" }
         );
 
 
@@ -3361,8 +3447,9 @@ if (avatarInput) {
 
             if (!file.type.startsWith("image/")) {
 
-                alert(
-                    "Please choose an image file for your profile picture."
+                showNiceAlert(
+                    "Please choose an image file for your profile picture.",
+                    { title: "Profile picture", icon: "fa-image" }
                 );
 
                 avatarInput.value = "";
@@ -3396,8 +3483,9 @@ if (avatarInput) {
 
                 if (!data || !data.url) {
 
-                    alert(
-                        "Couldn't upload that image. Please try a different file."
+                    showNiceAlert(
+                        "Couldn't upload that image. Please try a different file.",
+                        { title: "Upload failed", icon: "fa-image" }
                     );
 
                     return;
@@ -3434,8 +3522,9 @@ if (avatarInput) {
 
             } catch (err) {
 
-                alert(
-                    "Couldn't upload that image. Please check your connection and try again."
+                showNiceAlert(
+                    "Couldn't upload that image. Please check your connection and try again.",
+                    { title: "Upload failed", icon: "fa-image" }
                 );
 
             }
@@ -4117,9 +4206,10 @@ function renderSettingsPanel() {
 
                 catch (err) {
 
-                    alert(
+                    showNiceAlert(
                         err.message ||
-                        "Couldn't upload that sound."
+                        "Couldn't upload that sound.",
+                        { title: "Sound upload", icon: "fa-volume-high" }
                     );
 
                 }
@@ -4597,15 +4687,16 @@ function respondToRequest(
 // REMOVE FRIEND
 // ============================================================
 
-function removeFriend(
+async function removeFriend(
     user
 ) {
 
-    if (
-        !confirm(
-            `Remove ${user.name} from your friends?`
-        )
-    ) {
+    const ok = await showNiceConfirm(
+        `Remove ${user.name} from your friends?`,
+        { title: "Remove friend", icon: "fa-user-minus", confirmText: "Remove" }
+    );
+
+    if (!ok) {
 
         return;
 
@@ -6902,8 +6993,9 @@ async function uploadAndSend(
 
         if (!res.ok) {
 
-            alert(
-                "Upload failed"
+            showNiceAlert(
+                "Upload failed",
+                { title: "Upload failed", icon: "fa-cloud-arrow-up" }
             );
 
             return;
@@ -6944,8 +7036,9 @@ async function uploadAndSend(
             err
         );
 
-        alert(
-            "Upload failed"
+        showNiceAlert(
+            "Upload failed",
+            { title: "Upload failed", icon: "fa-cloud-arrow-up" }
         );
 
     }
@@ -7628,9 +7721,7 @@ if (micBtn) {
 
             if (!mediaDevicesAvailable()) {
 
-                alert(
-                    mediaErrorMessage(null)
-                );
+                showNiceAlert(mediaErrorMessage(null), { title: "Camera & mic", icon: "fa-video" });
 
                 return;
 
@@ -7655,9 +7746,7 @@ if (micBtn) {
 
             catch (err) {
 
-                alert(
-                    mediaErrorMessage(err)
-                );
+                showNiceAlert(mediaErrorMessage(err), { title: "Camera & mic", icon: "fa-video" });
 
             }
 
@@ -8563,7 +8652,12 @@ socket.on("call-add-invite", async ({ fromId, fromName, callId, callType, partic
         (rosterNames.length ? ` with ${rosterNames.join(", ")}` : "") +
         ". Join?";
 
-    const accept = window.confirm(promptText);
+    const accept = await showNiceConfirm(promptText, {
+        title: "Incoming call invite",
+        icon: callType === "video" ? "fa-video" : "fa-phone",
+        danger: false,
+        confirmText: "Join"
+    });
 
     if (!accept) {
         socket.emit("call-add-decline", { toId: fromId, callId });
@@ -8571,7 +8665,7 @@ socket.on("call-add-invite", async ({ fromId, fromName, callId, callType, partic
     }
 
     if (!mediaDevicesAvailable()) {
-        alert(mediaErrorMessage(null));
+        showNiceAlert(mediaErrorMessage(null), { title: "Camera & mic", icon: "fa-video" });
         socket.emit("call-add-decline", { toId: fromId, callId });
         return;
     }
@@ -8579,7 +8673,7 @@ socket.on("call-add-invite", async ({ fromId, fromName, callId, callType, partic
     try {
         localStream = await getCallAudioStream(callType);
     } catch (err) {
-        alert(mediaErrorMessage(err));
+        showNiceAlert(mediaErrorMessage(err), { title: "Camera & mic", icon: "fa-video" });
         socket.emit("call-add-decline", { toId: fromId, callId });
         return;
     }
@@ -8761,14 +8855,14 @@ async function startGroupCallFromGroup(callType) {
     if (!activeChat || !activeChat.isGroup) return;
 
     if (!mediaDevicesAvailable()) {
-        alert(mediaErrorMessage(null));
+        showNiceAlert(mediaErrorMessage(null), { title: "Camera & mic", icon: "fa-video" });
         return;
     }
 
     try {
         localStream = await getCallAudioStream(callType);
     } catch (err) {
-        alert(mediaErrorMessage(err));
+        showNiceAlert(mediaErrorMessage(err), { title: "Camera & mic", icon: "fa-video" });
         return;
     }
 
@@ -8802,9 +8896,7 @@ async function startCall(
 
     if (!mediaDevicesAvailable()) {
 
-        alert(
-            mediaErrorMessage(null)
-        );
+        showNiceAlert(mediaErrorMessage(null), { title: "Camera & mic", icon: "fa-video" });
 
         callPartnerId = null;
         return;
@@ -8823,9 +8915,7 @@ async function startCall(
 
     catch (err) {
 
-        alert(
-            mediaErrorMessage(err)
-        );
+        showNiceAlert(mediaErrorMessage(err), { title: "Camera & mic", icon: "fa-video" });
 
         return;
 
@@ -9480,7 +9570,7 @@ async function toggleScreenShare() {
 
     if (!pc || currentCallType !== "video") {
 
-        alert("Screen sharing is only available during a video call.");
+        showNiceAlert("Screen sharing is only available during a video call.", { title: "Screen share", icon: "fa-desktop" });
         return;
 
     }
@@ -9688,7 +9778,7 @@ function startCallRecording() {
 
     catch (err) {
 
-        alert("Couldn't start recording on this browser.");
+        showNiceAlert("Couldn't start recording on this browser.", { title: "Voice message", icon: "fa-microphone" });
         return;
 
     }
@@ -9884,9 +9974,7 @@ if (acceptCallBtn) {
 
             if (!mediaDevicesAvailable()) {
 
-                alert(
-                    mediaErrorMessage(null)
-                );
+                showNiceAlert(mediaErrorMessage(null), { title: "Camera & mic", icon: "fa-video" });
 
                 socket.emit(
                     "call-reject",
@@ -9915,9 +10003,7 @@ if (acceptCallBtn) {
 
             catch (err) {
 
-                alert(
-                    mediaErrorMessage(err)
-                );
+                showNiceAlert(mediaErrorMessage(err), { title: "Camera & mic", icon: "fa-video" });
 
 
                 socket.emit(
@@ -10752,8 +10838,21 @@ function applyChatWallpaper() {
     if (!messagesEl.classList.contains("messages")) messagesEl.classList.add("messages");
 
     const wp = getChatWallpaper(activeChat.id);
-    if (wp && wp !== "default") messagesEl.classList.add(`wallpaper-${wp}`);
 
+    if (isCustomWallpaperValue(wp)) {
+        messagesEl.classList.add("wallpaper-custom");
+        messagesEl.style.backgroundImage = `url("${wp}")`;
+    } else {
+        messagesEl.style.backgroundImage = "";
+        if (wp && wp !== "default") messagesEl.classList.add(`wallpaper-${wp}`);
+    }
+
+}
+
+// a custom uploaded wallpaper is stored as its /upload URL rather
+// than one of the fixed preset names ("slate", "forest", etc.)
+function isCustomWallpaperValue(wp) {
+    return !!wp && /^(https?:|\/|data:image)/.test(wp);
 }
 
 if ($id("closeChatWallpaperModal")) $id("closeChatWallpaperModal").addEventListener("click", () => closeModal($id("chatWallpaperModal")));
@@ -10769,7 +10868,7 @@ if ($id("chatWallpaperOption")) {
 
         if (grid) {
             grid.querySelectorAll(".wallpaper-swatch").forEach(sw => {
-                sw.classList.toggle("selected", sw.dataset.wallpaper === current);
+                sw.classList.toggle("selected", !isCustomWallpaperValue(current) && sw.dataset.wallpaper === current);
             });
         }
 
@@ -10789,6 +10888,48 @@ if ($id("chatWallpaperOption")) {
         setChatWallpaper(activeChat.id, swatch.dataset.wallpaper);
     });
 })();
+
+if ($id("wallpaperUploadBtn") && $id("wallpaperUploadInput")) {
+    $id("wallpaperUploadBtn").addEventListener("click", () => $id("wallpaperUploadInput").click());
+}
+
+if ($id("wallpaperUploadInput")) {
+    $id("wallpaperUploadInput").addEventListener("change", async () => {
+
+        const input = $id("wallpaperUploadInput");
+        const file = input.files && input.files[0];
+        if (!file || !activeChat) return;
+
+        if (!file.type.startsWith("image/")) {
+            showNiceAlert("Please choose an image file for your wallpaper.", { title: "Wallpaper", icon: "fa-image" });
+            input.value = "";
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const res = await fetch("/upload", { method: "POST", body: formData });
+            const data = await res.json();
+
+            if (!data || !data.url) {
+                showNiceAlert("Couldn't upload that image. Please try a different file.", { title: "Upload failed", icon: "fa-image" });
+                return;
+            }
+
+            setChatWallpaper(activeChat.id, data.url);
+
+            const grid = $id("wallpaperSwatchGrid");
+            if (grid) grid.querySelectorAll(".wallpaper-swatch").forEach(sw => sw.classList.remove("selected"));
+
+        } catch (err) {
+            showNiceAlert("Couldn't upload that image right now.", { title: "Upload failed", icon: "fa-image" });
+        } finally {
+            input.value = "";
+        }
+    });
+}
 
 if ($id("resetWallpaperBtn")) {
     $id("resetWallpaperBtn").addEventListener("click", () => {
@@ -11374,6 +11515,16 @@ function requestStatuses() {
     socket.emit("get-statuses");
 }
 
+function statusPreviewLine(update) {
+    if (!update) return "";
+    if (update.kind === "media") {
+        const isVideo = update.url && /\.(mp4|webm|mov)$/i.test(update.url);
+        const label = isVideo ? "Video" : "Photo";
+        return update.caption ? `${label} · ${update.caption}` : label;
+    }
+    return update.text || "";
+}
+
 function renderStatusList(statuses) {
 
     const listEl = $id("statusList");
@@ -11392,12 +11543,23 @@ function renderStatusList(statuses) {
 
     statuses.forEach((group, idx) => {
         const item = document.createElement("button");
-        item.className = "find-friend-btn status-item";
+
+        const updates = group.updates || [];
+        const latest = updates[updates.length - 1];
+        const isMine = me && group.id === me.id;
+        const allSeen = isMine || updates.every(u => (u.viewers || []).some(v => v.id === (me && me.id)));
+
+        item.className = `find-friend-btn status-item status-ring-${allSeen ? "seen" : "unseen"}`;
+
+        const mediaThumb = latest && latest.kind === "media" && latest.url
+            ? `<img class="status-item-thumb" src="${escapeAttr(latest.url)}" alt="">`
+            : avatarMarkup(group.name, group.avatar);
+
         item.innerHTML = `
-            <span class="find-icon"><span class="avatar-inner">${escapeHtml((group.name || "?")[0] || "?")}</span></span>
+            <span class="find-icon status-item-ring"><span class="avatar-inner">${mediaThumb}</span></span>
             <span class="find-text">
                 <strong>${escapeHtml(group.name || "Someone")}</strong>
-                <small>${group.updates ? group.updates.length : 0} update(s)</small>
+                <small>${escapeHtml(statusPreviewLine(latest)) || `${updates.length} update(s)`}</small>
             </span>
         `;
         item.addEventListener("click", () => openStatusViewer(statuses, idx));
@@ -11406,9 +11568,50 @@ function renderStatusList(statuses) {
 
 }
 
-socket.on("statuses", (statuses) => renderStatusList(statuses));
+socket.on("statuses", (statuses) => {
+    renderStatusList(statuses);
+    refreshOpenStatusViewer(statuses);
+});
 
 socket.on("status-posted", () => requestStatuses());
+
+// If the full-screen viewer is open when a "statuses" refresh comes in
+// (e.g. someone else viewed/liked what we're looking at, or our own
+// like/view just got acknowledged), swap in the fresh data and update
+// the like/view counters live, without restarting the slide/timer.
+function refreshOpenStatusViewer(statuses) {
+
+    const overlay = $id("statusViewerOverlay");
+    if (!overlay || overlay.classList.contains("hidden")) return;
+
+    const group = currentStatusGroup();
+    const update = currentStatusUpdate();
+    if (!group || !update) return;
+
+    const freshGroup = (statuses || []).find(g => g.id === group.id);
+    const freshUpdate = freshGroup && freshGroup.updates.find(u => u.id === update.id);
+    if (!freshGroup || !freshUpdate) return;
+
+    statusViewerGroups = statuses;
+    statusViewerGroupIdx = statuses.indexOf(freshGroup);
+
+    const viewCountWrap = $id("statusViewCountWrap");
+    const isMine = me && freshGroup.id === me.id;
+    if (viewCountWrap) viewCountWrap.classList.toggle("hidden", !isMine);
+    if (isMine && $id("statusViewCount")) $id("statusViewCount").textContent = String((freshUpdate.viewers || []).length);
+    if (isMine && $id("statusLikeCount")) $id("statusLikeCount").textContent = String((freshUpdate.likes || []).length);
+
+    const likeBtn = $id("statusViewerLikeBtn");
+    if (likeBtn) {
+        const iLiked = !isMine && me && (freshUpdate.likes || []).some(l => l.id === me.id);
+        const icon = likeBtn.querySelector("i");
+        likeBtn.classList.toggle("liked", !!iLiked);
+        if (icon) {
+            icon.classList.toggle("fa-regular", !iLiked);
+            icon.classList.toggle("fa-solid", !!iLiked);
+        }
+    }
+}
 
 if ($id("addStatusBtn")) $id("addStatusBtn").addEventListener("click", openCreateStatusModal);
 
@@ -11571,7 +11774,7 @@ function playCurrentStatus() {
     }
 
     if ($id("statusViewerName")) $id("statusViewerName").textContent = group.name || "";
-    if ($id("statusViewerAvatar")) $id("statusViewerAvatar").textContent = (group.name || "?")[0] || "?";
+    if ($id("statusViewerAvatar")) $id("statusViewerAvatar").innerHTML = avatarMarkup(group.name, group.avatar);
     if ($id("statusViewerTime")) $id("statusViewerTime").textContent = update.time ? new Date(update.time).toLocaleTimeString() : "Just now";
 
     const content = $id("statusViewerContent");
@@ -11594,6 +11797,20 @@ function playCurrentStatus() {
     const isMine = me && group.id === me.id;
     if (viewCountWrap) viewCountWrap.classList.toggle("hidden", !isMine);
     if (isMine && $id("statusViewCount")) $id("statusViewCount").textContent = String((update.viewers || []).length);
+    if (isMine && $id("statusLikeCount")) $id("statusLikeCount").textContent = String((update.likes || []).length);
+
+    const likeBtn = $id("statusViewerLikeBtn");
+    if (likeBtn) {
+        const iLiked = !isMine && me && (update.likes || []).some(l => l.id === me.id);
+        const icon = likeBtn.querySelector("i");
+        likeBtn.classList.toggle("liked", !!iLiked);
+        if (icon) {
+            icon.classList.toggle("fa-regular", !iLiked);
+            icon.classList.toggle("fa-solid", !!iLiked);
+        }
+        // owners can see who liked their status, but can't like their own
+        likeBtn.classList.toggle("hidden", !!isMine);
+    }
 
     if (!isMine) socket.emit("view-status", { statusId: update.id, ownerId: group.id });
 
@@ -11656,15 +11873,48 @@ if ($id("statusViewerMuteBtn")) {
 }
 
 if ($id("statusViewerMoreBtn")) {
-    $id("statusViewerMoreBtn").addEventListener("click", () => {
+    $id("statusViewerMoreBtn").addEventListener("click", async () => {
         const update = currentStatusUpdate();
         const group = currentStatusGroup();
         if (!update || !group) return;
         if (me && group.id === me.id) {
-            if (confirm("Delete this status update?")) {
+            const ok = await showNiceConfirm("Delete this status update?", {
+                title: "Delete status",
+                icon: "fa-trash",
+                confirmText: "Delete"
+            });
+            if (ok) {
                 socket.emit("delete-status", { statusId: update.id });
                 closeModal($id("statusViewerOverlay"));
             }
+        }
+    });
+}
+
+if ($id("statusViewerLikeBtn")) {
+    $id("statusViewerLikeBtn").addEventListener("click", () => {
+        const update = currentStatusUpdate();
+        const group = currentStatusGroup();
+        if (!update || !group || !me || group.id === me.id) return;
+
+        socket.emit("like-status", { statusId: update.id, ownerId: group.id });
+
+        // optimistic local flip so it feels instant while we wait for
+        // the server's "status-posted" refresh to come back
+        const alreadyLiked = (update.likes || []).some(l => l.id === me.id);
+        update.likes = update.likes || [];
+        if (alreadyLiked) {
+            update.likes = update.likes.filter(l => l.id !== me.id);
+        } else {
+            update.likes.push({ id: me.id, name: me.name, at: Date.now() });
+        }
+
+        const likeBtn = $id("statusViewerLikeBtn");
+        const icon = likeBtn.querySelector("i");
+        likeBtn.classList.toggle("liked", !alreadyLiked);
+        if (icon) {
+            icon.classList.toggle("fa-regular", alreadyLiked);
+            icon.classList.toggle("fa-solid", !alreadyLiked);
         }
     });
 }

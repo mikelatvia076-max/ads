@@ -2802,7 +2802,8 @@ io.on("connection", (socket) => {
             caption: kind === "media" ? String(payload.caption || "").slice(0, 300) : null,
             privacy: typeof payload.privacy === "string" ? payload.privacy.slice(0, 30) : "contacts",
             time: Date.now(),
-            viewers: []
+            viewers: [],
+            likes: []
         };
 
         if (kind === "text" && !update.text) return;
@@ -2811,8 +2812,12 @@ io.on("connection", (socket) => {
         const store = readStatusesStore();
         pruneExpiredStatuses(store);
 
-        if (!store[chatUserId]) store[chatUserId] = { name: socket.data.name, updates: [] };
+        const ownerAvatar =
+            (onlineChatUsers.has(chatUserId) && onlineChatUsers.get(chatUserId).avatar) || null;
+
+        if (!store[chatUserId]) store[chatUserId] = { name: socket.data.name, avatar: ownerAvatar, updates: [] };
         store[chatUserId].name = socket.data.name;
+        store[chatUserId].avatar = ownerAvatar;
         store[chatUserId].updates.push(update);
 
         writeStatusesStore(store);
@@ -2841,6 +2846,33 @@ io.on("connection", (socket) => {
 
         // lets the owner's own open viewer live-update its view count
         io.to(ownerId).emit("status-posted", { ownerId });
+    });
+
+    socket.on("like-status", ({ statusId, ownerId } = {}) => {
+
+        if (!statusId || !ownerId || !chatUserId) return;
+
+        const store = readStatusesStore();
+        const owner = store[ownerId];
+        const update = owner && owner.updates.find(u => u.id === statusId);
+
+        if (!update) return;
+
+        if (!Array.isArray(update.likes)) update.likes = [];
+
+        const alreadyLiked = update.likes.some(l => l.id === chatUserId);
+
+        if (alreadyLiked) {
+            update.likes = update.likes.filter(l => l.id !== chatUserId);
+        } else {
+            update.likes.push({ id: chatUserId, name: socket.data.name, at: Date.now() });
+        }
+
+        writeStatusesStore(store);
+
+        // lets the owner's own open viewer (and the liker) live-update
+        io.to(ownerId).emit("status-posted", { ownerId });
+        socket.emit("status-posted", { ownerId });
     });
 
     socket.on("delete-status", ({ statusId } = {}) => {
@@ -3251,6 +3283,7 @@ function buildStatusGroups(store) {
         .map(ownerId => ({
             id: ownerId,
             name: store[ownerId].name,
+            avatar: store[ownerId].avatar || null,
             updates: store[ownerId].updates
         }))
         .filter(group => group.updates.length)

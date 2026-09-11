@@ -140,6 +140,37 @@
 
 
 <!-- =========================================================
+     DECORATED CONFIRM MODAL (replaces native confirm())
+========================================================= -->
+
+<div id="niceConfirmModal" class="nice-alert-overlay hidden">
+
+    <div id="niceConfirmBackdrop" class="nice-alert-backdrop"></div>
+
+    <div class="nice-alert">
+
+        <div id="niceConfirmIcon" class="nice-alert-icon nice-confirm-icon">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+
+        <h2 id="niceConfirmTitle">Are you sure?</h2>
+        <p id="niceConfirmMsg"></p>
+
+        <div class="nice-confirm-actions">
+            <button id="niceConfirmCancel" class="nice-confirm-cancel">
+                Cancel
+            </button>
+            <button id="niceConfirmOk" class="nice-alert-ok nice-confirm-ok">
+                Confirm
+            </button>
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
      MAIN APP
 ========================================================= -->
 
@@ -2089,6 +2120,11 @@
             Choose a background for this chat
         </div>
 
+        <button id="wallpaperUploadBtn" class="modal-secondary-btn wallpaper-upload-btn">
+            <i class="fa-solid fa-image"></i> Upload from phone
+        </button>
+        <input type="file" id="wallpaperUploadInput" accept="image/*" hidden>
+
         <div id="wallpaperSwatchGrid" class="wallpaper-swatch-grid">
             <button class="wallpaper-swatch wallpaper-default selected" data-wallpaper="default" title="Default"></button>
             <button class="wallpaper-swatch wallpaper-slate" data-wallpaper="slate" title="Slate"></button>
@@ -2441,6 +2477,10 @@
                 placeholder="Reply to status..."
                 autocomplete="off">
 
+            <button id="statusViewerLikeBtn" class="status-viewer-icon-btn" title="Like" aria-label="Like status">
+                <i class="fa-regular fa-heart"></i>
+            </button>
+
             <button id="statusReplySendBtn" class="status-viewer-icon-btn" title="Send" aria-label="Send reply">
                 <i class="fa-solid fa-paper-plane"></i>
             </button>
@@ -2448,6 +2488,8 @@
             <div id="statusViewCountWrap" class="status-view-count-wrap hidden">
                 <i class="fa-solid fa-eye"></i>
                 <span id="statusViewCount">0</span>
+                <i class="fa-solid fa-heart status-like-count-icon"></i>
+                <span id="statusLikeCount">0</span>
             </div>
 
         </div>
