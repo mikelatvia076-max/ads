@@ -1,0 +1,28 @@
+{
+  "sources": [
+    {
+      "name": "HELB",
+      "category": "HELB",
+      "type": "official",
+      "url": "https://www.helb.co.ke/"
+    },
+    {
+      "name": "KUCCPS",
+      "category": "KUCCPS",
+      "type": "official",
+      "url": "https://kuccps.net/"
+    },
+    {
+      "name": "Scholarships",
+      "category": "Scholarships",
+      "type": "official",
+      "url": "https://www.helb.co.ke/helb-products/helb-scholarships/"
+    },
+    {
+      "name": "Public Service Commission",
+      "category": "Jobs",
+      "type": "official",
+      "url": "https://pscims.publicservice.go.ke/jobs/ActiveJobsAdverts.aspx"
+    }
+  ]
+}

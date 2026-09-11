@@ -1,0 +1,26 @@
+{
+  "name": "kenya-campus-hub",
+  "version": "2.0.0",
+  "description": "Kenya Campus Hub - AI powered student information platform",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "update": "node ai-updater.js",
+    "build": "echo 'No build step required'"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^5.2.1",
+    "groq-sdk": "^1.6.0",
+    "mammoth": "^1.12.2",
+    "multer": "^2.3.0",
+    "openai": "^5.23.2",
+    "socket.io": "^4.7.5",
+    "nanoid": "^3.3.7"
+  },
+  "main": "ai-updater.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

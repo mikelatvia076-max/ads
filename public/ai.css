@@ -1,0 +1,1640 @@
+/* =========================================================
+   KENYAN CAMPUS AI
+   COMPLETE AI-ONLY STYLESHEET
+   IMPORTANT:
+   This stylesheet does NOT require changes to index.html.
+========================================================= */
+
+.campus-ai-button {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 9000;
+    min-width: 54px;
+    width: 54px;
+    height: 54px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #0757c9, #087f5b);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow:
+        0 12px 30px rgba(0,0,0,.20),
+        0 5px 15px rgba(7,87,201,.25);
+    transition:
+        transform .2s ease,
+        box-shadow .2s ease,
+        filter .2s ease;
+}
+
+.campus-ai-button:hover {
+    transform: translateY(-3px) scale(1.04);
+    box-shadow:
+        0 16px 38px rgba(0,0,0,.24),
+        0 7px 20px rgba(7,87,201,.30);
+}
+
+.campus-ai-button:active {
+    transform: scale(.96);
+}
+
+.campus-ai-label {
+    display: none;
+}
+
+.campus-ai-button::before {
+    content: "";
+    width: 25px;
+    height: 25px;
+    display: block;
+    background:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3a7 7 0 0 0-7 7v3a3 3 0 0 0 3 3h1v-6H7a5 5 0 0 1 10 0h-2v6h1a3 3 0 0 0 3-3v-3a7 7 0 0 0-7-7Z'/%3E%3Cpath d='M9 20h6'/%3E%3C/svg%3E")
+        center/contain no-repeat;
+}
+
+
+/* =========================================================
+   AI PAGE
+========================================================= */
+
+.campus-ai-page {
+    position: fixed;
+    inset: 0;
+    z-index: 9500;
+    display: none;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.campus-ai-page.active,
+.campus-ai-page.open {
+    display: block;
+}
+
+.campus-ai-layout {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    overflow: hidden;
+}
+
+
+/* =========================================================
+   SIDEBAR
+========================================================= */
+
+.campus-ai-sidebar {
+    flex: 0 0 280px;
+    width: 280px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #f7f9fc;
+    border-right: 1px solid #e5eaf1;
+    overflow: hidden;
+    z-index: 9600;
+}
+
+.campus-ai-sidebar-top {
+    padding: 18px 15px 14px;
+    background: #fff;
+    border-bottom: 1px solid #e7ebf2;
+}
+
+.campus-ai-new-chat {
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid #d6e2f3;
+    border-radius: 12px;
+    background: #fff;
+    color: #0757c9;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: .2s ease;
+}
+
+.campus-ai-new-chat:hover {
+    background: #eef5ff;
+    border-color: #bcd2ef;
+    transform: translateY(-1px);
+}
+
+.campus-ai-search {
+    position: relative;
+    width: 100%;
+    margin-top: 12px;
+}
+
+.campus-ai-search-icon {
+    position: absolute;
+    left: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    pointer-events: none;
+}
+
+.campus-ai-search input {
+    width: 100%;
+    height: 42px;
+    padding: 0 12px 0 38px;
+    border: 1px solid #dce3ed;
+    border-radius: 11px;
+    outline: none;
+    background: #f8fafc;
+    color: #1d2939;
+    font-size: 13px;
+}
+
+.campus-ai-search input:focus {
+    background: #fff;
+    border-color: #0b5ed7;
+    box-shadow: 0 0 0 3px rgba(11,94,215,.1);
+}
+
+.campus-ai-history-heading {
+    padding: 17px 16px 9px;
+    color: #667085;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+}
+
+.campus-ai-history {
+    flex: 1;
+    padding: 5px 10px 15px;
+    overflow-y: auto;
+}
+
+.campus-ai-history::-webkit-scrollbar {
+    width: 5px;
+}
+
+.campus-ai-history::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 20px;
+}
+
+.campus-ai-history-empty {
+    padding: 30px 12px;
+    text-align: center;
+    color: #98a2b3;
+    font-size: 13px;
+}
+
+.campus-ai-history-item {
+    width: 100%;
+    padding: 11px 12px;
+    margin-bottom: 5px;
+    border-radius: 10px;
+    color: #344054;
+    background: transparent;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    transition: .2s ease;
+}
+
+.campus-ai-history-item:hover {
+    background: #eaf2ff;
+    color: #0757c9;
+}
+
+.campus-ai-history-item.active {
+    background: #e4efff;
+    color: #0757c9;
+    font-weight: 700;
+}
+
+.campus-ai-history-summary {
+    display: block;
+    margin-top: 3px;
+    color: #98a2b3;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+
+/* =========================================================
+   SIDEBAR OVERLAY
+========================================================= */
+
+.campus-ai-sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9550;
+    background: rgba(0,0,0,.42);
+}
+
+.campus-ai-sidebar-overlay.active,
+.campus-ai-sidebar-overlay.open {
+    display: block;
+}
+
+
+/* =========================================================
+   MAIN
+========================================================= */
+
+.campus-ai-main {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    overflow: hidden;
+}
+
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+.campus-ai-header {
+    flex: 0 0 auto;
+    min-height: 70px;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff;
+    border-bottom: 1px solid #e8edf3;
+    z-index: 20;
+}
+
+.campus-ai-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.campus-ai-logo {
+    width: 43px;
+    height: 43px;
+    flex: 0 0 43px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 13px;
+    background: linear-gradient(135deg,#e9f2ff,#e8f8f2);
+    font-size: 23px;
+}
+
+.campus-ai-title h2 {
+    margin: 0;
+    color: #172b4d;
+    font-size: 17px;
+    font-weight: 800;
+}
+
+.campus-ai-title p {
+    margin: 3px 0 0;
+    color: #98a2b3;
+    font-size: 11px;
+}
+
+.campus-ai-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.campus-ai-more-button,
+.campus-ai-close {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #667085;
+    cursor: pointer;
+}
+
+.campus-ai-more-button {
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.campus-ai-close {
+    font-size: 28px;
+}
+
+.campus-ai-more-button:hover,
+.campus-ai-close:hover {
+    background: #f1f4f8;
+    color: #101828;
+}
+
+
+/* =========================================================
+   MORE MENU
+========================================================= */
+
+.campus-ai-more-menu {
+    position: fixed;
+    top: 70px;
+    right: 18px;
+    width: 245px;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid #e4e7ec;
+    border-radius: 15px;
+    box-shadow: 0 18px 45px rgba(16,24,40,.18);
+    z-index: 99999;
+    display: none;
+}
+
+.campus-ai-more-menu.open {
+    display: block;
+    animation: campusAiMenuIn .16s ease;
+}
+
+@keyframes campusAiMenuIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px) scale(.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.campus-ai-more-item {
+    width: 100%;
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: #344054;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+
+.campus-ai-more-item:hover {
+    background: #f2f6fb;
+    color: #0757c9;
+}
+
+.campus-ai-more-item-icon {
+    width: 22px;
+    text-align: center;
+    font-size: 16px;
+}
+
+
+/* =========================================================
+   BODY / MESSAGES
+========================================================= */
+
+.campus-ai-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(
+            circle at top right,
+            rgba(11,94,215,.035),
+            transparent 30%
+        ),
+        #fff;
+}
+
+.campus-ai-messages {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    padding: 30px 5% 25px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+}
+
+.campus-ai-messages::-webkit-scrollbar {
+    width: 7px;
+}
+
+.campus-ai-messages::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 20px;
+}
+
+
+/* =========================================================
+   WELCOME
+========================================================= */
+
+.campus-ai-welcome {
+    width: min(850px,100%);
+    margin: 30px auto 40px;
+    text-align: center;
+}
+
+.campus-ai-big-logo {
+    width: 78px;
+    height: 78px;
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 22px;
+    background: linear-gradient(135deg,#eaf3ff,#e9f8f2);
+    font-size: 38px;
+    box-shadow: 0 12px 30px rgba(7,87,201,.08);
+}
+
+.campus-ai-welcome h1 {
+    margin: 0 0 10px;
+    color: #172b4d;
+    font-size: clamp(24px,4vw,34px);
+    font-weight: 850;
+}
+
+.campus-ai-welcome > p {
+    max-width: 680px;
+    margin: 0 auto 22px;
+    color: #667085;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.campus-ai-welcome-features {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 20px auto 25px;
+}
+
+.campus-ai-feature {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 12px;
+    border: 1px solid #e0e7f0;
+    border-radius: 50px;
+    background: #fff;
+    color: #475467;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.campus-ai-suggestions {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    gap: 10px;
+    width: min(680px,100%);
+    margin: 0 auto;
+}
+
+.campus-ai-suggestions button {
+    min-height: 52px;
+    padding: 12px 15px;
+    border: 1px solid #e0e7f0;
+    border-radius: 12px;
+    background: #fff;
+    color: #344054;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: .2s ease;
+}
+
+.campus-ai-suggestions button:hover {
+    background: #f7faff;
+    border-color: #bcd2ef;
+    color: #0757c9;
+    transform: translateY(-2px);
+}
+
+
+/* =========================================================
+   MESSAGES
+========================================================= */
+
+.campus-ai-message {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 22px;
+}
+
+.campus-ai-message.user {
+    justify-content: flex-end;
+}
+
+.campus-ai-message:not(.user) {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.campus-ai-message-content {
+    max-width: min(760px,82%);
+    padding: 13px 16px;
+    border-radius: 16px;
+    color: #344054;
+    background: #f5f7fa;
+    border: 1px solid #e8ecf2;
+    font-size: 14px;
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.campus-ai-message.user .campus-ai-message-content {
+    color: #fff;
+    background: linear-gradient(135deg,#0757c9,#0b5ed7);
+    border: 0;
+    border-radius: 17px 17px 4px 17px;
+    box-shadow: 0 5px 15px rgba(7,87,201,.12);
+}
+
+.campus-ai-message:not(.user) .campus-ai-message-content {
+    border-radius: 17px 17px 17px 4px;
+}
+
+.campus-ai-message-content p {
+    margin: 0 0 10px;
+}
+
+.campus-ai-message-content p:last-child {
+    margin-bottom: 0;
+}
+
+.campus-ai-message-content strong {
+    font-weight: 800;
+}
+
+.campus-ai-message-content ul,
+.campus-ai-message-content ol {
+    margin: 8px 0 8px 20px;
+    padding: 0;
+}
+
+.campus-ai-message-content li {
+    margin-bottom: 5px;
+}
+
+.campus-ai-message-content code {
+    padding: 2px 5px;
+    border-radius: 5px;
+    background: rgba(0,0,0,.07);
+    font-family: Consolas,"Courier New",monospace;
+    font-size: .9em;
+}
+
+.campus-ai-message-content pre {
+    max-width: 100%;
+    margin: 0;
+    padding: 15px;
+    overflow-x: auto;
+    background: #101828;
+    color: #f8fafc;
+    font-family: Consolas,"Courier New",monospace;
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+.campus-ai-message-content pre code {
+    padding: 0;
+    background: transparent;
+    color: inherit;
+}
+
+
+/* =========================================================
+   CODE BLOCKS
+========================================================= */
+
+.campus-ai-code-block {
+    margin: 14px 0;
+    overflow: hidden;
+    border: 1px solid #1d2939;
+    border-radius: 12px;
+    background: #101828;
+}
+
+.campus-ai-code-header {
+    min-height: 38px;
+    padding: 5px 8px 5px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #182230;
+    border-bottom: 1px solid #344054;
+}
+
+.campus-ai-code-language {
+    color: #cbd5e1;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+}
+
+.campus-ai-copy-code {
+    min-height: 29px;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid #475467;
+    border-radius: 7px;
+    background: #253044;
+    color: #f8fafc;
+    font-size: 10px;
+    font-weight: 750;
+    cursor: pointer;
+    transition: .18s ease;
+}
+
+.campus-ai-copy-code:hover {
+    background: #344054;
+    border-color: #667085;
+}
+
+.campus-ai-copy-code.copied {
+    background: #087f5b;
+    border-color: #087f5b;
+}
+
+
+/* =========================================================
+   RESPONSE ACTIONS
+   KEEP SYMBOLS:
+   ▣ 🔊 ↻ 👍 👎
+========================================================= */
+
+.campus-ai-message-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 7px;
+    margin-left: 2px;
+    min-height: 34px;
+}
+
+.campus-ai-message-actions button,
+.campus-ai-action,
+.campus-ai-copy,
+.campus-ai-listen,
+.campus-ai-regenerate,
+.campus-ai-like,
+.campus-ai-dislike {
+    width: 32px;
+    height: 30px;
+    flex: 0 0 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: #667085;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    transition: .18s ease;
+}
+
+/* Make COPY much easier to notice */
+.campus-ai-message-actions button:first-child {
+    width: auto;
+    min-width: 38px;
+    padding: 0 9px;
+    border-color: #d7e3f4;
+    background: #f1f6fd;
+    color: #0757c9;
+    font-weight: 800;
+    box-shadow: 0 2px 7px rgba(7,87,201,.08);
+}
+
+.campus-ai-message-actions button:first-child::after {
+    content: "Copy";
+    margin-left: 5px;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.campus-ai-message-actions button:hover {
+    background: #eef5ff;
+    border-color: #d1e0f5;
+    color: #0757c9;
+    transform: translateY(-1px);
+}
+
+.campus-ai-message-actions button.active {
+    background: #eaf2ff;
+    border-color: #cbdcff;
+    color: #0757c9;
+}
+
+.campus-ai-message.user .campus-ai-message-actions {
+    display: none;
+}
+
+
+/* =========================================================
+   THINKING DOTS
+   ONLY THREE DOTS
+========================================================= */
+
+.campus-ai-thinking {
+    min-height: 30px;
+}
+
+.campus-ai-thinking-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 4px;
+}
+
+.campus-ai-thinking-dots span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #98a2b3;
+    animation: campusAiDots 1.15s infinite ease-in-out;
+}
+
+.campus-ai-thinking-dots span:nth-child(2) {
+    animation-delay: .16s;
+}
+
+.campus-ai-thinking-dots span:nth-child(3) {
+    animation-delay: .32s;
+}
+
+@keyframes campusAiDots {
+    0%,60%,100% {
+        transform: translateY(0);
+        opacity: .35;
+    }
+    30% {
+        transform: translateY(-5px);
+        opacity: 1;
+    }
+}
+
+
+/* =========================================================
+   INPUT
+========================================================= */
+
+.campus-ai-input-area {
+    flex: 0 0 auto;
+    width: 100%;
+    padding: 10px 5% 15px;
+    background: #fff;
+    border-top: 1px solid #edf0f4;
+    position: relative;
+    z-index: 50;
+}
+
+.campus-ai-files {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.campus-ai-files:empty {
+    display: none;
+}
+
+.campus-ai-file {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px;
+    border: 1px solid #dce4ef;
+    border-radius: 9px;
+    background: #f8fafc;
+    color: #475467;
+    font-size: 11px;
+}
+
+.campus-ai-file button {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    color: #667085;
+}
+
+.campus-ai-input-box {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    border: 1px solid #cfd8e5;
+    border-radius: 15px 15px 0 0;
+    background: #fff;
+}
+
+.campus-ai-input-box:focus-within {
+    border-color: #0b5ed7;
+    box-shadow: 0 0 0 3px rgba(11,94,215,.08);
+}
+
+#campusAiInput {
+    display: block;
+    width: 100%;
+    min-height: 50px;
+    max-height: 180px;
+    padding: 14px 16px;
+    border: 0;
+    outline: 0;
+    resize: none;
+    background: transparent;
+    color: #101828;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+#campusAiInput::placeholder {
+    color: #98a2b3;
+}
+
+
+/* =========================================================
+   TOOLBAR
+========================================================= */
+
+.campus-ai-toolbar {
+    width: 100%;
+    max-width: 900px;
+    min-height: 49px;
+    margin: 0 auto;
+    padding: 7px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid #cfd8e5;
+    border-top: 0;
+    border-radius: 0 0 15px 15px;
+    background: #fff;
+}
+
+.campus-ai-toolbar-left,
+.campus-ai-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.campus-ai-tool-button {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 9px;
+    background: #f4f6f8;
+    color: #475467;
+    font-size: 17px;
+    cursor: pointer;
+    transition: .2s ease;
+}
+
+.campus-ai-tool-button:hover {
+    background: #eaf2ff;
+    color: #0757c9;
+}
+
+
+/* =========================================================
+   TALK BUTTON
+========================================================= */
+
+.campus-ai-talk-button {
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 10px;
+    background: #f4f6f8;
+    color: #344054;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: .2s ease;
+}
+
+.campus-ai-talk-button:hover {
+    background: #eaf2ff;
+    color: #0757c9;
+}
+
+.campus-ai-talk-button svg {
+    width: 21px;
+    height: 21px;
+}
+
+
+/* =========================================================
+   SEND BUTTON
+========================================================= */
+
+#campusAiSend {
+    width: 46px;
+    height: 40px;
+    flex: 0 0 46px;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 11px;
+    background: linear-gradient(135deg,#0757c9,#0b5ed7);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(7,87,201,.22);
+    transition: .18s ease;
+}
+
+#campusAiSend:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.06);
+}
+
+#campusAiSend svg {
+    width: 21px;
+    height: 21px;
+}
+
+
+/* =========================================================
+   STOP BUTTON
+   ICON ONLY
+========================================================= */
+
+.campus-ai-stop-button {
+    width: 46px;
+    height: 40px;
+    flex: 0 0 46px;
+    padding: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 11px;
+    background: #101828;
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(16,24,40,.18);
+}
+
+.campus-ai-stop-button.visible,
+.campus-ai-stop-button.active,
+.campus-ai-stop-button.show {
+    display: inline-flex;
+}
+
+.campus-ai-stop-button svg {
+    width: 17px;
+    height: 17px;
+}
+
+.campus-ai-stop-button:hover {
+    background: #344054;
+    transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   FOOTNOTE
+========================================================= */
+
+.campus-ai-input-area > small {
+    display: block;
+    width: 100%;
+    max-width: 900px;
+    margin: 8px auto 0;
+    text-align: center;
+    color: #98a2b3;
+    font-size: 10px;
+}
+
+
+/* =========================================================
+   ACCOUNT MODAL
+========================================================= */
+
+.campus-ai-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(15,23,42,.48);
+    backdrop-filter: blur(5px);
+}
+
+.campus-ai-modal-backdrop.open {
+    display: flex;
+}
+
+.campus-ai-modal {
+    width: min(440px,100%);
+    max-height: min(720px,92vh);
+    overflow-y: auto;
+    background: #fff;
+    border-radius: 20px;
+    box-shadow: 0 25px 70px rgba(0,0,0,.25);
+}
+
+.campus-ai-modal-header {
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #edf0f4;
+}
+
+.campus-ai-modal-header h3 {
+    margin: 0;
+    color: #172b4d;
+    font-size: 17px;
+}
+
+.campus-ai-modal-close {
+    width: 35px;
+    height: 35px;
+    border: 0;
+    border-radius: 9px;
+    background: #f4f6f8;
+    cursor: pointer;
+    font-size: 20px;
+}
+
+.campus-ai-modal-body {
+    padding: 20px;
+}
+
+.campus-ai-form-group {
+    margin-bottom: 14px;
+}
+
+.campus-ai-form-group label {
+    display: block;
+    margin-bottom: 6px;
+    color: #344054;
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.campus-ai-form-group input,
+.campus-ai-form-group select {
+    width: 100%;
+    height: 43px;
+    padding: 0 12px;
+    border: 1px solid #d0d5dd;
+    border-radius: 10px;
+    outline: 0;
+    background: #fff;
+}
+
+.campus-ai-form-group input:focus,
+.campus-ai-form-group select:focus {
+    border-color: #0b5ed7;
+    box-shadow: 0 0 0 3px rgba(11,94,215,.08);
+}
+
+.campus-ai-primary-button {
+    width: 100%;
+    min-height: 44px;
+    border: 0;
+    border-radius: 10px;
+    background: linear-gradient(135deg,#0757c9,#0b5ed7);
+    color: #fff;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.campus-ai-secondary-button {
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1px solid #d0d5dd;
+    border-radius: 10px;
+    background: #fff;
+    color: #344054;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.campus-ai-account-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+}
+
+.campus-ai-account-tab {
+    flex: 1;
+    height: 39px;
+    border: 1px solid #e1e6ee;
+    border-radius: 9px;
+    background: #f8fafc;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.campus-ai-account-tab.active {
+    background: #eaf2ff;
+    border-color: #bfd4f1;
+    color: #0757c9;
+}
+
+.campus-ai-account-profile {
+    padding: 15px;
+    border: 1px solid #e5e7eb;
+    border-radius: 13px;
+    background: #f8fafc;
+}
+
+.campus-ai-account-avatar {
+    width: 58px;
+    height: 58px;
+    margin-bottom: 10px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg,#0757c9,#087f5b);
+    color: #fff;
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.campus-ai-account-note {
+    margin-top: 12px;
+    color: #98a2b3;
+    font-size: 10px;
+    line-height: 1.5;
+}
+
+
+/* =========================================================
+   SETTINGS
+========================================================= */
+
+.campus-ai-setting-row {
+    padding: 13px 0;
+    border-bottom: 1px solid #edf0f4;
+}
+
+.campus-ai-setting-row:last-child {
+    border-bottom: 0;
+}
+
+.campus-ai-setting-row label {
+    display: block;
+    margin-bottom: 7px;
+    color: #344054;
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.campus-ai-setting-row input[type="range"] {
+    width: 100%;
+}
+
+.campus-ai-checkbox {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.campus-ai-checkbox input {
+    width: 16px;
+    height: 16px;
+}
+
+.campus-ai-voice-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+
+/* =========================================================
+   TALK PAGE
+========================================================= */
+
+.campus-ai-talk-page {
+    position: fixed;
+    inset: 0;
+    z-index: 110000;
+    display: none;
+    flex-direction: column;
+    background: #fff;
+}
+
+.campus-ai-talk-page.open {
+    display: flex;
+}
+
+.campus-ai-talk-header {
+    min-height: 68px;
+    padding: 10px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #e8edf3;
+}
+
+.campus-ai-talk-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.campus-ai-talk-back {
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 10px;
+    background: #f4f6f8;
+    cursor: pointer;
+    font-size: 20px;
+}
+
+.campus-ai-talk-avatar {
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 13px;
+    background: linear-gradient(135deg,#eaf3ff,#e9f8f2);
+    font-size: 22px;
+}
+
+.campus-ai-talk-name {
+    color: #172b4d;
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.campus-ai-talk-status {
+    margin-top: 2px;
+    color: #98a2b3;
+    font-size: 10px;
+}
+
+.campus-ai-talk-content {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.campus-ai-talk-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 25px 6%;
+}
+
+.campus-ai-talk-message {
+    max-width: min(720px,88%);
+    margin-bottom: 14px;
+    padding: 12px 15px;
+    border-radius: 15px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.campus-ai-talk-message.user {
+    margin-left: auto;
+    color: #fff;
+    background: #0757c9;
+    border-radius: 15px 15px 4px 15px;
+}
+
+.campus-ai-talk-message.assistant {
+    color: #344054;
+    background: #f4f6f8;
+    border-radius: 15px 15px 15px 4px;
+}
+
+.campus-ai-talk-controls {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-top: 1px solid #edf0f4;
+    background: #fff;
+}
+
+.campus-ai-talk-mic {
+    width: 76px;
+    height: 76px;
+    border: 0;
+    border-radius: 50%;
+    background: linear-gradient(135deg,#0757c9,#087f5b);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 12px 30px rgba(7,87,201,.22);
+    transition: .2s ease;
+}
+
+.campus-ai-talk-mic svg {
+    width: 31px;
+    height: 31px;
+}
+
+.campus-ai-talk-mic.listening {
+    animation: campusAiMicPulse 1.2s infinite;
+}
+
+@keyframes campusAiMicPulse {
+    0%,100% {
+        box-shadow: 0 0 0 0 rgba(7,87,201,.22);
+    }
+    50% {
+        box-shadow: 0 0 0 14px rgba(7,87,201,.08);
+    }
+}
+
+.campus-ai-talk-transcript {
+    width: min(650px,100%);
+    min-height: 43px;
+    max-height: 100px;
+    margin-top: 13px;
+    padding: 10px 13px;
+    border: 1px solid #d0d5dd;
+    border-radius: 11px;
+    outline: 0;
+    resize: none;
+    font-family: inherit;
+}
+
+.campus-ai-talk-send {
+    margin-top: 9px;
+    min-height: 38px;
+    padding: 0 17px;
+    border: 0;
+    border-radius: 9px;
+    background: #0757c9;
+    color: #fff;
+    font-weight: 750;
+    cursor: pointer;
+}
+
+
+/* =========================================================
+   TABLES
+========================================================= */
+
+.campus-ai-message-content table {
+    width: 100%;
+    margin: 12px 0;
+    border-collapse: collapse;
+    display: block;
+    overflow-x: auto;
+    font-size: 12px;
+}
+
+.campus-ai-message-content th,
+.campus-ai-message-content td {
+    padding: 8px 10px;
+    border: 1px solid #dfe5ec;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.campus-ai-message-content th {
+    background: #f4f6f8;
+    font-weight: 800;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width:900px) {
+    .campus-ai-sidebar {
+        flex-basis: 250px;
+        width: 250px;
+    }
+
+    .campus-ai-messages {
+        padding-left: 4%;
+        padding-right: 4%;
+    }
+
+    .campus-ai-input-area {
+        padding-left: 4%;
+        padding-right: 4%;
+    }
+
+    .campus-ai-message-content {
+        max-width: 88%;
+    }
+}
+
+@media (max-width:700px) {
+
+    .campus-ai-button {
+        right: 15px;
+        bottom: 15px;
+        width: 51px;
+        height: 51px;
+    }
+
+    .campus-ai-sidebar {
+        position: fixed;
+        left: -290px;
+        top: 0;
+        bottom: 0;
+        width: 280px;
+        flex-basis: 280px;
+        box-shadow: 10px 0 30px rgba(0,0,0,.15);
+        transition: left .25s ease;
+        z-index: 9700;
+    }
+
+    .campus-ai-sidebar.active,
+    .campus-ai-sidebar.open {
+        left: 0;
+    }
+
+    .campus-ai-header {
+        min-height: 62px;
+        padding: 8px 12px;
+    }
+
+    .campus-ai-logo {
+        width: 38px;
+        height: 38px;
+        flex-basis: 38px;
+        font-size: 20px;
+    }
+
+    .campus-ai-title {
+        gap: 9px;
+    }
+
+    .campus-ai-title h2 {
+        font-size: 15px;
+    }
+
+    .campus-ai-title p {
+        font-size: 10px;
+    }
+
+    .campus-ai-messages {
+        padding: 20px 12px 18px;
+    }
+
+    .campus-ai-suggestions {
+        grid-template-columns: 1fr;
+    }
+
+    .campus-ai-message-content {
+        max-width: 92%;
+        padding: 11px 13px;
+        font-size: 13px;
+    }
+
+    .campus-ai-input-area {
+        padding: 7px 10px 11px;
+    }
+
+    #campusAiInput {
+        min-height: 48px;
+        padding: 12px 13px;
+        font-size: 13px;
+    }
+
+    .campus-ai-toolbar {
+        min-height: 47px;
+        padding: 6px;
+    }
+
+    .campus-ai-more-menu {
+        top: 62px;
+        right: 10px;
+        width: 220px;
+    }
+
+    .campus-ai-talk-messages {
+        padding: 18px 12px;
+    }
+
+    .campus-ai-talk-message {
+        max-width: 94%;
+        font-size: 13px;
+    }
+}
+
+@media (max-width:420px) {
+
+    .campus-ai-button {
+        right: 10px;
+        bottom: 10px;
+        width: 48px;
+        height: 48px;
+    }
+
+    .campus-ai-title p {
+        display: none;
+    }
+
+    .campus-ai-message-content {
+        max-width: 95%;
+        font-size: 12.5px;
+    }
+
+    .campus-ai-message-actions button:first-child::after {
+        display: none;
+    }
+
+    .campus-ai-message-actions button:first-child {
+        width: 30px;
+        min-width: 30px;
+        padding: 0;
+    }
+
+    .campus-ai-toolbar-left {
+        gap: 4px;
+    }
+
+    .campus-ai-tool-button,
+    .campus-ai-talk-button {
+        width: 32px;
+        height: 32px;
+    }
+
+    #campusAiSend,
+    .campus-ai-stop-button {
+        width: 42px;
+        height: 37px;
+        flex-basis: 42px;
+    }
+}
+
+
+/* =========================================================
+   ACCESSIBILITY
+========================================================= */
+
+.campus-ai-page button:focus-visible,
+.campus-ai-page input:focus-visible,
+.campus-ai-page textarea:focus-visible,
+.campus-ai-talk-page button:focus-visible {
+    outline: 3px solid rgba(11,94,215,.25);
+    outline-offset: 2px;
+}
+
+.campus-ai-page *,
+.campus-ai-page *::before,
+.campus-ai-page *::after,
+.campus-ai-talk-page *,
+.campus-ai-talk-page *::before,
+.campus-ai-talk-page *::after {
+    box-sizing: border-box;
+}
+
+.campus-ai-page button,
+.campus-ai-talk-page button {
+    font-family: inherit;
+}

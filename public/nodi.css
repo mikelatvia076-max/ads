@@ -1,0 +1,4845 @@
+/* =========================================================
+   SITE CHAT - COMPLETE DARK RESPONSIVE CSS
+========================================================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: #080b12;
+    color: #f1f5f9;
+}
+
+body {
+    overflow: hidden;
+}
+
+/* =========================================================
+   GENERAL
+========================================================= */
+
+button,
+input {
+    font-family: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+.hidden {
+    display: none !important;
+}
+
+
+/* =========================================================
+   JOIN SCREEN
+========================================================= */
+
+.join-screen {
+    width: 100%;
+    height: 100vh;
+    min-height: 100dvh;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 20px;
+
+    background:
+        radial-gradient(circle at top left, #172554 0%, transparent 35%),
+        radial-gradient(circle at bottom right, #111827 0%, transparent 40%),
+        #080b12;
+}
+
+.join-card {
+    width: 100%;
+    max-width: 420px;
+
+    padding: 40px 35px;
+
+    background: rgba(17, 24, 39, 0.94);
+
+    border: 1px solid #263244;
+    border-radius: 24px;
+
+    text-align: center;
+
+    box-shadow:
+        0 25px 70px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.join-logo,
+.logo-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: white;
+
+    font-weight: 800;
+
+    box-shadow: 0 10px 30px rgba(37, 99, 235, 0.3);
+}
+
+.join-logo {
+    width: 75px;
+    height: 75px;
+    margin: 0 auto 20px;
+
+    border-radius: 22px;
+
+    font-size: 34px;
+}
+
+.join-card h1 {
+    font-size: 30px;
+    margin-bottom: 8px;
+}
+
+.join-card p {
+    color: #94a3b8;
+    margin-bottom: 28px;
+}
+
+#nameInput {
+    width: 100%;
+    height: 52px;
+
+    padding: 0 17px;
+
+    border: 1px solid #334155;
+    border-radius: 13px;
+
+    outline: none;
+
+    background: #0b1220;
+    color: white;
+
+    font-size: 15px;
+
+    transition: 0.2s;
+}
+
+#nameInput:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+#joinBtn {
+    width: 100%;
+    height: 52px;
+
+    margin-top: 14px;
+
+    border: none;
+    border-radius: 13px;
+
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
+    color: white;
+
+    font-size: 15px;
+    font-weight: 700;
+
+    transition: 0.2s;
+}
+
+#joinBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(37, 99, 235, 0.3);
+}
+
+
+/* =========================================================
+   MAIN APP
+========================================================= */
+
+.app {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+
+    display: flex;
+
+    background: #080b12;
+}
+
+
+/* =========================================================
+   SIDEBAR
+========================================================= */
+
+.sidebar {
+    width: 310px;
+    height: 100%;
+
+    flex-shrink: 0;
+
+    display: flex;
+    flex-direction: column;
+
+    background: #0d121c;
+
+    border-right: 1px solid #202938;
+}
+
+
+/* =========================================================
+   SIDEBAR HEADER
+========================================================= */
+
+.sidebar-head {
+    min-height: 82px;
+
+    padding: 16px 18px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    border-bottom: 1px solid #202938;
+}
+
+.site-logo {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+
+.head-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.home-icon-btn {
+    flex-shrink: 0;
+
+    width: 30px;
+    height: 30px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: linear-gradient(135deg, #2563eb, #1e3a8a);
+    color: white;
+
+    text-decoration: none;
+    font-size: 13px;
+
+    box-shadow: 0 3px 10px rgba(37, 99, 235, 0.35);
+
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.home-icon-btn:hover {
+    transform: translateY(-2px) scale(1.06);
+    box-shadow: 0 5px 14px rgba(37, 99, 235, 0.5);
+}
+
+.logo-icon {
+    width: 42px;
+    height: 42px;
+
+    border-radius: 12px;
+
+    font-size: 19px;
+}
+
+.brand-small {
+    display: block;
+
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.online-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+
+    margin-top: 3px;
+
+    color: #64748b;
+
+    font-size: 11px;
+}
+
+.my-online-dot,
+.chat-online-dot {
+    width: 8px;
+    height: 8px;
+
+    border-radius: 50%;
+
+    background: #22c55e;
+}
+
+.my-online-dot {
+    display: inline-block;
+}
+
+.me-name {
+    max-width: 90px;
+
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    color: #94a3b8;
+    font-size: 13px;
+}
+
+
+/* =========================================================
+   FIND FRIEND BUTTON
+========================================================= */
+
+.find-friend-btn {
+    width: calc(100% - 28px);
+
+    margin: 15px 14px 12px;
+
+    padding: 13px;
+
+    display: flex;
+    align-items: center;
+    gap: 11px;
+
+    border: 1px solid #263244;
+    border-radius: 13px;
+
+    background: #111827;
+    color: white;
+
+    text-align: left;
+
+    transition: 0.2s;
+}
+
+.find-friend-btn:hover {
+    background: #172033;
+    border-color: #334155;
+    transform: translateY(-1px);
+}
+
+.find-icon {
+    width: 35px;
+    height: 35px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 10px;
+
+    background: #172554;
+    color: #60a5fa;
+}
+
+.find-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.find-text strong,
+.find-text small {
+    display: block;
+}
+
+.find-text strong {
+    font-size: 13px;
+}
+
+.find-text small {
+    margin-top: 3px;
+
+    color: #64748b;
+
+    font-size: 10px;
+}
+
+.find-arrow {
+    color: #64748b;
+    font-size: 23px;
+}
+
+
+/* =========================================================
+   FRIENDS
+========================================================= */
+
+.friends-heading {
+    padding: 10px 18px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    color: #64748b;
+
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.friends-count {
+    min-width: 22px;
+    height: 20px;
+
+    padding: 0 6px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 10px;
+
+    background: #172554;
+    color: #60a5fa;
+
+    font-size: 10px;
+}
+
+.friends-list {
+    flex: 1;
+
+    padding: 4px 10px;
+
+    overflow-y: auto;
+}
+
+.friends-list::-webkit-scrollbar,
+.all-users-list::-webkit-scrollbar,
+.messages::-webkit-scrollbar {
+    width: 5px;
+}
+
+.friends-list::-webkit-scrollbar-thumb,
+.all-users-list::-webkit-scrollbar-thumb,
+.messages::-webkit-scrollbar-thumb {
+    background: #293548;
+    border-radius: 10px;
+}
+
+.no-friends {
+    padding: 45px 15px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    text-align: center;
+
+    color: #64748b;
+}
+
+.no-friends-icon {
+    font-size: 30px;
+    margin-bottom: 10px;
+}
+
+.no-friends strong {
+    color: #cbd5e1;
+    font-size: 13px;
+}
+
+.no-friends span {
+    margin-top: 5px;
+    font-size: 11px;
+}
+
+
+/* =========================================================
+   ACCOUNT AREA
+========================================================= */
+
+.account-area {
+    position: relative;
+
+    padding: 10px;
+
+    border-top: 1px solid #202938;
+}
+
+.account-btn {
+    width: 100%;
+
+    padding: 9px;
+
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    border: none;
+    border-radius: 12px;
+
+    background: transparent;
+    color: white;
+
+    text-align: left;
+}
+
+.account-btn:hover {
+    background: #151d2b;
+}
+
+.account-avatar {
+    position: relative;
+
+    width: 38px;
+    height: 38px;
+
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: linear-gradient(135deg, #334155, #1e293b);
+
+    color: white;
+
+    font-weight: 700;
+}
+
+.avatar-inner {
+    width: 100%;
+    height: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+
+    border-radius: 50%;
+}
+
+.avatar-edit-badge {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+
+    width: 16px;
+    height: 16px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+    border: 2px solid #0b1220;
+
+    background: #2563eb;
+    color: white;
+
+    font-size: 8px;
+
+    cursor: pointer;
+
+    transition: transform 0.15s ease;
+}
+
+.avatar-edit-badge:hover {
+    transform: scale(1.12);
+}
+
+.avatar-img {
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    border-radius: 50%;
+}
+
+.account-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.account-info strong,
+.account-info small {
+    display: block;
+
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.account-info strong {
+    font-size: 13px;
+}
+
+.account-info small {
+    margin-top: 2px;
+    color: #64748b;
+    font-size: 10px;
+}
+
+/* =========================================================
+   ACCOUNT MENU
+========================================================= */
+
+.account-menu {
+    position: absolute;
+
+    left: 10px;
+    right: 10px;
+    bottom: 65px;
+
+    padding: 7px;
+
+    border: 1px solid #293548;
+    border-radius: 14px;
+
+    background: #111827;
+
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+
+    z-index: 50;
+}
+
+.account-menu button {
+    width: 100%;
+
+    padding: 11px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    border: none;
+    border-radius: 9px;
+
+    background: transparent;
+    color: #cbd5e1;
+
+    font-size: 12px;
+
+    text-align: left;
+}
+
+.account-menu button:hover {
+    background: #1e293b;
+    color: white;
+}
+
+.logout-menu-btn {
+    color: #f87171 !important;
+}
+
+.request-count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 999px;
+
+    background: #ef4444;
+    color: white;
+
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.request-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+
+    width: 11px;
+    height: 11px;
+
+    border-radius: 50%;
+
+    background: #ef4444;
+    border: 2px solid #111827;
+}
+
+.request-count.hidden,
+.request-dot.hidden {
+    display: none;
+}
+
+
+/* =========================================================
+   CHAT AREA
+========================================================= */
+
+.chat-area {
+    position: relative;
+
+    min-width: 0;
+    flex: 1;
+
+    height: 100%;
+
+    display: flex;
+    flex-direction: column;
+
+    background: #090e17;
+}
+
+
+/* =========================================================
+   CHAT HEADER
+========================================================= */
+
+.chat-header {
+    min-height: 82px;
+
+    padding: 13px 22px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    border-bottom: 1px solid #202938;
+
+    background: #0d131e;
+}
+
+.chat-user {
+    min-width: 0;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.chat-avatar {
+    position: relative;
+
+    width: 46px;
+    height: 46px;
+
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: linear-gradient(135deg, #334155, #1e293b);
+
+    font-weight: 700;
+}
+
+.chat-online-dot {
+    position: absolute;
+
+    right: 0;
+    bottom: 1px;
+
+    width: 11px;
+    height: 11px;
+
+    border: 2px solid #0d131e;
+    border-radius: 50%;
+}
+
+.chat-user-info {
+    min-width: 0;
+}
+
+.chat-user-info h2 {
+    max-width: 400px;
+
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    font-size: 15px;
+}
+
+.chat-user-info span {
+    display: block;
+
+    margin-top: 3px;
+
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    color: #64748b;
+    font-size: 11px;
+}
+
+
+/* =========================================================
+   CALL BUTTONS
+========================================================= */
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* the plain "flex" rule above beats the browser's built-in
+   [hidden] rule (same origin/specificity, author wins), so without
+   this the call/3-dot buttons would stay visible even while
+   header-actions carries the hidden attribute */
+.header-actions[hidden] {
+    display: none;
+}
+
+.chat-back-btn {
+    display: none;
+    flex-shrink: 0;
+
+    width: 34px;
+    height: 34px;
+
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+
+    background: transparent;
+    color: #cbd5e1;
+
+    font-size: 16px;
+
+    transition: 0.2s;
+}
+
+.chat-back-btn:hover {
+    background: #1e293b;
+    color: white;
+}
+
+.call-btn {
+    width: 40px;
+    height: 40px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: 1px solid #293548;
+    border-radius: 50%;
+
+    background: #111827;
+    color: #cbd5e1;
+
+    font-size: 16px;
+
+    transition: 0.2s;
+}
+
+.call-btn:hover {
+    background: #1e293b;
+    color: white;
+    transform: scale(1.05);
+}
+
+
+/* =========================================================
+   DISAPPEARING MESSAGES MENU
+========================================================= */
+
+.disappearing-menu-wrap {
+    position: relative;
+}
+
+.disappearing-btn-active {
+    color: #22c55e;
+    border-color: #22c55e;
+}
+
+.disappearing-menu {
+    position: absolute;
+    top: 48px;
+    right: 0;
+    z-index: 30;
+
+    min-width: 195px;
+
+    background: #111827;
+    border: 1px solid #293548;
+    border-radius: 12px;
+
+    padding: 6px;
+
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.disappearing-menu.hidden {
+    display: none;
+}
+
+.disappearing-menu-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 8px 10px 6px;
+
+    color: #64748b;
+
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+
+    border-bottom: 1px solid #293548;
+    margin-bottom: 4px;
+}
+
+.disappearing-options-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.disappearing-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    width: 100%;
+
+    padding: 9px 10px;
+    border-radius: 8px;
+
+    background: transparent;
+    color: #cbd5e1;
+
+    font-size: 13.5px;
+    text-align: left;
+}
+
+.disappearing-option:hover {
+    background: #1e293b;
+    color: white;
+}
+
+.disappearing-option.selected {
+    color: #22c55e;
+}
+
+.unread-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    margin: 14px 0;
+
+    font-size: 12px;
+    font-weight: 600;
+    color: #f59e0b;
+
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.unread-divider::before,
+.unread-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #f59e0b55;
+}
+
+.unread-divider::before { margin-right: 10px; }
+.unread-divider::after { margin-left: 10px; }
+
+
+/* =========================================================
+   MESSAGE AREA
+========================================================= */
+
+.messages {
+    flex: 1;
+
+    min-height: 0;
+
+    padding: 25px;
+
+    overflow-y: auto;
+
+    background:
+        radial-gradient(circle at 50% 20%, rgba(37, 99, 235, 0.04), transparent 30%);
+}
+
+.empty-chat {
+    height: 100%;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    text-align: center;
+
+    color: #64748b;
+}
+
+.empty-chat-icon {
+    width: 70px;
+    height: 70px;
+
+    margin-bottom: 17px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 22px;
+
+    background: #111827;
+    border: 1px solid #263244;
+
+    color: #3b82f6;
+
+    font-size: 28px;
+}
+
+.empty-chat h2 {
+    margin-bottom: 6px;
+
+    color: #cbd5e1;
+
+    font-size: 19px;
+}
+
+.empty-chat p {
+    font-size: 12px;
+}
+
+
+/* =========================================================
+   COMPOSER
+========================================================= */
+
+.composer {
+    position: relative;
+
+    min-height: 76px;
+
+    padding: 13px 20px;
+
+    display: flex;
+    align-items: center;
+    gap: 9px;
+
+    border-top: 1px solid #202938;
+
+    background: #0d131e;
+}
+
+.composer-icon {
+    width: 42px;
+    height: 42px;
+
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+
+    background: transparent;
+    color: #64748b;
+
+    font-size: 17px;
+
+    transition: 0.2s;
+}
+
+.composer-icon:hover {
+    background: #1e293b;
+    color: #cbd5e1;
+}
+
+
+/* =========================================================
+   EMOJI & STICKER PANEL
+========================================================= */
+
+.emoji-panel {
+    position: absolute;
+
+    left: 20px;
+    bottom: calc(100% + 10px);
+
+    width: min(320px, calc(100vw - 40px));
+    max-height: 320px;
+
+    display: flex;
+    flex-direction: column;
+
+    background: #0f1724;
+
+    border: 1px solid #293548;
+    border-radius: 16px;
+
+    box-shadow: 0 20px 55px rgba(0, 0, 0, 0.55);
+
+    overflow: hidden;
+
+    z-index: 40;
+}
+
+.emoji-panel-tabs {
+    display: flex;
+
+    border-bottom: 1px solid #202938;
+}
+
+.emoji-tab {
+    flex: 1;
+
+    padding: 10px;
+
+    border: none;
+
+    background: transparent;
+    color: #64748b;
+
+    font-size: 13px;
+    font-weight: 700;
+
+    transition: 0.2s;
+}
+
+.emoji-tab:hover {
+    color: #cbd5e1;
+}
+
+.emoji-tab.active {
+    color: #3b82f6;
+
+    box-shadow: inset 0 -2px 0 #2563eb;
+}
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+
+    padding: 10px;
+    gap: 2px;
+
+    flex: 1;
+    min-height: 0;
+
+    overflow-y: auto;
+}
+
+.emoji-item,
+.sticker-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    aspect-ratio: 1;
+
+    border: none;
+    border-radius: 8px;
+
+    background: transparent;
+
+    font-size: 20px;
+
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.sticker-item {
+    font-size: 28px;
+}
+
+.emoji-item:hover,
+.sticker-item:hover {
+    background: #1e293b;
+    transform: scale(1.15);
+}
+
+.bubble-sticker {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.sticker-emoji {
+    display: block;
+
+    font-size: 56px;
+    line-height: 1;
+}
+
+/* ---- tab content switching ---- */
+
+.emoji-tab-content {
+    display: flex;
+    flex-direction: column;
+
+    min-height: 0;
+    flex: 1;
+}
+
+.emoji-tab-content.hidden {
+    display: none;
+}
+
+/* ---- emoji search ---- */
+
+.emoji-search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    margin: 10px 10px 0;
+    padding: 8px 10px;
+
+    background: #131c2b;
+    border: 1px solid #232f42;
+    border-radius: 10px;
+
+    color: #64748b;
+    font-size: 13px;
+}
+
+.emoji-search {
+    flex: 1;
+
+    border: none;
+    outline: none;
+    background: transparent;
+
+    color: #e2e8f0;
+    font-size: 13px;
+}
+
+.emoji-search::placeholder {
+    color: #64748b;
+}
+
+/* ---- category / pack bar ---- */
+
+.emoji-category-bar {
+    display: flex;
+    gap: 4px;
+
+    padding: 8px 10px 0;
+
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.emoji-category-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.emoji-cat-btn {
+    flex: 0 0 auto;
+
+    padding: 5px 8px;
+
+    border: none;
+    border-radius: 8px;
+
+    background: transparent;
+    color: #94a3b8;
+
+    font-size: 15px;
+    white-space: nowrap;
+
+    transition: 0.15s;
+}
+
+.sticker-pack-btn {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.emoji-cat-btn:hover {
+    background: #1e293b;
+}
+
+.emoji-cat-btn.active {
+    background: #1d2c44;
+    color: #3b82f6;
+}
+
+.emoji-empty-hint {
+    grid-column: 1 / -1;
+
+    padding: 24px 10px;
+
+    text-align: center;
+    color: #64748b;
+    font-size: 12.5px;
+}
+
+/* ---- sticker grid items + favorite star ---- */
+
+.sticker-item-wrap {
+    position: relative;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sticker-fav-btn {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 18px;
+    height: 18px;
+
+    border: none;
+    border-radius: 50%;
+
+    background: #0f1724;
+    color: #475569;
+
+    font-size: 9px;
+
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+
+    transition: opacity 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.sticker-item-wrap:hover .sticker-fav-btn,
+.sticker-fav-btn.active {
+    opacity: 1;
+}
+
+.sticker-fav-btn.active {
+    color: #fbbf24;
+}
+
+.sticker-fav-btn:hover {
+    transform: scale(1.15);
+}
+
+/* ---- favorite star on a sticker already sent in the chat ---- */
+
+.sticker-msg-wrap {
+    position: relative;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sticker-msg-wrap .sticker-fav-btn {
+    top: 0;
+    right: -22px;
+
+    width: 24px;
+    height: 24px;
+    font-size: 11px;
+}
+
+/* ---- twemoji (flat colour emoji icons) ---- */
+
+img.twemoji {
+    width: 1.25em;
+    height: 1.25em;
+
+    vertical-align: -0.2em;
+    margin: 0 1px;
+}
+
+.emoji-item img.twemoji {
+    width: 22px;
+    height: 22px;
+    margin: 0;
+}
+
+.sticker-item img.twemoji,
+.sticker-emoji img.twemoji {
+    width: 32px;
+    height: 32px;
+}
+
+.sticker-emoji img.twemoji {
+    width: 56px;
+    height: 56px;
+}
+
+/* ---- GIF tab ---- */
+
+.gif-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+
+    padding: 10px;
+    gap: 6px;
+
+    flex: 1;
+    min-height: 0;
+
+    overflow-y: auto;
+}
+
+.gif-item {
+    padding: 0;
+    border: none;
+    border-radius: 10px;
+
+    overflow: hidden;
+    background: #131c2b;
+
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.gif-item:hover {
+    transform: scale(1.03);
+}
+
+.gif-item img {
+    display: block;
+    width: 100%;
+    height: 90px;
+    object-fit: cover;
+}
+
+.gif-msg {
+    display: block;
+    max-width: 220px;
+    border-radius: 12px;
+}
+
+/* ---- typing indicator ---- */
+
+.typing-indicator {
+    color: #3b82f6 !important;
+    font-style: italic;
+    animation: typingPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes typingPulse {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+}
+
+/* ---- deleted message ---- */
+
+.bubble-deleted {
+    background: transparent !important;
+    border: 1px dashed #334155 !important;
+    box-shadow: none !important;
+}
+
+.deleted-msg {
+    color: #64748b;
+    font-size: 13px;
+    font-style: italic;
+}
+
+.deleted-msg i {
+    margin-right: 4px;
+}
+
+/* ---- per-message actions (delete for me / everyone) ---- */
+
+.msg-row {
+    position: relative;
+}
+
+.bubble {
+    position: relative;
+}
+
+.msg-actions {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+
+.msg-row:hover .msg-actions {
+    opacity: 1;
+}
+
+.bubble-sticker .msg-actions {
+    right: -48px;
+}
+
+.msg-actions-btn {
+    width: 22px;
+    height: 22px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+
+    background: #1e293b;
+    color: #94a3b8;
+
+    font-size: 10px;
+
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.msg-actions-btn:hover {
+    background: #293548;
+    color: #e2e8f0;
+}
+
+.msg-actions-menu {
+    display: none;
+    flex-direction: column;
+
+    position: absolute;
+    top: 18px;
+    right: 0;
+
+    min-width: 160px;
+
+    background: #0f1724;
+    border: 1px solid #293548;
+    border-radius: 10px;
+
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+
+    overflow: hidden;
+    z-index: 30;
+}
+
+.msg-row.theirs .msg-actions-menu {
+    right: auto;
+    left: 0;
+}
+
+.msg-actions-menu.open {
+    display: flex;
+}
+
+.msg-actions-menu button {
+    padding: 9px 12px;
+
+    border: none;
+    background: transparent;
+    color: #cbd5e1;
+
+    font-size: 13px;
+    text-align: left;
+}
+
+.msg-actions-menu button:hover {
+    background: #1e293b;
+}
+
+.msg-actions-menu button.danger {
+    color: #f87171;
+}
+
+#textInput {
+    min-width: 0;
+    flex: 1;
+
+    height: 46px;
+
+    padding: 0 17px;
+
+    border: 1px solid #293548;
+    border-radius: 24px;
+
+    outline: none;
+
+    background: #111827;
+    color: white;
+
+    font-size: 13px;
+
+    transition: 0.2s;
+}
+
+#textInput::placeholder {
+    color: #64748b;
+}
+
+#textInput:focus {
+    border-color: #3b82f6;
+    background: #121b2a;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.08);
+}
+
+
+/* SEND BUTTON */
+
+.send-btn {
+    width: 46px;
+    height: 46px;
+
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
+    color: white;
+
+    font-size: 17px;
+
+    transition: 0.2s;
+}
+
+.send-btn:hover {
+    transform: scale(1.07);
+    box-shadow: 0 8px 22px rgba(37, 99, 235, 0.3);
+}
+
+.send-btn i {
+    pointer-events: none;
+}
+
+
+/* =========================================================
+   RECORDING BAR
+========================================================= */
+
+.recording-bar {
+    min-height: 62px;
+
+    padding: 9px 18px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    background: #17111a;
+
+    border-top: 1px solid #3b243e;
+}
+
+.recording-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    min-width: 0;
+
+    font-size: 12px;
+}
+
+.recording-dot {
+    width: 9px;
+    height: 9px;
+
+    flex-shrink: 0;
+
+    border-radius: 50%;
+    background: #ef4444;
+
+    animation: recordingPulse 1s infinite;
+}
+
+@keyframes recordingPulse {
+    50% {
+        opacity: 0.3;
+    }
+}
+
+#recTimer {
+    color: #f87171;
+}
+
+.recording-actions {
+    display: flex;
+    gap: 7px;
+}
+
+.cancel-record,
+.stop-record {
+    padding: 8px 12px;
+
+    border-radius: 9px;
+
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.cancel-record {
+    border: 1px solid #334155;
+
+    background: transparent;
+    color: #94a3b8;
+}
+
+.stop-record {
+    border: none;
+
+    background: #dc2626;
+    color: white;
+}
+
+.pause-record {
+    width: 34px;
+    height: 34px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+    border-radius: 50%;
+
+    border: 1px solid #334155;
+
+    background: transparent;
+    color: #e2e8f0;
+
+    font-size: 13px;
+}
+
+.pause-record.is-paused {
+    border-color: #dc2626;
+    color: #f87171;
+}
+
+.recording-bar.is-paused .recording-dot {
+    animation: none;
+    opacity: 1;
+}
+
+
+/* =========================================================
+   FIND FRIEND PANEL
+========================================================= */
+
+.find-friend-panel {
+    position: fixed;
+    inset: 0;
+
+    z-index: 100;
+}
+
+.find-friend-overlay {
+    position: absolute;
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.65);
+
+    backdrop-filter: blur(4px);
+}
+
+.find-friend-card {
+    position: absolute;
+
+    top: 50%;
+    left: 50%;
+
+    width: min(500px, calc(100% - 30px));
+    max-height: 80vh;
+
+    transform: translate(-50%, -50%);
+
+    display: flex;
+    flex-direction: column;
+
+    background: #0f1724;
+
+    border: 1px solid #293548;
+    border-radius: 20px;
+
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65);
+
+    overflow: hidden;
+}
+
+.find-friend-header {
+    padding: 19px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    border-bottom: 1px solid #202938;
+}
+
+.find-friend-header h2 {
+    font-size: 18px;
+}
+
+.find-friend-header p {
+    margin-top: 4px;
+
+    color: #64748b;
+
+    font-size: 11px;
+}
+
+.close-find-btn,
+.panel-close {
+    width: 34px;
+    height: 34px;
+
+    border: none;
+    border-radius: 50%;
+
+    background: #1e293b;
+    color: #94a3b8;
+
+    font-size: 22px;
+}
+
+.close-find-btn:hover,
+.panel-close:hover {
+    background: #334155;
+    color: white;
+}
+
+.friend-search {
+    margin: 14px;
+
+    height: 43px;
+
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 0 13px;
+
+    border: 1px solid #293548;
+    border-radius: 11px;
+
+    background: #0b1220;
+}
+
+.friend-search span {
+    color: #64748b;
+}
+
+.friend-search input {
+    min-width: 0;
+    flex: 1;
+
+    border: none;
+    outline: none;
+
+    background: transparent;
+    color: white;
+
+    font-size: 13px;
+}
+
+.all-users-list {
+    padding: 5px 12px 15px;
+
+    overflow-y: auto;
+}
+
+
+/* =========================================================
+   ACCOUNT PANEL
+========================================================= */
+
+.account-panel {
+    position: fixed;
+
+    z-index: 90;
+
+    top: 50%;
+    left: 50%;
+
+    width: min(500px, calc(100% - 30px));
+    max-height: 80vh;
+
+    transform: translate(-50%, -50%);
+
+    background: #0f1724;
+
+    border: 1px solid #293548;
+    border-radius: 20px;
+
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.65);
+
+    overflow: hidden;
+}
+
+.account-panel-head {
+    padding: 18px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    border-bottom: 1px solid #202938;
+}
+
+.account-panel-title {
+    font-weight: 700;
+}
+
+.account-panel-subtitle {
+    margin-top: 4px;
+
+    color: #64748b;
+
+    font-size: 11px;
+}
+
+.account-panel-body {
+    max-height: 65vh;
+
+    padding: 15px;
+
+    overflow-y: auto;
+}
+
+
+/* =========================================================
+   CALL OVERLAY
+========================================================= */
+
+.call-overlay {
+    position: fixed;
+    inset: 0;
+
+    z-index: 200;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 15px;
+
+    background: #03050a;
+}
+
+.call-window {
+    position: relative;
+
+    width: min(1000px, 100%);
+    height: min(720px, 90vh);
+
+    overflow: hidden;
+
+    border-radius: 20px;
+
+    background: #05070c;
+
+    border: 1px solid #263244;
+
+    box-shadow: 0 30px 100px rgba(0, 0, 0, 0.8);
+}
+
+.call-top {
+    position: absolute;
+
+    top: 0;
+    left: 0;
+    right: 0;
+
+    z-index: 10;
+
+    padding: 18px;
+
+    text-align: center;
+
+    background: linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0.65),
+        transparent
+    );
+}
+
+#callStatusText {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.call-timer-text {
+    display: block;
+
+    margin-top: 4px;
+
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+
+    color: #94a3b8;
+}
+
+.call-minimize-btn {
+    position: absolute;
+
+    top: 14px;
+    left: 14px;
+
+    width: 34px;
+    height: 34px;
+
+    border: none;
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, 0.12);
+    color: white;
+
+    font-size: 14px;
+
+    cursor: pointer;
+}
+
+.call-minimize-btn:hover {
+    background: rgba(255, 255, 255, 0.22);
+}
+
+.remote-video {
+    width: 100%;
+    height: 100%;
+
+    object-fit: cover;
+
+    background: #020409;
+}
+
+.local-video {
+    position: absolute;
+
+    right: 20px;
+    bottom: 95px;
+
+    width: 170px;
+    height: 120px;
+
+    object-fit: cover;
+
+    border: 2px solid #475569;
+    border-radius: 12px;
+
+    background: #111827;
+}
+
+.call-controls {
+    position: absolute;
+
+    bottom: 20px;
+    left: 50%;
+
+    transform: translateX(-50%);
+
+    display: flex;
+    gap: 15px;
+}
+
+.call-control-btn {
+    width: 50px;
+    height: 50px;
+
+    border: none;
+    border-radius: 50%;
+
+    background: #1e293b;
+    color: white;
+
+    font-size: 17px;
+}
+
+.call-control-btn:hover {
+    background: #334155;
+}
+
+.call-control-btn.hangup {
+    background: #dc2626;
+
+    transform: rotate(135deg);
+}
+
+.call-control-btn.hangup:hover {
+    background: #b91c1c;
+}
+
+.call-control-btn.active-control {
+    background: #2563eb;
+}
+
+.call-control-btn.active-control:hover {
+    background: #1d4ed8;
+}
+
+.call-control-btn.rec-active {
+    background: #dc2626;
+    color: white;
+}
+
+.call-control-btn.rec-active:hover {
+    background: #b91c1c;
+}
+
+.call-control-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* =========================================================
+   FLOATING CALL BUBBLE
+========================================================= */
+
+.floating-call-bubble {
+    position: fixed;
+
+    top: 70px;
+    right: 16px;
+
+    z-index: 250;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 8px 10px 8px 8px;
+
+    border-radius: 999px;
+
+    background: #0f172a;
+    border: 1px solid #263244;
+
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+
+    cursor: grab;
+
+    user-select: none;
+    touch-action: none;
+}
+
+.floating-call-bubble:active {
+    cursor: grabbing;
+}
+
+.floating-call-bubble.hidden {
+    display: none;
+}
+
+.floating-call-bubble-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 34px;
+    height: 34px;
+
+    border-radius: 50%;
+
+    background: #16a34a;
+    color: white;
+
+    font-size: 14px;
+
+    animation: floatingBubblePulse 1.8s ease-in-out infinite;
+}
+
+@keyframes floatingBubblePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.45); }
+    50% { box-shadow: 0 0 0 6px rgba(22, 163, 74, 0); }
+}
+
+.floating-call-bubble-info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+
+    color: white;
+
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.floating-call-bubble-info span:last-child {
+    font-weight: 400;
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+}
+
+.floating-call-bubble-hangup {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 28px;
+    height: 28px;
+
+    border: none;
+    border-radius: 50%;
+
+    background: #dc2626;
+    color: white;
+
+    font-size: 12px;
+
+    transform: rotate(135deg);
+
+    cursor: pointer;
+}
+
+.floating-call-bubble-hangup:hover {
+    background: #b91c1c;
+}
+
+.call-recording-badge {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    z-index: 5;
+
+    display: flex;
+    align-items: center;
+    gap: 7px;
+
+    padding: 6px 12px;
+    border-radius: 999px;
+
+    background: rgba(220, 38, 38, 0.9);
+    color: white;
+
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.call-recording-badge.hidden {
+    display: none;
+}
+
+.call-recording-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: white;
+
+    animation: callRecordingPulse 1.2s infinite;
+}
+
+@keyframes callRecordingPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+}
+
+
+/* =========================================================
+   INCOMING CALL
+========================================================= */
+
+.incoming-call {
+    position: fixed;
+    inset: 0;
+
+    z-index: 300;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 20px;
+
+    background: rgba(0, 0, 0, 0.72);
+
+    backdrop-filter: blur(7px);
+}
+
+.incoming-card {
+    width: min(380px, 100%);
+
+    padding: 32px 25px;
+
+    border: 1px solid #293548;
+    border-radius: 22px;
+
+    background: #111827;
+
+    text-align: center;
+
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7);
+}
+
+.incoming-icon {
+    width: 65px;
+    height: 65px;
+
+    margin: 0 auto 17px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: #14532d;
+    color: #4ade80;
+
+    font-size: 25px;
+
+    animation: callPulse 1.3s infinite;
+}
+
+@keyframes callPulse {
+    50% {
+        transform: scale(1.08);
+        box-shadow: 0 0 0 12px rgba(34, 197, 94, 0.06);
+    }
+}
+
+.incoming-card h2 {
+    font-size: 20px;
+}
+
+.incoming-card p {
+    margin-top: 7px;
+
+    color: #64748b;
+
+    font-size: 12px;
+}
+
+.incoming-actions {
+    margin-top: 24px;
+
+    display: flex;
+    gap: 10px;
+}
+
+.accept-call,
+.decline-call {
+    flex: 1;
+
+    height: 45px;
+
+    border: none;
+    border-radius: 10px;
+
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.accept-call {
+    background: #16a34a;
+    color: white;
+}
+
+.decline-call {
+    background: #dc2626;
+    color: white;
+}
+
+
+/* =========================================================
+   FRIEND ITEM (sidebar list + discover panel)
+   Existing JS creates:
+   <div class="friend-item"> / <div class="discover-user">
+   with .friend-avatar / .friend-online-dot / .friend-details /
+   .friend-name / .friend-status inside
+========================================================= */
+
+.friend-item,
+.discover-user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 10px;
+    margin-bottom: 4px;
+
+    border-radius: 12px;
+
+    cursor: pointer;
+
+    transition: background 0.2s ease;
+}
+
+.friend-item:hover,
+.discover-user:hover {
+    background: #151d2b;
+}
+
+.friend-item.active {
+    background: #1e293b;
+}
+
+.discover-user {
+    cursor: default;
+}
+
+.friend-avatar {
+    position: relative;
+    flex-shrink: 0;
+
+    width: 42px;
+    height: 42px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: white;
+
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.friend-online-dot {
+    position: absolute;
+
+    right: -1px;
+    bottom: -1px;
+
+    width: 11px;
+    height: 11px;
+
+    border-radius: 50%;
+
+    background: #22c55e;
+    border: 2px solid #0d131e;
+}
+
+.friend-details {
+    min-width: 0;
+    flex: 1;
+
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.friend-name {
+    overflow: hidden;
+
+    color: #f1f5f9;
+
+    font-size: 14px;
+    font-weight: 600;
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.friend-status {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.friend-status.online {
+    color: #3b82f6;
+}
+
+/* Offline friends stay in the list (just without the green dot) -
+   dim them slightly so online friends still stand out at a glance. */
+.friend-item.offline .friend-avatar {
+    opacity: 0.55;
+}
+
+.friend-item.offline .friend-name {
+    color: #94a3b8;
+}
+
+.unread-badge {
+    flex-shrink: 0;
+
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 999px;
+
+    background: #2563eb;
+    color: white;
+
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.discover-actions {
+    flex-shrink: 0;
+}
+
+.add-friend-btn {
+    padding: 8px 14px;
+
+    border: none;
+    border-radius: 9px;
+
+    background: #2563eb;
+    color: white;
+
+    font-size: 12px;
+    font-weight: 700;
+
+    white-space: nowrap;
+
+    transition: background 0.2s ease;
+}
+
+.add-friend-btn:hover {
+    background: #1d4ed8;
+}
+
+.add-friend-btn.requested {
+    background: #1e293b;
+    color: #64748b;
+
+    cursor: not-allowed;
+}
+
+.add-friend-btn.requested:hover {
+    background: #1e293b;
+}
+
+.empty-panel {
+    padding: 35px 15px;
+
+    color: #64748b;
+
+    font-size: 13px;
+    text-align: center;
+}
+
+
+/* =========================================================
+   ACCOUNT PANEL PEOPLE ROWS
+   Existing JS creates:
+   <div class="panel-person"> with .dot / .panel-person-info /
+   .panel-person-name / .panel-person-status /
+   .panel-actions > .panel-action
+========================================================= */
+
+.panel-person {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 11px 8px;
+
+    border-bottom: 1px solid #1a2333;
+}
+
+.panel-person:last-child {
+    border-bottom: none;
+}
+
+.panel-person .dot {
+    flex-shrink: 0;
+
+    width: 9px;
+    height: 9px;
+
+    border-radius: 50%;
+
+    background: #475569;
+}
+
+.panel-avatar {
+    position: relative;
+    flex-shrink: 0;
+
+    width: 32px;
+    height: 32px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+    border-radius: 50%;
+
+    background: linear-gradient(135deg, #334155, #1e293b);
+    color: white;
+
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.panel-person-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.panel-person-name {
+    overflow: hidden;
+
+    color: #f1f5f9;
+
+    font-size: 14px;
+    font-weight: 600;
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.panel-person-status {
+    margin-top: 2px;
+
+    color: #64748b;
+    font-size: 11px;
+}
+
+.panel-person-status.online {
+    color: #3b82f6;
+}
+
+.panel-actions {
+    flex-shrink: 0;
+
+    display: flex;
+    gap: 8px;
+}
+
+.panel-action {
+    padding: 7px 13px;
+
+    border: none;
+    border-radius: 8px;
+
+    background: #1e293b;
+    color: #e2e8f0;
+
+    font-size: 12px;
+    font-weight: 700;
+
+    white-space: nowrap;
+
+    transition: background 0.2s ease;
+}
+
+.panel-action:hover {
+    background: #334155;
+}
+
+.panel-action.primary {
+    background: #2563eb;
+    color: white;
+}
+
+.panel-action.primary:hover {
+    background: #1d4ed8;
+}
+
+.panel-action.danger {
+    background: rgba(220, 38, 38, 0.15);
+    color: #f87171;
+}
+
+.panel-action.danger:hover {
+    background: rgba(220, 38, 38, 0.28);
+}
+
+/* On phones the account panel is narrower, and rows with action
+   buttons (friend requests: Confirm/Decline) don't leave enough
+   room for the name next to two fixed-width buttons - it used to
+   get squeezed down to nothing, leaving only the avatar visible.
+   Wrapping the actions onto their own line under the name fixes
+   that without touching the desktop layout. */
+@media (max-width: 650px) {
+
+    .panel-person {
+        flex-wrap: wrap;
+    }
+
+    .panel-actions:not(:empty) {
+        flex-basis: 100%;
+
+        justify-content: flex-end;
+
+        margin-top: 8px;
+    }
+
+}
+
+
+/* =========================================================
+   SETTINGS PANEL
+   (notification sound + call ringtone, inside the account
+   panel body — built by renderSettingsPanel() in client.js)
+========================================================= */
+
+.settings-block {
+    padding: 4px 2px 22px;
+
+    border-bottom: 1px solid #1a2333;
+}
+
+.settings-block:last-child {
+    padding-bottom: 4px;
+    border-bottom: none;
+}
+
+.settings-heading {
+    margin: 0 0 3px;
+
+    color: #f1f5f9;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.settings-hint {
+    margin: 0 0 12px;
+
+    color: #64748b;
+    font-size: 12px;
+}
+
+.sound-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    margin-bottom: 10px;
+}
+
+.sound-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 9px 11px;
+
+    border: 1px solid #202938;
+    border-radius: 10px;
+
+    background: #0d121c;
+
+    cursor: pointer;
+
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.sound-option:hover {
+    border-color: #334155;
+    background: #111827;
+}
+
+.sound-option input[type="radio"] {
+    flex-shrink: 0;
+
+    width: 15px;
+    height: 15px;
+
+    accent-color: #2563eb;
+}
+
+.sound-option span {
+    flex: 1;
+    min-width: 0;
+
+    overflow: hidden;
+
+    color: #e2e8f0;
+    font-size: 13px;
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.sound-option.custom-option span {
+    color: #94a3b8;
+    font-style: italic;
+}
+
+.sound-option:has(input:checked),
+.sound-option.selected {
+    border-color: #2563eb;
+    background: rgba(37, 99, 235, 0.1);
+}
+
+.sound-option:has(input:checked) span,
+.sound-option.selected span {
+    color: #e2e8f0;
+    font-style: normal;
+}
+
+.sound-preview-btn {
+    flex-shrink: 0;
+
+    width: 28px;
+    height: 28px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+
+    background: #1e293b;
+    color: #93c5fd;
+
+    font-size: 11px;
+
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.sound-preview-btn:hover {
+    background: #2563eb;
+    color: white;
+    transform: scale(1.06);
+}
+
+.sound-preview-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.sound-preview-btn:disabled:hover {
+    background: #1e293b;
+    color: #93c5fd;
+    transform: none;
+}
+
+.sound-upload-btn {
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+
+    padding: 10px;
+
+    border: 1px dashed #334155;
+    border-radius: 10px;
+
+    background: transparent;
+    color: #93c5fd;
+
+    font-size: 12px;
+    font-weight: 600;
+
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.sound-upload-btn:hover {
+    border-color: #2563eb;
+    background: rgba(37, 99, 235, 0.08);
+}
+
+
+/* =========================================================
+   MESSAGE BUBBLES
+   Existing JS creates:
+   <div class="msg-row mine|theirs|system">
+     <div class="bubble">...</div>
+     <div class="msg-meta">...</div>
+   </div>
+========================================================= */
+
+.msg-row {
+    display: flex;
+    flex-direction: column;
+
+    max-width: 65%;
+
+    margin-bottom: 16px;
+}
+
+.msg-row.mine {
+    margin-left: auto;
+    align-items: flex-end;
+}
+
+.msg-row.theirs {
+    margin-right: auto;
+    align-items: flex-start;
+}
+
+.bubble {
+    padding: 11px 15px;
+
+    border-radius: 16px;
+
+    font-size: 14px;
+    line-height: 1.5;
+
+    word-break: break-word;
+
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+
+.msg-row.mine .bubble {
+    border-bottom-right-radius: 4px;
+
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: white;
+}
+
+.msg-row.theirs .bubble {
+    border-bottom-left-radius: 4px;
+
+    background: #1e293b;
+    color: #f1f5f9;
+}
+
+.msg-meta {
+    margin-top: 5px;
+    padding: 0 4px;
+
+    color: #64748b;
+
+    font-size: 11px;
+}
+
+.msg-row.system {
+    max-width: 100%;
+    align-items: center;
+
+    margin: 10px auto;
+}
+
+.msg-row.system .bubble {
+    background: transparent;
+    box-shadow: none;
+
+    color: #64748b;
+
+    font-size: 12px;
+    font-style: italic;
+}
+
+.file-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+
+    margin-top: 4px;
+    padding: 9px 13px;
+
+    border-radius: 11px;
+
+    background: rgba(255, 255, 255, 0.08);
+    color: inherit;
+
+    text-decoration: none;
+
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.msg-row.theirs .file-chip {
+    background: #0f1724;
+}
+
+.file-icon {
+    font-size: 16px;
+}
+
+
+/* =========================================================
+   MUTED MIC DURING CALL
+   JS toggles .recording on the mute button when the mic
+   track is disabled
+========================================================= */
+
+.call-control-btn.recording {
+    background: #dc2626;
+    color: white;
+}
+
+.call-control-btn.recording:hover {
+    background: #b91c1c;
+}
+
+
+/* =========================================================
+   TABLET
+========================================================= */
+
+@media (max-width: 850px) {
+
+    .sidebar {
+        width: 260px;
+    }
+
+    .chat-header {
+        padding: 12px 15px;
+    }
+
+    .messages {
+        padding: 18px;
+    }
+
+    .composer {
+        padding: 10px 12px;
+    }
+
+}
+
+
+/* =========================================================
+   PHONE
+========================================================= */
+
+@media (max-width: 650px) {
+
+    html,
+    body {
+        overflow: hidden;
+    }
+
+    .app {
+        height: 100dvh;
+        min-height: 100dvh;
+    }
+
+    /* Phone: only one panel is on screen at a time. The sidebar
+       (Site Chat header, Find Friend, friends list, Account) fills
+       the screen by default; opening a chat swaps to a full-screen
+       chat view instead of squeezing both side by side. */
+
+    .sidebar {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .chat-area {
+        display: none;
+    }
+
+    .app.chat-open .sidebar {
+        display: none;
+    }
+
+    .app.chat-open .chat-area {
+        display: flex;
+        width: 100%;
+    }
+
+    .chat-back-btn {
+        display: flex;
+    }
+
+    .sidebar-head {
+        min-height: 70px;
+
+        padding: 10px;
+    }
+
+    .logo-icon {
+        width: 42px;
+        height: 42px;
+    }
+
+    /* Find friend */
+
+    .find-friend-btn {
+        margin: 12px 10px 10px;
+    }
+
+    .friends-list {
+        padding: 4px 7px;
+    }
+
+    .no-friends {
+        padding: 20px 10px;
+    }
+
+    .no-friends-icon {
+        font-size: 22px;
+    }
+
+    /* Account */
+
+    .account-area {
+        padding: 7px;
+    }
+
+    .account-avatar {
+        width: 40px;
+        height: 40px;
+
+        border: 2px solid #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+    }
+
+    /* Chat */
+
+    .chat-area {
+        min-width: 0;
+    }
+
+    .chat-header {
+        min-height: 68px;
+
+        padding: 9px 11px;
+    }
+
+    .chat-avatar {
+        width: 40px;
+        height: 40px;
+    }
+
+    .chat-user {
+        gap: 9px;
+    }
+
+    .chat-user-info h2 {
+        max-width: 55vw;
+
+        font-size: 13px;
+    }
+
+    .chat-user-info span {
+        max-width: 55vw;
+
+        font-size: 9px;
+    }
+
+    .header-actions {
+        gap: 5px;
+    }
+
+    .call-btn {
+        width: 36px;
+        height: 36px;
+
+        font-size: 14px;
+    }
+
+    /* Messages */
+
+    .messages {
+        padding: 12px;
+    }
+
+    .empty-chat-icon {
+        width: 60px;
+        height: 60px;
+
+        font-size: 23px;
+    }
+
+    .empty-chat h2 {
+        font-size: 16px;
+    }
+
+    .empty-chat p {
+        font-size: 10px;
+    }
+
+    /* Composer */
+
+    .composer {
+        min-height: 64px;
+
+        padding: 8px;
+
+        gap: 3px;
+    }
+
+    .composer-icon {
+        width: 36px;
+        height: 36px;
+
+        font-size: 15px;
+    }
+
+    #textInput {
+        height: 40px;
+
+        padding: 0 13px;
+
+        font-size: 12px;
+    }
+
+    .send-btn {
+        width: 40px;
+        height: 40px;
+
+        font-size: 15px;
+    }
+
+    /* Recording */
+
+    .recording-bar {
+        min-height: 55px;
+
+        padding: 8px;
+
+        gap: 6px;
+    }
+
+    .recording-left {
+        font-size: 10px;
+    }
+
+    .cancel-record,
+    .stop-record {
+        padding: 7px 9px;
+
+        font-size: 9px;
+    }
+
+    /* Find friends */
+
+    .find-friend-card {
+        width: calc(100% - 20px);
+
+        max-height: 85vh;
+
+        border-radius: 17px;
+    }
+
+    .find-friend-header {
+        padding: 15px;
+    }
+
+    .find-friend-header h2 {
+        font-size: 16px;
+    }
+
+    /* Account panel */
+
+    .account-panel {
+        width: calc(100% - 20px);
+
+        max-height: 85vh;
+
+        border-radius: 17px;
+    }
+
+    /* Calls */
+
+    .call-window {
+        width: 100%;
+        height: 100%;
+
+        border-radius: 0;
+    }
+
+    .local-video {
+        right: 12px;
+        bottom: 85px;
+
+        width: 105px;
+        height: 145px;
+
+        border-radius: 9px;
+    }
+
+    .call-controls {
+        bottom: 15px;
+    }
+
+    .call-control-btn {
+        width: 46px;
+        height: 46px;
+    }
+
+}
+
+
+/* =========================================================
+   VERY SMALL PHONES
+========================================================= */
+
+@media (max-width: 380px) {
+
+    .account-avatar {
+        width: 35px;
+        height: 35px;
+    }
+
+    .chat-user-info h2 {
+        max-width: 45vw;
+    }
+
+    .chat-user-info span {
+        max-width: 45vw;
+    }
+
+    .composer-icon {
+        width: 32px;
+        height: 32px;
+    }
+
+    #textInput {
+        height: 38px;
+    }
+
+    .send-btn {
+        width: 38px;
+        height: 38px;
+    }
+
+}
+
+
+/* =========================================================
+   TOUCH DEVICES
+========================================================= */
+
+@media (hover: none) {
+
+    button:hover {
+        transform: none;
+    }
+
+    .send-btn:active {
+        transform: scale(0.94);
+    }
+
+    .call-btn:active,
+    .composer-icon:active {
+        background: #1e293b;
+    }
+
+}
+
+/* =========================================================
+   REPLY PREVIEW BAR (above composer)
+========================================================= */
+
+.reply-preview-bar {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+
+    margin: 0 14px 8px;
+    padding: 8px 10px;
+
+    background: #1e293b;
+    border-radius: 10px;
+}
+
+.reply-preview-bar.hidden {
+    display: none;
+}
+
+.reply-preview-accent {
+    width: 3px;
+    border-radius: 2px;
+    background: #3b82f6;
+}
+
+.reply-preview-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.reply-preview-name {
+    color: #3b82f6;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.reply-preview-text {
+    color: #94a3b8;
+    font-size: 13px;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reply-preview-close {
+    align-self: center;
+
+    width: 26px;
+    height: 26px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #94a3b8;
+}
+
+.reply-preview-close:hover {
+    background: #293548;
+    color: #e2e8f0;
+}
+
+
+/* =========================================================
+   PINNED MESSAGE BANNER (below chat header)
+========================================================= */
+
+.pinned-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 9px 16px;
+
+    background: #16213a;
+    border-bottom: 1px solid #293548;
+
+    color: #cbd5e1;
+    font-size: 13px;
+
+    cursor: pointer;
+}
+
+.pinned-banner.hidden {
+    display: none;
+}
+
+.pinned-banner i.fa-thumbtack {
+    color: #3b82f6;
+}
+
+.pinned-banner-text {
+    flex: 1;
+    min-width: 0;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.pinned-banner-close {
+    width: 24px;
+    height: 24px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #94a3b8;
+}
+
+.pinned-banner-close:hover {
+    background: #293548;
+    color: #e2e8f0;
+}
+
+
+/* =========================================================
+   QUOTED REPLY / FORWARDED LABEL (inside a bubble)
+========================================================= */
+
+.quoted-reply {
+    margin-bottom: 6px;
+    padding: 6px 10px;
+
+    border-left: 3px solid rgba(255, 255, 255, 0.5);
+    border-radius: 6px;
+
+    background: rgba(255, 255, 255, 0.08);
+
+    cursor: pointer;
+}
+
+.msg-row.theirs .quoted-reply {
+    border-left-color: #3b82f6;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.quoted-reply-name {
+    font-size: 12px;
+    font-weight: 700;
+    opacity: 0.9;
+    margin-bottom: 2px;
+}
+
+.quoted-reply-text {
+    font-size: 12.5px;
+    opacity: 0.8;
+
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.forwarded-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    margin-bottom: 4px;
+
+    font-size: 11.5px;
+    font-style: italic;
+    opacity: 0.75;
+}
+
+.flash-highlight {
+    animation: flashHighlight 1s ease;
+}
+
+@keyframes flashHighlight {
+    0%, 100% { background: transparent; }
+    30% { background: rgba(59, 130, 246, 0.18); border-radius: 12px; }
+}
+
+
+/* =========================================================
+   REACTIONS
+========================================================= */
+
+.msg-reactions-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+
+    margin-top: 4px;
+}
+
+.msg-reaction-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+
+    padding: 2px 7px;
+
+    border: 1px solid #293548;
+    border-radius: 999px;
+
+    background: #1e293b;
+    color: #cbd5e1;
+
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.msg-reaction-pill.mine-reacted {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.18);
+}
+
+
+/* =========================================================
+   MESSAGE ACTION SHEET (long-press / right-click / "..." )
+========================================================= */
+
+.msg-sheet-overlay {
+    position: fixed;
+    inset: 0;
+
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+
+    z-index: 200;
+}
+
+.msg-sheet-backdrop {
+    position: absolute;
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.msg-sheet {
+    position: relative;
+
+    width: 100%;
+    max-width: 420px;
+    max-height: 80vh;
+
+    display: flex;
+    flex-direction: column;
+
+    padding: 14px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+
+    background: #0f1724;
+    border: 1px solid #293548;
+    border-bottom: none;
+    border-radius: 16px 16px 0 0;
+
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
+
+    overflow-y: auto;
+
+    animation: msgSheetUp 0.18s ease-out;
+}
+
+@keyframes msgSheetUp {
+    from { transform: translateY(16px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.msg-sheet-reactions {
+    display: flex;
+    justify-content: space-between;
+    gap: 4px;
+
+    padding: 6px 4px 14px;
+}
+
+.msg-sheet-reaction {
+    width: 40px;
+    height: 40px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+    background: #1e293b;
+
+    font-size: 20px;
+
+    transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.msg-sheet-reaction:hover,
+.msg-sheet-reaction.active {
+    background: #293548;
+    transform: scale(1.15);
+}
+
+.msg-sheet-preview {
+    padding: 8px 10px;
+    margin-bottom: 8px;
+
+    border-radius: 8px;
+    background: #1e293b;
+
+    color: #94a3b8;
+    font-size: 13px;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.msg-sheet-actions {
+    display: flex;
+    flex-direction: column;
+}
+
+.msg-sheet-actions button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 12px 8px;
+
+    border: none;
+    border-top: 1px solid #1e293b;
+    background: transparent;
+    color: #e2e8f0;
+
+    font-size: 14.5px;
+    text-align: left;
+}
+
+.msg-sheet-actions button:first-child {
+    border-top: none;
+}
+
+.msg-sheet-actions button i {
+    width: 18px;
+    text-align: center;
+    color: #94a3b8;
+}
+
+.msg-sheet-actions button:hover {
+    background: #1e293b;
+}
+
+.msg-sheet-actions button.danger {
+    color: #f87171;
+}
+
+.msg-sheet-actions button.danger i {
+    color: #f87171;
+}
+
+
+/* =========================================================
+   FORWARD MODAL
+========================================================= */
+
+.forward-modal-overlay {
+    position: fixed;
+    inset: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    z-index: 210;
+    padding: 20px;
+}
+
+.forward-modal-backdrop {
+    position: absolute;
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.forward-modal {
+    position: relative;
+
+    width: 100%;
+    max-width: 380px;
+    max-height: 70vh;
+
+    display: flex;
+    flex-direction: column;
+
+    padding: 16px;
+
+    background: #0f1724;
+    border: 1px solid #293548;
+    border-radius: 16px;
+
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.forward-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    margin-bottom: 10px;
+}
+
+.forward-modal-header h2 {
+    color: #e2e8f0;
+    font-size: 16px;
+}
+
+.forward-modal-close {
+    width: 28px;
+    height: 28px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #94a3b8;
+}
+
+.forward-modal-close:hover {
+    background: #1e293b;
+    color: #e2e8f0;
+}
+
+.forward-modal-preview {
+    padding: 8px 10px;
+    margin-bottom: 10px;
+
+    border-radius: 8px;
+    background: #1e293b;
+
+    color: #94a3b8;
+    font-size: 13px;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.forward-modal-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+
+    overflow-y: auto;
+}
+
+.forward-modal-empty {
+    padding: 20px 10px;
+    text-align: center;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.forward-friend-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 9px 8px;
+
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+
+    color: #e2e8f0;
+    font-size: 14px;
+    text-align: left;
+}
+
+.forward-friend-item:hover {
+    background: #1e293b;
+}
+
+.forward-friend-avatar {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+    background: #293548;
+    color: #cbd5e1;
+
+    font-weight: 700;
+}
+
+
+/* =========================================================
+   TYPING DOTS BUBBLE (in message list)
+========================================================= */
+
+.typing-row {
+    margin-bottom: 10px;
+}
+
+.typing-bubble {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    padding: 12px 16px !important;
+}
+
+.typing-dot {
+    width: 7px;
+    height: 7px;
+
+    border-radius: 50%;
+    background: #94a3b8;
+
+    animation: typingDotBounce 1.2s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.typing-dot:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes typingDotBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.6; }
+    30% { transform: translateY(-4px); opacity: 1; }
+}
+
+
+/* =========================================================
+   DOCUMENT SHARE BUTTON
+========================================================= */
+
+.file-chip-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.file-share-btn {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, 0.08);
+    color: inherit;
+
+    font-size: 13px;
+}
+
+.file-share-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+
+/* =========================================================
+   PINNED ROW HIGHLIGHT
+========================================================= */
+
+.msg-row.is-pinned .bubble {
+    outline: 1px dashed rgba(59, 130, 246, 0.5);
+    outline-offset: 3px;
+}
+
+
+/* =========================================================
+   TOUCH: always show the "..." button (no :hover on touch)
+========================================================= */
+
+@media (hover: none) {
+
+    .msg-actions {
+        opacity: 1;
+    }
+
+}
+
+@media (max-width: 650px) {
+
+    .msg-sheet {
+        max-width: 100%;
+    }
+
+}
+
+
+/* =========================================================
+   JOIN SCREEN: email field + forgot-name link + auto sign-in
+========================================================= */
+
+#emailInput {
+    width: 100%;
+    height: 52px;
+
+    margin-bottom: 12px;
+    padding: 0 17px;
+
+    border: 1px solid #334155;
+    border-radius: 13px;
+
+    outline: none;
+
+    background: #0b1220;
+    color: white;
+
+    font-size: 15px;
+
+    transition: 0.2s;
+}
+
+#emailInput:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.forgot-name-btn {
+    width: 100%;
+
+    margin-top: 14px;
+    padding: 6px;
+
+    border: none;
+    background: transparent;
+
+    color: #60a5fa;
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.forgot-name-btn:hover {
+    text-decoration: underline;
+}
+
+#joinFormFields.hidden {
+    display: none;
+}
+
+.auto-signin {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+
+    padding: 18px 0 6px;
+}
+
+.auto-signin.hidden {
+    display: none;
+}
+
+.auto-signin-spinner {
+    width: 34px;
+    height: 34px;
+
+    border: 3px solid #263244;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+
+    animation: authSpin 0.8s linear infinite;
+}
+
+@keyframes authSpin {
+    to { transform: rotate(360deg); }
+}
+
+.auto-signin span {
+    color: #cbd5e1;
+    font-size: 14px;
+    text-align: center;
+}
+
+
+/* =========================================================
+   FORGOT NAME MODAL
+========================================================= */
+
+.forgot-modal-overlay,
+.nice-alert-overlay {
+    position: fixed;
+    inset: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 20px;
+
+    z-index: 300;
+}
+
+.forgot-modal-overlay.hidden,
+.nice-alert-overlay.hidden {
+    display: none;
+}
+
+.forgot-modal-backdrop,
+.nice-alert-backdrop {
+    position: absolute;
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.6);
+}
+
+.forgot-modal,
+.nice-alert {
+    position: relative;
+
+    width: 100%;
+    max-width: 380px;
+
+    padding: 32px 28px 28px;
+
+    background: rgba(17, 24, 39, 0.97);
+
+    border: 1px solid #263244;
+    border-radius: 22px;
+
+    text-align: center;
+
+    box-shadow:
+        0 25px 70px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+
+    animation: niceModalPop 0.18s ease-out;
+}
+
+@keyframes niceModalPop {
+    from { transform: scale(0.94); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.forgot-modal-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+
+    width: 30px;
+    height: 30px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border: none;
+    border-radius: 50%;
+    background: #1e293b;
+    color: #94a3b8;
+}
+
+.forgot-modal-close:hover {
+    background: #293548;
+    color: #e2e8f0;
+}
+
+.forgot-modal-icon,
+.nice-alert-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 16px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: white;
+
+    font-size: 24px;
+
+    box-shadow: 0 10px 30px rgba(37, 99, 235, 0.3);
+}
+
+.nice-alert-icon {
+    background: linear-gradient(135deg, #f59e0b, #ea580c);
+    box-shadow: 0 10px 30px rgba(234, 88, 12, 0.3);
+}
+
+.forgot-modal h2,
+.nice-alert h2 {
+    font-size: 20px;
+    margin-bottom: 8px;
+}
+
+.forgot-modal p,
+.nice-alert p {
+    color: #94a3b8;
+    font-size: 14px;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+#forgotEmailInput {
+    width: 100%;
+    height: 48px;
+
+    padding: 0 15px;
+    margin-bottom: 10px;
+
+    border: 1px solid #334155;
+    border-radius: 12px;
+
+    outline: none;
+
+    background: #0b1220;
+    color: white;
+
+    font-size: 14.5px;
+
+    transition: 0.2s;
+}
+
+#forgotEmailInput:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.forgot-modal-msg {
+    margin-bottom: 12px;
+
+    color: #fbbf24;
+    font-size: 13px;
+}
+
+.forgot-modal-msg.hidden {
+    display: none;
+}
+
+.forgot-modal-submit,
+.nice-alert-ok {
+    width: 100%;
+    height: 48px;
+
+    border: none;
+    border-radius: 12px;
+
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
+    color: white;
+
+    font-size: 14.5px;
+    font-weight: 700;
+
+    transition: 0.2s;
+}
+
+.forgot-modal-submit:hover,
+.nice-alert-ok:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(37, 99, 235, 0.3);
+}
+
+.forgot-modal-submit:disabled {
+    opacity: 0.6;
+    transform: none;
+    box-shadow: none;
+}
+
+
+/* =========================================================
+   GROUPS + MULTI-PARTY CALL TILES
+   (added on top of the existing chat/call styles above)
+========================================================= */
+
+.new-group-btn {
+    margin-top: 10px;
+}
+
+.groups-list:empty::after {
+    content: "No groups yet - tap \"New Group\" above.";
+    display: block;
+    padding: 14px 16px;
+    font-size: 12.5px;
+    color: #64748b;
+}
+
+/* Extra call participants beyond the original 1:1 partner render
+   here as a small strip of tiles, so a call can grow from 1:1 into
+   a full group call without disturbing the existing remote/local
+   video elements at all. */
+.call-participants-grid {
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    bottom: 95px;
+
+    z-index: 5;
+
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+
+    padding: 0 20px;
+
+    max-height: 40%;
+    overflow-y: auto;
+}
+
+.call-participants-grid.hidden {
+    display: none;
+}
+
+.call-tile {
+    position: relative;
+
+    width: 150px;
+    height: 110px;
+
+    border-radius: 12px;
+    overflow: hidden;
+
+    background: #111827;
+    border: 2px solid #334155;
+}
+
+.call-tile video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.call-tile-name {
+    position: absolute;
+
+    left: 6px;
+    bottom: 6px;
+
+    padding: 2px 8px;
+
+    font-size: 11px;
+    font-weight: 600;
+    color: #fff;
+
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 20px;
+}
+
+.add-participant-picker {
+    position: absolute;
+
+    right: 20px;
+    top: 60px;
+
+    z-index: 20;
+
+    width: 240px;
+    max-height: 320px;
+
+    display: flex;
+    flex-direction: column;
+
+    background: #0b1220;
+    border: 1px solid #263244;
+    border-radius: 14px;
+
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+
+    overflow: hidden;
+}
+
+.add-participant-picker.hidden {
+    display: none;
+}
+
+.add-participant-picker-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 12px 14px;
+
+    border-bottom: 1px solid #1e293b;
+
+    color: #fff;
+    font-size: 13px;
+}
+
+.add-participant-picker-head button {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 14px;
+}
+
+.add-participant-picker-list {
+    overflow-y: auto;
+    padding: 6px;
+}
+
+.add-participant-item {
+    display: block;
+    width: 100%;
+
+    padding: 10px 10px;
+
+    text-align: left;
+
+    background: none;
+    border: none;
+    border-radius: 8px;
+
+    color: #e2e8f0;
+    font-size: 13px;
+}
+
+.add-participant-item:hover {
+    background: #1e293b;
+}
+
+.add-participant-empty {
+    padding: 14px 10px;
+
+    font-size: 12.5px;
+    color: #64748b;
+}
+
+/* Generic small modal used for New Group / Group Info */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+
+    z-index: 250;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 15px;
+
+    background: rgba(2, 4, 9, 0.75);
+}
+
+.modal-overlay.hidden {
+    display: none;
+}
+
+.modal-card {
+    width: min(420px, 100%);
+    max-height: 85vh;
+
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    padding: 20px;
+    overflow-y: auto;
+
+    background: #0b1220;
+    border: 1px solid #263244;
+    border-radius: 16px;
+
+    box-shadow: 0 30px 100px rgba(0, 0, 0, 0.7);
+}
+
+.modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    color: #fff;
+    font-size: 15px;
+}
+
+.modal-text-input {
+    width: 100%;
+
+    padding: 10px 12px;
+
+    background: #111827;
+    border: 1px solid #334155;
+    border-radius: 10px;
+
+    color: #fff;
+    font-size: 13.5px;
+}
+
+.modal-hint {
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.modal-picker-list {
+    max-height: 260px;
+    overflow-y: auto;
+
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.modal-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 8px 10px;
+
+    border-radius: 10px;
+
+    color: #e2e8f0;
+    font-size: 13.5px;
+}
+
+.modal-picker-item:hover {
+    background: #1e293b;
+}
+
+.modal-picker-item .modal-picker-role {
+    margin-left: auto;
+
+    font-size: 11px;
+    color: #64748b;
+}
+
+.modal-picker-remove {
+    background: none;
+    border: none;
+    color: #f87171;
+    font-size: 13px;
+}
+
+.modal-primary-btn,
+.modal-secondary-btn,
+.modal-danger-btn {
+    width: 100%;
+
+    padding: 11px;
+
+    border: none;
+    border-radius: 10px;
+
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+.modal-primary-btn {
+    background: #2563eb;
+    color: #fff;
+}
+
+.modal-secondary-btn {
+    background: #1e293b;
+    color: #e2e8f0;
+}
+
+.modal-danger-btn {
+    background: rgba(248, 113, 113, 0.12);
+    color: #f87171;
+}
+
+/* =========================================================
+   WHATSAPP-STYLE GROUP FEATURES
+   (icon, description, admin controls, invite link, media
+   gallery, admin-only composer lock, @mentions)
+========================================================= */
+
+.group-info-icon-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 4px 0 6px;
+}
+
+.group-info-icon {
+    position: relative;
+
+    width: 84px;
+    height: 84px;
+}
+
+.group-info-icon-inner {
+    width: 100%;
+    height: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: linear-gradient(135deg, #334155, #1e293b);
+    background-size: cover;
+    background-position: center;
+
+    color: #fff;
+    font-size: 30px;
+    font-weight: 700;
+}
+
+.group-info-icon-inner.has-image {
+    color: transparent;
+}
+
+.group-icon-edit-badge {
+    width: 26px;
+    height: 26px;
+    right: 0;
+    bottom: 0;
+    font-size: 12px;
+}
+
+.group-info-description-wrap {
+    position: relative;
+
+    padding: 2px 30px 4px 2px;
+}
+
+.group-info-description {
+    margin: 0;
+
+    color: #cbd5e1;
+    font-size: 13px;
+    line-height: 1.5;
+
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.group-info-description-empty {
+    color: #64748b;
+    font-style: italic;
+}
+
+.group-info-edit-desc-btn {
+    position: absolute;
+    top: 2px;
+    right: 0;
+
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.group-info-edit-desc-btn:hover {
+    color: #cbd5e1;
+}
+
+.group-info-description-edit textarea {
+    resize: vertical;
+    min-height: 60px;
+
+    font-family: inherit;
+}
+
+.group-info-desc-edit-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.group-info-desc-edit-actions .modal-primary-btn,
+.group-info-desc-edit-actions .modal-secondary-btn {
+    width: auto;
+    flex: 1;
+    padding: 8px;
+    font-size: 12.5px;
+}
+
+.group-info-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+
+    padding: 10px 12px;
+
+    background: #111827;
+    border: 1px solid #263244;
+    border-radius: 10px;
+
+    cursor: pointer;
+}
+
+.group-info-toggle-row strong {
+    display: block;
+    color: #e2e8f0;
+    font-size: 13px;
+}
+
+.group-info-toggle-row small {
+    display: block;
+    margin-top: 2px;
+    color: #64748b;
+    font-size: 11px;
+}
+
+.group-info-toggle-row input[type="checkbox"] {
+    flex-shrink: 0;
+    width: 38px;
+    height: 22px;
+    accent-color: #2563eb;
+}
+
+.group-info-invite-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+
+    padding: 10px 12px;
+
+    background: #111827;
+    border: 1px solid #263244;
+    border-radius: 10px;
+}
+
+.group-info-invite-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    color: #e2e8f0;
+    font-size: 13px;
+}
+
+.group-info-invite-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.group-info-invite-actions .modal-secondary-btn {
+    width: auto;
+    padding: 7px 10px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.group-invite-reset-btn {
+    color: #f59e0b;
+}
+
+.modal-picker-admin {
+    background: none;
+    border: none;
+    color: #60a5fa;
+    font-size: 13px;
+}
+
+.group-info-media-hint {
+    margin-top: 4px;
+}
+
+.group-info-media-gallery {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.group-media-empty {
+    grid-column: 1 / -1;
+
+    padding: 10px 0;
+
+    color: #64748b;
+    font-size: 12.5px;
+    text-align: center;
+}
+
+.group-media-item {
+    aspect-ratio: 1 / 1;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+
+    border-radius: 8px;
+    background: #111827;
+
+    cursor: pointer;
+}
+
+.group-media-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.group-media-file {
+    flex-direction: column;
+    gap: 4px;
+
+    padding: 4px;
+
+    color: #64748b;
+    font-size: 18px;
+}
+
+.group-media-file span {
+    font-size: 9px;
+    text-align: center;
+    word-break: break-word;
+    color: #94a3b8;
+}
+
+/* admin-only ("announcement group") composer lock */
+
+.admins-only-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 9px 20px;
+
+    background: rgba(245, 158, 11, 0.1);
+    border-top: 1px solid rgba(245, 158, 11, 0.25);
+
+    color: #f59e0b;
+    font-size: 12.5px;
+}
+
+.admins-only-banner.hidden {
+    display: none;
+}
+
+.composer-locked {
+    opacity: 0.6;
+}
+
+/* @mention dropdown + highlighted mention tags */
+
+.mention-dropdown {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    bottom: 76px;
+    z-index: 60;
+
+    max-height: 190px;
+    overflow-y: auto;
+
+    display: flex;
+    flex-direction: column;
+
+    padding: 6px;
+
+    background: #111827;
+    border: 1px solid #263244;
+    border-radius: 12px;
+
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+}
+
+.mention-dropdown.hidden {
+    display: none;
+}
+
+.mention-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 8px 10px;
+
+    background: none;
+    border: none;
+    border-radius: 8px;
+
+    color: #e2e8f0;
+    font-size: 13px;
+    text-align: left;
+}
+
+.mention-option:hover {
+    background: #1e293b;
+}
+
+.mention-option i {
+    width: 16px;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.mention-tag {
+    padding: 0 2px;
+
+    border-radius: 4px;
+
+    background: rgba(37, 99, 235, 0.18);
+    color: #93c5fd;
+    font-weight: 600;
+}
+
+.mention-tag-me {
+    background: rgba(245, 158, 11, 0.22);
+    color: #fbbf24;
+}
+
+.bubble-mentioned {
+    box-shadow: 0 0 0 1.5px rgba(245, 158, 11, 0.55);
+}

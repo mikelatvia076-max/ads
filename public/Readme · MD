@@ -1,0 +1,64 @@
+# Site Chat — messaging, file sharing & calls
+
+Real-time chat you can drop into your existing site: text messages, images,
+videos, audio, documents, voice notes, and one-to-one voice/video calls.
+
+## Run it standalone (fastest way to try it)
+
+```bash
+npm install
+npm start
+```
+
+Open `http://localhost:3000` in two different browser windows (or two
+devices on the same network), enter two different names, and chat between
+them.
+
+## How it works
+
+- **server.js** — Express serves the `public/` folder, Socket.io handles
+  real-time messaging and call signaling, and `multer` handles file uploads
+  (saved to `public/uploads/`).
+- **public/index.html / style.css / client.js** — the chat UI: message
+  list, file/voice-note attach buttons, and the call overlay. All calling
+  logic uses the browser's built-in WebRTC — media streams go directly
+  between the two browsers, the server only relays the initial connection
+  info (signaling), so it stays fast and cheap to run.
+
+## Merging into your existing server.js
+
+If you already have a `server.js` running your site, don't run two
+servers — merge this one in instead:
+
+1. Copy `public/index.html`, `public/style.css`, `public/client.js` into
+   your existing `public/` (or static) folder — put them in a `/chat`
+   subfolder if you don't want them to replace your homepage, e.g.
+   `public/chat/index.html`, and link to `/chat` from your site.
+2. In your existing server.js, add:
+   ```js
+   const http = require("http");
+   const { Server } = require("socket.io");
+   const server = http.createServer(app); // `app` = your existing Express app
+   const io = new Server(server);
+   // ...paste the upload route and io.on("connection", ...) block from
+   // this project's server.js...
+   server.listen(PORT, ...); // instead of app.listen(...)
+   ```
+3. Add the two dependencies to your `package.json`: `socket.io`, `multer`,
+   `nanoid`.
+
+## Notes & limits (read before you rely on this in production)
+
+- **No accounts yet.** Anyone who types a name can join — there's no
+  password or identity check. If your site already has logins, replace
+  the "join" step with your real user ID/name instead of a free-text box.
+- **No chat history.** Messages live only in the browser tab; nothing is
+  saved to a database. Add one (e.g. MongoDB/Postgres) if you need people
+  to see old messages after refreshing.
+- **Calls are one-to-one**, not group calls.
+- **HTTPS is required for calling/mic/camera to work** once this is live
+  on a real domain (browsers block camera/mic access on plain HTTP,
+  `localhost` is exempted for testing).
+- File uploads are capped at 100MB and stored directly on disk — fine for
+  testing, but for production you'll likely want cloud storage (S3, etc.)
+  and virus scanning if strangers can upload.

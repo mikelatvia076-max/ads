@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Font Awesome -->
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+    >
+
+    <title>Site Chat</title>
+
+    <link rel="stylesheet" href="nodi.css">
+
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+
+<body>
+
+<!-- =========================================================
+     JOIN SCREEN
+========================================================= -->
+
+<div id="joinScreen" class="join-screen">
+
+    <div class="join-card">
+
+        <div class="join-logo">
+            S
+        </div>
+
+        <h1>Site Chat</h1>
+
+        <p>Connect and chat with people online.</p>
+
+        <!-- shown briefly while a saved login auto-signs back in -->
+        <div id="autoSigninState" class="auto-signin hidden">
+            <div class="auto-signin-spinner"></div>
+            <span id="autoSigninText">Welcome back — signing you in…</span>
+        </div>
+
+        <div id="joinFormFields">
+
+            <input
+                id="emailInput"
+                type="email"
+                placeholder="Enter your email"
+                autocomplete="off"
+            >
+
+            <input
+                id="nameInput"
+                type="text"
+                placeholder="Enter your name"
+                autocomplete="off"
+            >
+
+            <button id="joinBtn">
+                <i class="fa-solid fa-right-to-bracket"></i>
+                Join Site Chat
+            </button>
+
+            <button id="forgotNameBtn" type="button" class="forgot-name-btn">
+                Forgot your name?
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     FORGOT NAME MODAL
+========================================================= -->
+
+<div id="forgotNameModal" class="forgot-modal-overlay hidden">
+
+    <div id="forgotNameBackdrop" class="forgot-modal-backdrop"></div>
+
+    <div class="forgot-modal">
+
+        <button id="closeForgotModal" class="forgot-modal-close" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="forgot-modal-icon">
+            <i class="fa-regular fa-circle-question"></i>
+        </div>
+
+        <h2>Forgot your name?</h2>
+        <p>Enter the email you used before and we'll fill it in for you.</p>
+
+        <input
+            id="forgotEmailInput"
+            type="email"
+            placeholder="Enter your email"
+            autocomplete="off"
+        >
+
+        <div id="forgotNameMsg" class="forgot-modal-msg hidden"></div>
+
+        <button id="forgotNameSubmit" class="forgot-modal-submit">
+            Find my name
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     DECORATED ALERT MODAL (used for "name taken" etc.)
+========================================================= -->
+
+<div id="niceAlertModal" class="nice-alert-overlay hidden">
+
+    <div id="niceAlertBackdrop" class="nice-alert-backdrop"></div>
+
+    <div class="nice-alert">
+
+        <div id="niceAlertIcon" class="nice-alert-icon">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+
+        <h2 id="niceAlertTitle">Heads up</h2>
+        <p id="niceAlertMsg"></p>
+
+        <button id="niceAlertOk" class="nice-alert-ok">
+            Got it
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     MAIN APP
+========================================================= -->
+
+<div id="app" class="app hidden">
+
+
+    <!-- =====================================================
+         LEFT SIDEBAR
+    ====================================================== -->
+
+    <aside class="sidebar">
+
+        <div class="sidebar-head">
+
+            <div class="head-left">
+
+                <div class="site-logo">
+
+                    <div class="logo-icon">
+                        S
+                    </div>
+
+                    <div>
+
+                        <span class="brand-small">
+                            Site Chat
+                        </span>
+
+                        <span class="online-label">
+
+                            <span class="my-online-dot"></span>
+
+                            Online
+
+                        </span>
+
+                    </div>
+
+                </div>
+
+                <a
+                    id="homeBtn"
+                    href="/"
+                    class="home-icon-btn"
+                    title="Back to home"
+                    aria-label="Back to home">
+
+                    <i class="fa-solid fa-house"></i>
+
+                </a>
+
+            </div>
+
+            <div
+                class="me-name"
+                id="meName">
+            </div>
+
+        </div>
+
+
+        <!-- Find Friend -->
+
+        <button
+            id="findFriendBtn"
+            class="find-friend-btn">
+
+            <span class="find-icon">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </span>
+
+            <span class="find-text">
+
+                <strong>
+                    Find Friend
+                </strong>
+
+                <small>
+                    Discover people on Site Chat
+                </small>
+
+            </span>
+
+            <span class="find-arrow">
+                <i class="fa-solid fa-chevron-right"></i>
+            </span>
+
+        </button>
+
+
+        <!-- New Group -->
+
+        <button
+            id="newGroupBtn"
+            class="find-friend-btn new-group-btn">
+
+            <span class="find-icon">
+                <i class="fa-solid fa-user-group"></i>
+            </span>
+
+            <span class="find-text">
+
+                <strong>
+                    New Group
+                </strong>
+
+                <small>
+                    Chat and call with several friends at once
+                </small>
+
+            </span>
+
+            <span class="find-arrow">
+                <i class="fa-solid fa-chevron-right"></i>
+            </span>
+
+        </button>
+
+
+        <!-- Groups Heading -->
+
+        <div class="friends-heading">
+            <span>
+                GROUPS
+            </span>
+        </div>
+
+
+        <!-- Groups List -->
+
+        <div
+            id="groupsList"
+            class="friends-list groups-list">
+        </div>
+
+
+        <!-- Friends Heading -->
+
+        <div class="friends-heading">
+
+            <span>
+                MY FRIENDS
+            </span>
+
+            <span
+                id="onlineFriendsCount"
+                class="friends-count">
+                0
+            </span>
+
+        </div>
+
+
+        <!-- Friends List -->
+
+        <div
+            id="friendsList"
+            class="friends-list">
+
+            <div class="no-friends">
+
+                <div class="no-friends-icon">
+                    <i class="fa-solid fa-user-group"></i>
+                </div>
+
+                <strong>
+                    No friends yet
+                </strong>
+
+                <span>
+                    Find someone to start chatting.
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <!-- Account -->
+
+        <div class="account-area">
+
+            <button
+                id="accountBtn"
+                class="account-btn">
+
+                <span
+                    id="accountAvatar"
+                    class="account-avatar">
+                    <span
+                        id="accountAvatarInner"
+                        class="avatar-inner">
+                        M
+                    </span>
+                    <span
+                        id="accountRequestDot"
+                        class="request-dot hidden">
+                    </span>
+                    <span
+                        id="avatarEditBadge"
+                        class="avatar-edit-badge"
+                        title="Change profile picture">
+                        <i class="fa-solid fa-camera"></i>
+                    </span>
+                </span>
+
+                <span class="account-info">
+
+                    <strong id="accountName">
+                        Mike
+                    </strong>
+
+                    <small>
+                        My Account
+                    </small>
+
+                </span>
+
+            </button>
+
+
+            <input
+                type="file"
+                id="avatarInput"
+                accept="image/*"
+                hidden>
+
+
+            <!-- Account Menu -->
+
+            <div
+                id="accountMenu"
+                class="account-menu hidden">
+
+                <button data-account-view="friends">
+
+                    <span>
+                        <i class="fa-solid fa-user-group"></i>
+                        Friends
+                    </span>
+
+                    <span id="friendsCount">
+                        0
+                    </span>
+
+                </button>
+
+
+                <button data-account-view="requests">
+
+                    <span>
+                        <i class="fa-solid fa-bell"></i>
+                        Friend requests
+                    </span>
+
+                    <span
+                        id="requestsCount"
+                        class="request-count hidden">
+                        0
+                    </span>
+
+                </button>
+
+
+                <button data-account-view="online">
+
+                    <span>
+                        <i class="fa-solid fa-circle"></i>
+                        People online
+                    </span>
+
+                    <span>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </span>
+
+                </button>
+
+
+                <button data-account-view="settings">
+
+                    <span>
+                        <i class="fa-solid fa-gear"></i>
+                        Notifications &amp; calls
+                    </span>
+
+                    <span>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </span>
+
+                </button>
+
+
+                <button
+                    id="logoutBtn"
+                    class="logout-menu-btn">
+
+                    <span>
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                        Log out
+                    </span>
+
+                </button>
+
+            </div>
+
+        </div>
+
+    </aside>
+
+
+    <!-- =====================================================
+         CHAT SECTION
+    ====================================================== -->
+
+    <main class="chat-area">
+
+
+        <!-- Chat Header -->
+
+        <header class="chat-header">
+
+            <div class="chat-user">
+
+                <button
+                    id="chatBackBtn"
+                    class="chat-back-btn"
+                    title="Back to chats"
+                    aria-label="Back to chats">
+
+                    <i class="fa-solid fa-arrow-left"></i>
+
+                </button>
+
+                <div class="chat-avatar">
+
+                    <span id="chatAvatar">
+                        S
+                    </span>
+
+                    <span
+                        id="chatOnlineDot"
+                        class="chat-online-dot">
+                    </span>
+
+                </div>
+
+                <div class="chat-user-info">
+
+                    <h2 id="chatWith">
+                        Select a friend
+                    </h2>
+
+                    <span id="chatStatus">
+                        Choose someone from your friends
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <!-- CALL BUTTONS -->
+
+            <div
+                id="headerActions"
+                class="header-actions"
+                hidden>
+
+                <!-- Audio Call -->
+
+                <button
+                    id="audioCallBtn"
+                    class="call-btn"
+                    title="Audio call"
+                    aria-label="Audio call">
+
+                    <i class="fa-solid fa-phone"></i>
+
+                </button>
+
+
+                <!-- Video Call -->
+
+                <button
+                    id="videoCallBtn"
+                    class="call-btn"
+                    title="Video call"
+                    aria-label="Video call">
+
+                    <i class="fa-solid fa-video"></i>
+
+                </button>
+
+
+                <!-- Chat options (disappearing messages, etc.) -->
+
+                <div class="disappearing-menu-wrap">
+
+                    <button
+                        id="disappearingBtn"
+                        class="call-btn"
+                        title="Chat options"
+                        aria-label="Chat options"
+                        aria-haspopup="true"
+                        aria-expanded="false">
+
+                        <i class="fa-solid fa-ellipsis-vertical"></i>
+
+                    </button>
+
+                    <div
+                        id="disappearingMenu"
+                        class="disappearing-menu hidden"
+                        role="menu">
+
+                        <div class="disappearing-menu-label">
+                            <i class="fa-regular fa-clock"></i>
+                            <span>Disappearing messages</span>
+                        </div>
+
+                        <div
+                            id="disappearingOptions"
+                            class="disappearing-options-list"
+                            role="none">
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </header>
+
+
+        <!-- Pinned message banner -->
+        <div id="pinnedBanner" class="pinned-banner hidden">
+            <i class="fa-solid fa-thumbtack"></i>
+            <span id="pinnedBannerText" class="pinned-banner-text"></span>
+            <button id="pinnedBannerClose" class="pinned-banner-close" title="Unpin" aria-label="Unpin">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+
+        <!-- =================================================
+             MESSAGE AREA
+        ================================================== -->
+
+        <section
+            id="messages"
+            class="messages">
+
+            <div class="empty-chat">
+
+                <div class="empty-chat-icon">
+                    <i class="fa-regular fa-comment-dots"></i>
+                </div>
+
+                <h2>
+                    Welcome to Site Chat
+                </h2>
+
+                <p>
+                    Select a friend to start chatting.
+                </p>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             RECORDING BAR
+        ================================================== -->
+
+        <div
+            id="recordingBar"
+            class="recording-bar hidden">
+
+            <div class="recording-left">
+
+                <span class="recording-dot"></span>
+
+                <strong>
+                    Recording voice note
+                </strong>
+
+                <span id="recTimer">
+                    0:00
+                </span>
+
+            </div>
+
+
+            <div class="recording-actions">
+
+                <button
+                    id="cancelRecBtn"
+                    class="cancel-record"
+                    title="Delete recording">
+
+                    <i class="fa-solid fa-trash"></i>
+                    Cancel
+
+                </button>
+
+                <button
+                    id="pauseRecBtn"
+                    class="pause-record"
+                    title="Pause recording">
+
+                    <i class="fa-solid fa-pause"></i>
+
+                </button>
+
+                <button
+                    id="stopRecBtn"
+                    class="stop-record">
+
+                    <i class="fa-solid fa-paper-plane"></i>
+                    Send
+
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <!-- Reply preview bar -->
+        <div id="replyPreviewBar" class="reply-preview-bar hidden">
+            <div class="reply-preview-accent"></div>
+            <div class="reply-preview-body">
+                <div id="replyPreviewName" class="reply-preview-name"></div>
+                <div id="replyPreviewText" class="reply-preview-text"></div>
+            </div>
+            <button id="replyPreviewClose" class="reply-preview-close" title="Cancel reply" aria-label="Cancel reply">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+
+        <!-- Admin-only ("announcement group") composer lock banner -->
+        <div id="adminsOnlyBanner" class="admins-only-banner hidden">
+            <i class="fa-solid fa-lock"></i>
+            <span>Only admins can send messages in this group</span>
+        </div>
+
+
+        <!-- @mention autocomplete dropdown -->
+        <div id="mentionDropdown" class="mention-dropdown hidden"></div>
+
+
+        <!-- =================================================
+             MESSAGE COMPOSER
+        ================================================== -->
+
+        <div
+            id="composer"
+            class="composer">
+
+            <!-- Upload -->
+
+            <button
+                id="attachBtn"
+                class="composer-icon"
+                title="Upload file"
+                aria-label="Upload file">
+
+                <i class="fa-solid fa-paperclip"></i>
+
+            </button>
+
+
+            <input
+                id="fileInput"
+                type="file"
+                hidden>
+
+
+            <!-- Emoji & Stickers -->
+
+            <button
+                id="emojiBtn"
+                class="composer-icon"
+                title="Emoji & stickers"
+                aria-label="Emoji and stickers">
+
+                <i class="fa-regular fa-face-smile"></i>
+
+            </button>
+
+
+            <!-- Emoji / Sticker Panel -->
+
+            <div
+                id="emojiPanel"
+                class="emoji-panel hidden">
+
+                <div class="emoji-panel-tabs">
+
+                    <button
+                        class="emoji-tab active"
+                        data-tab="emoji">
+                        😀 Emoji
+                    </button>
+
+                    <button
+                        class="emoji-tab"
+                        data-tab="stickers">
+                        🏷️ Stickers
+                    </button>
+
+                    <button
+                        class="emoji-tab"
+                        data-tab="gifs">
+                        🎬 GIFs
+                    </button>
+
+                </div>
+
+                <!-- EMOJI TAB -->
+                <div
+                    id="emojiTabContent"
+                    class="emoji-tab-content">
+
+                    <div class="emoji-search-wrap">
+
+                        <i class="fa-solid fa-magnifying-glass"></i>
+
+                        <input
+                            id="emojiSearch"
+                            type="text"
+                            class="emoji-search"
+                            placeholder="Search emoji"
+                            autocomplete="off">
+
+                    </div>
+
+                    <div
+                        id="emojiCategoryBar"
+                        class="emoji-category-bar hidden">
+                    </div>
+
+                    <div
+                        id="emojiGrid"
+                        class="emoji-grid">
+                    </div>
+
+                </div>
+
+                <!-- STICKERS TAB -->
+                <div
+                    id="stickerTabContent"
+                    class="emoji-tab-content hidden">
+
+                    <div
+                        id="stickerCategoryBar"
+                        class="emoji-category-bar">
+                    </div>
+
+                    <div
+                        id="stickerGrid"
+                        class="emoji-grid">
+                    </div>
+
+                </div>
+
+                <!-- GIFS TAB -->
+                <div
+                    id="gifTabContent"
+                    class="emoji-tab-content hidden">
+
+                    <div class="emoji-search-wrap">
+
+                        <i class="fa-solid fa-magnifying-glass"></i>
+
+                        <input
+                            id="gifSearch"
+                            type="text"
+                            class="emoji-search"
+                            placeholder="Search GIFs"
+                            autocomplete="off">
+
+                    </div>
+
+                    <div
+                        id="gifGrid"
+                        class="gif-grid">
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- Text -->
+
+            <input
+                id="textInput"
+                type="text"
+                placeholder="Type a message..."
+                autocomplete="off">
+
+
+            <!-- Voice -->
+
+            <button
+                id="micBtn"
+                class="composer-icon"
+                title="Record voice note"
+                aria-label="Record voice note">
+
+                <i class="fa-solid fa-microphone"></i>
+
+            </button>
+
+
+            <!-- Send -->
+
+            <button
+                id="sendBtn"
+                class="send-btn"
+                title="Send message"
+                aria-label="Send message">
+
+                <i class="fa-solid fa-paper-plane"></i>
+
+            </button>
+
+        </div>
+
+    </main>
+
+</div>
+
+
+<!-- =========================================================
+     FIND FRIEND WINDOW
+========================================================= -->
+
+<div
+    id="findFriendPanel"
+    class="find-friend-panel hidden">
+
+    <div class="find-friend-overlay"></div>
+
+
+    <div class="find-friend-card">
+
+        <div class="find-friend-header">
+
+            <div>
+
+                <h2>
+                    Find Friends
+                </h2>
+
+                <p>
+                    Discover people using Site Chat
+                </p>
+
+            </div>
+
+            <button
+                id="closeFindFriend"
+                class="close-find-btn"
+                aria-label="Close">
+
+                <i class="fa-solid fa-xmark"></i>
+
+            </button>
+
+        </div>
+
+
+        <!-- Search -->
+
+        <div class="friend-search">
+
+            <span>
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </span>
+
+            <input
+                id="friendSearchInput"
+                type="text"
+                placeholder="Search people..."
+                autocomplete="off">
+
+        </div>
+
+
+        <!-- People -->
+
+        <div
+            id="allUsersList"
+            class="all-users-list">
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     ACCOUNT PANEL
+========================================================= -->
+
+<div
+    id="accountPanel"
+    class="account-panel hidden"
+    aria-hidden="true">
+
+    <div class="account-panel-head">
+
+        <div>
+
+            <div
+                id="accountPanelTitle"
+                class="account-panel-title">
+
+                Friends
+
+            </div>
+
+            <div
+                id="accountPanelSubtitle"
+                class="account-panel-subtitle">
+            </div>
+
+        </div>
+
+
+        <button
+            id="closeAccountPanel"
+            class="panel-close"
+            aria-label="Close">
+
+            <i class="fa-solid fa-xmark"></i>
+
+        </button>
+
+    </div>
+
+
+    <div
+        id="accountPanelBody"
+        class="account-panel-body">
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     CALL SCREEN
+========================================================= -->
+
+<div
+    id="callOverlay"
+    class="call-overlay hidden">
+
+    <div class="call-window">
+
+        <div class="call-top">
+
+            <button
+                id="minimizeCallBtn"
+                class="call-minimize-btn"
+                title="Minimize (keep call going)"
+                aria-label="Minimize call">
+
+                <i class="fa-solid fa-chevron-down"></i>
+
+            </button>
+
+            <span id="callStatusText">
+                Calling...
+            </span>
+
+            <span id="callTimerText" class="call-timer-text hidden">
+                00:00
+            </span>
+
+        </div>
+
+
+        <!-- Remote video -->
+
+        <video
+            id="remoteVideo"
+            class="remote-video"
+            autoplay
+            playsinline>
+        </video>
+
+
+        <!-- Local video -->
+
+        <video
+            id="localVideo"
+            class="local-video"
+            autoplay
+            muted
+            playsinline>
+        </video>
+
+
+        <!-- Call Controls -->
+
+        <div class="call-controls">
+
+            <!-- Mute -->
+
+            <button
+                id="muteBtn"
+                class="call-control-btn"
+                title="Mute microphone"
+                aria-label="Mute microphone">
+
+                <i class="fa-solid fa-microphone"></i>
+
+            </button>
+
+
+            <!-- Share Screen -->
+
+            <button
+                id="screenShareBtn"
+                class="call-control-btn"
+                title="Share screen"
+                aria-label="Share screen">
+
+                <i class="fa-solid fa-display"></i>
+
+            </button>
+
+
+            <!-- Record Call -->
+
+            <button
+                id="recordCallBtn"
+                class="call-control-btn"
+                title="Record call"
+                aria-label="Record call">
+
+                <i class="fa-solid fa-circle"></i>
+
+            </button>
+
+
+            <!-- Add Participant -->
+
+            <button
+                id="addParticipantBtn"
+                class="call-control-btn"
+                title="Add participant"
+                aria-label="Add participant"
+                hidden>
+
+                <i class="fa-solid fa-user-plus"></i>
+
+            </button>
+
+
+            <!-- Hang Up -->
+
+            <button
+                id="hangupBtn"
+                class="call-control-btn hangup"
+                title="End call"
+                aria-label="End call">
+
+                <i class="fa-solid fa-phone"></i>
+
+            </button>
+
+        </div>
+
+
+        <!-- Recording indicator -->
+        <div id="callRecordingBadge" class="call-recording-badge hidden">
+            <span class="call-recording-dot"></span>
+            Recording
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     FLOATING CALL BUBBLE (shown while a call is minimized so
+     the user can keep browsing the app without hanging up)
+========================================================= -->
+
+<div
+    id="floatingCallBubble"
+    class="floating-call-bubble hidden"
+    title="Tap to return to call">
+
+    <div class="floating-call-bubble-icon">
+        <i class="fa-solid fa-phone"></i>
+    </div>
+
+    <div class="floating-call-bubble-info">
+        <span id="floatingCallBubbleLabel">Call</span>
+        <span id="floatingCallBubbleTimer" class="hidden">00:00</span>
+    </div>
+
+    <button
+        id="floatingCallBubbleHangup"
+        class="floating-call-bubble-hangup"
+        title="End call"
+        aria-label="End call">
+
+        <i class="fa-solid fa-phone"></i>
+
+    </button>
+
+</div>
+
+
+<!-- =========================================================
+     INCOMING CALL
+========================================================= -->
+
+<div
+    id="incomingCall"
+    class="incoming-call hidden">
+
+    <div class="incoming-card">
+
+        <div class="incoming-icon">
+
+            <i class="fa-solid fa-phone"></i>
+
+        </div>
+
+        <h2>
+            Incoming Call
+        </h2>
+
+        <p id="incomingText">
+            Someone is calling you
+        </p>
+
+
+        <div class="incoming-actions">
+
+            <!-- Accept -->
+
+            <button
+                id="acceptCallBtn"
+                class="accept-call">
+
+                <i class="fa-solid fa-phone"></i>
+                Accept
+
+            </button>
+
+
+            <!-- Decline -->
+
+            <button
+                id="declineCallBtn"
+                class="decline-call">
+
+                <i class="fa-solid fa-phone-slash"></i>
+                Decline
+
+            </button>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- CLIENT JAVASCRIPT -->
+
+
+<!-- =========================================================
+     NEW GROUP MODAL
+========================================================= -->
+
+<div
+    id="newGroupModal"
+    class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+        <div class="modal-head">
+
+            <strong>New Group</strong>
+
+            <button
+                id="closeNewGroupModal"
+                class="panel-close"
+                aria-label="Close">
+
+                <i class="fa-solid fa-xmark"></i>
+
+            </button>
+
+        </div>
+
+        <input
+            id="newGroupNameInput"
+            class="modal-text-input"
+            type="text"
+            maxlength="60"
+            placeholder="Group name">
+
+        <div class="modal-hint">
+            Choose members
+        </div>
+
+        <div
+            id="newGroupMembersList"
+            class="modal-picker-list">
+        </div>
+
+        <button
+            id="createGroupBtn"
+            class="modal-primary-btn">
+            Create Group
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     GROUP INFO MODAL
+========================================================= -->
+
+<div
+    id="groupInfoModal"
+    class="modal-overlay hidden">
+
+    <div class="modal-card group-info-card">
+
+        <div class="modal-head">
+
+            <strong id="groupInfoName">Group</strong>
+
+            <button
+                id="closeGroupInfoModal"
+                class="panel-close"
+                aria-label="Close">
+
+                <i class="fa-solid fa-xmark"></i>
+
+            </button>
+
+        </div>
+
+        <!-- Group icon -->
+        <div class="group-info-icon-wrap">
+
+            <span id="groupInfoIcon" class="group-info-icon">
+                <span id="groupInfoIconInner" class="group-info-icon-inner"></span>
+                <span id="groupInfoIconEditBadge" class="avatar-edit-badge group-icon-edit-badge hidden" title="Change group icon">
+                    <i class="fa-solid fa-camera"></i>
+                </span>
+            </span>
+
+            <input id="groupIconInput" type="file" accept="image/*" hidden>
+
+        </div>
+
+        <!-- Group description / about -->
+        <div class="group-info-description-wrap">
+
+            <p id="groupInfoDescriptionText" class="group-info-description"></p>
+
+            <button id="groupInfoEditDescriptionBtn" class="group-info-edit-desc-btn hidden" title="Edit description">
+                <i class="fa-solid fa-pen"></i>
+            </button>
+
+            <div id="groupInfoDescriptionEdit" class="group-info-description-edit hidden">
+
+                <textarea
+                    id="groupDescriptionInput"
+                    class="modal-text-input"
+                    maxlength="500"
+                    rows="2"
+                    placeholder="Add a group description"></textarea>
+
+                <div class="group-info-desc-edit-actions">
+                    <button id="groupDescriptionCancelBtn" class="modal-secondary-btn">Cancel</button>
+                    <button id="groupDescriptionSaveBtn" class="modal-primary-btn">Save</button>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Admin-only sending toggle -->
+        <label id="groupAdminsOnlyRow" class="group-info-toggle-row hidden">
+
+            <span>
+                <strong>Only admins can send messages</strong>
+                <small>Everyone else can still read and react</small>
+            </span>
+
+            <input type="checkbox" id="groupAdminsOnlyToggle">
+
+        </label>
+
+        <!-- Invite link -->
+        <div class="group-info-invite-row">
+
+            <div class="group-info-invite-label">
+                <i class="fa-solid fa-link"></i>
+                <span>Invite via link</span>
+            </div>
+
+            <div class="group-info-invite-actions">
+                <button id="groupInviteCopyBtn" class="modal-secondary-btn">
+                    <i class="fa-solid fa-copy"></i>
+                    Copy link
+                </button>
+                <button id="groupInviteResetBtn" class="modal-secondary-btn group-invite-reset-btn hidden">
+                    <i class="fa-solid fa-rotate"></i>
+                    Reset
+                </button>
+            </div>
+
+        </div>
+
+        <div class="modal-hint">
+            Members
+        </div>
+
+        <div
+            id="groupInfoMembersList"
+            class="modal-picker-list">
+        </div>
+
+        <button
+            id="groupInfoAddMembersBtn"
+            class="modal-secondary-btn">
+            <i class="fa-solid fa-user-plus"></i>
+            Add members
+        </button>
+
+        <!-- Shared media gallery -->
+        <div class="modal-hint group-info-media-hint">
+            Media, links and docs
+        </div>
+
+        <div id="groupInfoMediaGallery" class="group-info-media-gallery"></div>
+
+        <button
+            id="groupInfoLeaveBtn"
+            class="modal-danger-btn">
+            <i class="fa-solid fa-right-from-bracket"></i>
+            Leave group
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     JOIN GROUP VIA INVITE LINK MODAL
+========================================================= -->
+
+<div
+    id="joinGroupInviteModal"
+    class="modal-overlay hidden">
+
+    <div class="modal-card">
+
+        <div class="modal-head">
+            <strong>Join group?</strong>
+            <button id="closeJoinGroupInviteModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <p id="joinGroupInviteText" class="modal-hint">You were invited to join a group.</p>
+
+        <button id="joinGroupInviteBtn" class="modal-primary-btn">
+            <i class="fa-solid fa-user-group"></i>
+            Join group
+        </button>
+
+    </div>
+
+</div>
+
+
+<script src="client.js?v=4"></script>
+
+</body>
+</html>

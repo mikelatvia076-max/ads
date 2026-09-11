@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="Kenyan Campus AI — your student assistant for studies, mathematics, accounting, coding, documents and campus questions."
+    >
+
+    <title>Kenyan Campus AI</title>
+
+    <!-- =====================================================
+         KENYAN CAMPUS AI CSS
+    ====================================================== -->
+    <link rel="stylesheet" href="ai.css">
+</head>
+
+<body>
+
+    <!-- =====================================================
+         KENYAN CAMPUS AI PAGE
+    ====================================================== -->
+    <div
+        id="campusAiPage"
+        class="campus-ai-page active open"
+    >
+
+        <div class="campus-ai-layout">
+
+            <!-- =================================================
+                 SIDEBAR
+            ================================================== -->
+            <aside
+                id="campusAiSidebar"
+                class="campus-ai-sidebar"
+            >
+
+                <!-- Sidebar top -->
+                <div class="campus-ai-sidebar-top">
+
+                    <!-- New Chat -->
+                    <button
+                        type="button"
+                        class="campus-ai-new-chat"
+                        onclick="newCampusAIChat()"
+                    >
+                        <span aria-hidden="true">＋</span>
+                        <span>New Chat</span>
+                    </button>
+
+                    <!-- Search -->
+                    <div class="campus-ai-search">
+
+                        <span
+                            class="campus-ai-search-icon"
+                            aria-hidden="true"
+                        >
+                            🔍
+                        </span>
+
+                        <input
+                            type="search"
+                            id="campusAiSearch"
+                            placeholder="Search conversations..."
+                            autocomplete="off"
+                            oninput="searchCampusAIChats(this.value)"
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <!-- History heading -->
+                <div class="campus-ai-history-heading">
+                    Recent Conversations
+                </div>
+
+
+                <!-- Conversation history -->
+                <div
+                    id="campusAiHistory"
+                    class="campus-ai-history"
+                >
+                    <div class="campus-ai-history-empty">
+                        No conversations yet
+                    </div>
+                </div>
+
+            </aside>
+
+
+            <!-- =================================================
+                 MOBILE SIDEBAR OVERLAY
+            ================================================== -->
+            <div
+                id="campusAiSidebarOverlay"
+                class="campus-ai-sidebar-overlay"
+                onclick="closeCampusAISidebar()"
+                aria-hidden="true"
+            ></div>
+
+
+            <!-- =================================================
+                 MAIN AI AREA
+            ================================================== -->
+            <main class="campus-ai-main">
+
+                <!-- =================================================
+                     HEADER
+                ================================================== -->
+                <header class="campus-ai-header">
+
+                    <!-- Mobile/sidebar menu -->
+                    <button
+                        type="button"
+                        class="campus-ai-sidebar-toggle"
+                        onclick="toggleCampusAISidebar()"
+                        aria-label="Open conversations"
+                        title="Conversations"
+                    >
+                        ☰
+                    </button>
+
+
+                    <!-- AI title -->
+                    <div class="campus-ai-title">
+
+                        <div
+                            class="campus-ai-logo"
+                            aria-hidden="true"
+                        >
+                            🤖
+                        </div>
+
+                        <div>
+                            <h2>Kenyan Campus AI</h2>
+
+                            <p>
+                                Your intelligent campus assistant
+                            </p>
+                        </div>
+
+                    </div>
+
+
+                    <!-- Header actions -->
+                    <div class="campus-ai-header-actions">
+
+                        <!--
+                            The JavaScript automatically inserts
+                            the More button here.
+                        -->
+
+                        <!-- Return to homepage -->
+                        <a
+                            href="index.html"
+                            class="campus-ai-close"
+                            title="Return to Homepage"
+                            aria-label="Return to Homepage"
+                        >
+                            ×
+                        </a>
+
+                    </div>
+
+                </header>
+
+
+                <!-- =================================================
+                     CHAT BODY
+                ================================================== -->
+                <section class="campus-ai-body">
+
+                    <div
+                        id="campusAiMessages"
+                        class="campus-ai-messages"
+                    >
+
+                        <!-- =================================================
+                             WELCOME SCREEN
+                             JavaScript also verifies/creates this.
+                        ================================================== -->
+                        <div class="campus-ai-welcome">
+
+                            <div
+                                class="campus-ai-big-logo"
+                                aria-hidden="true"
+                            >
+                                🤖
+                            </div>
+
+                            <h1>
+                                How can I help you?
+                            </h1>
+
+                            <p>
+                                Ask Kenyan Campus AI about your
+                                studies, mathematics, accounting,
+                                coding, documents, university work
+                                and everyday student questions.
+                            </p>
+
+
+                            <!-- Features -->
+                            <div class="campus-ai-welcome-features">
+
+                                <span class="campus-ai-feature">
+                                    📚 Study Help
+                                </span>
+
+                                <span class="campus-ai-feature">
+                                    🧮 Mathematics
+                                </span>
+
+                                <span class="campus-ai-feature">
+                                    💻 Coding
+                                </span>
+
+                                <span class="campus-ai-feature">
+                                    📄 Documents
+                                </span>
+
+                                <span class="campus-ai-feature">
+                                    🎓 Campus Questions
+                                </span>
+
+                            </div>
+
+
+                            <!-- Suggestions -->
+                            <div class="campus-ai-suggestions">
+
+                                <button
+                                    type="button"
+                                    onclick="campusAISuggestion('Explain this topic to me step by step')"
+                                >
+                                    Explain a topic step by step
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onclick="campusAISuggestion('Help me solve this mathematics question')"
+                                >
+                                    Help me solve a mathematics question
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onclick="campusAISuggestion('Help me understand this accounting question')"
+                                >
+                                    Help with accounting
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onclick="campusAISuggestion('Help me write and understand this code')"
+                                >
+                                    Help with coding
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </section>
+
+
+                <!-- =================================================
+                     INPUT AREA
+                ================================================== -->
+                <section class="campus-ai-input-area">
+
+                    <!-- Uploaded files -->
+                    <div
+                        id="campusAiFiles"
+                        class="campus-ai-files"
+                    ></div>
+
+
+                    <!-- Input box -->
+                    <div class="campus-ai-input-box">
+
+                        <textarea
+                            id="campusAiInput"
+                            rows="1"
+                            maxlength="12000"
+                            placeholder="Ask Kenyan Campus AI anything..."
+                            autocomplete="off"
+                            spellcheck="true"
+                            onkeydown="handleCampusAIKey(event)"
+                        ></textarea>
+
+
+                        <!-- Toolbar -->
+                        <div class="campus-ai-toolbar">
+
+                            <!-- Left controls -->
+                            <div class="campus-ai-toolbar-left">
+
+                                <!-- Talk button is inserted
+                                     automatically by JavaScript -->
+
+                            </div>
+
+
+                            <!-- Right controls -->
+                            <div class="campus-ai-toolbar-right">
+
+                                <!-- Stop wrapper -->
+                                <div
+                                    class="campus-ai-stop-wrap"
+                                >
+
+                                    <button
+                                        type="button"
+                                        id="campusAiStop"
+                                        class="campus-ai-stop-button"
+                                        title="Stop generating"
+                                        aria-label="Stop generating"
+                                        onclick="stopCampusAI()"
+                                    >
+                                        <svg
+                                            viewBox="0 0 24 24"
+                                            fill="currentColor"
+                                            aria-hidden="true"
+                                        >
+                                            <rect
+                                                x="6"
+                                                y="6"
+                                                width="12"
+                                                height="12"
+                                                rx="2"
+                                            ></rect>
+                                        </svg>
+                                    </button>
+
+                                </div>
+
+
+                                <!-- Send -->
+                                <button
+                                    type="button"
+                                    id="campusAiSend"
+                                    class="campus-ai-tool-button"
+                                    title="Send message"
+                                    aria-label="Send message"
+                                    disabled
+                                    onclick="sendCampusAI()"
+                                >
+                                    <svg
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        <path d="M22 2 11 13"></path>
+                                        <path d="m22 2-7 20-4-9-9-4Z"></path>
+                                    </svg>
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- Disclaimer -->
+                    <small>
+                        Kenyan Campus AI can make mistakes.
+                        Always verify important academic information.
+                    </small>
+
+                </section>
+
+            </main>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         JAVASCRIPT
+         The JS dynamically creates:
+         - More menu
+         - Account modal
+         - Settings modal
+         - Talk page
+    ====================================================== -->
+    <script src="ai.js"></script>
+
+</body>
+</html>
