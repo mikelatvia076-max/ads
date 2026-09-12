@@ -11515,6 +11515,10 @@ function requestStatuses() {
     socket.emit("get-statuses");
 }
 
+// keeps the status list accurate as updates hit their 24h expiry
+// without needing to reopen the app
+setInterval(requestStatuses, 60000);
+
 function statusPreviewLine(update) {
     if (!update) return "";
     if (update.kind === "media") {
@@ -11761,6 +11765,32 @@ function currentStatusUpdate() {
     return g && g.updates ? g.updates[statusViewerUpdateIdx] : null;
 }
 
+// Draws the top progress bars (one per update, like WhatsApp/Instagram
+// stories) and animates a moving line across the current slide's bar,
+// growing over `durationMs`. Also (re)schedules the auto-advance timer
+// to fire when that line finishes, so both stay in sync.
+function startStatusProgress(durationMs) {
+
+    const group = currentStatusGroup();
+    if (!group) return;
+
+    const bars = $id("statusProgressBars");
+    if (bars) {
+        bars.innerHTML = group.updates.map((u, i) => {
+            const state = i < statusViewerUpdateIdx ? "done" : (i === statusViewerUpdateIdx ? "active" : "");
+            const isActive = i === statusViewerUpdateIdx;
+            const isDone = i < statusViewerUpdateIdx;
+            const style = isActive
+                ? `width:0%; animation-duration:${durationMs}ms`
+                : `width:${isDone ? "100%" : "0%"}`;
+            return `<span class="status-progress-bar${state ? " " + state : ""}"><span class="status-progress-fill" style="${style}"></span></span>`;
+        }).join("");
+    }
+
+    clearTimeout(statusViewerTimer);
+    statusViewerTimer = setTimeout(nextStatus, durationMs);
+}
+
 function playCurrentStatus() {
 
     clearTimeout(statusViewerTimer);
@@ -11777,21 +11807,33 @@ function playCurrentStatus() {
     if ($id("statusViewerAvatar")) $id("statusViewerAvatar").innerHTML = avatarMarkup(group.name, group.avatar);
     if ($id("statusViewerTime")) $id("statusViewerTime").textContent = update.time ? new Date(update.time).toLocaleTimeString() : "Just now";
 
+    const isVideo = update.kind === "media" && update.url && /\.(mp4|webm|mov)$/i.test(update.url);
+    let durationMs = isVideo ? 15000 : 5000;
+
     const content = $id("statusViewerContent");
     if (content) {
         if (update.kind === "media") {
-            content.innerHTML = update.url && /\.(mp4|webm|mov)$/i.test(update.url)
+            content.innerHTML = isVideo
                 ? `<video src="${update.url}" autoplay muted playsinline></video>`
                 : `<img src="${update.url}" alt="">`;
+
+            if (isVideo) {
+                const videoEl = content.querySelector("video");
+                if (videoEl) {
+                    videoEl.addEventListener("loadedmetadata", () => {
+                        if (!videoEl.duration || !isFinite(videoEl.duration)) return;
+                        // sync the moving line + auto-advance timer to the
+                        // clip's real length instead of the generic default
+                        startStatusProgress(Math.min(Math.max(videoEl.duration * 1000, 3000), 60000));
+                    }, { once: true });
+                }
+            }
         } else {
             content.innerHTML = `<div class="status-text-slide status-color-${update.color || "green"}">${escapeHtml(update.text || "")}</div>`;
         }
     }
 
-    const bars = $id("statusProgressBars");
-    if (bars) {
-        bars.innerHTML = group.updates.map((u, i) => `<span class="status-progress-bar${i < statusViewerUpdateIdx ? " done" : ""}${i === statusViewerUpdateIdx ? " active" : ""}"></span>`).join("");
-    }
+    startStatusProgress(durationMs);
 
     const viewCountWrap = $id("statusViewCountWrap");
     const isMine = me && group.id === me.id;
@@ -11918,6 +11960,82 @@ if ($id("statusViewerLikeBtn")) {
         }
     });
 }
+
+// ============================================================
+// STATUS VIEWERS SHEET — tap the view count on your own status
+// to see who watched it and who liked it (opens like WhatsApp's
+// "Viewed by" sheet, sliding up from the bottom).
+// ============================================================
+
+function openStatusViewersModal() {
+
+    const update = currentStatusUpdate();
+    const group = currentStatusGroup();
+    if (!update || !group || !me || group.id !== me.id) return;
+
+    clearTimeout(statusViewerTimer);
+
+    const viewers = update.viewers || [];
+    const likes = update.likes || [];
+    const likedIds = new Set(likes.map(l => l.id));
+
+    if ($id("statusViewersCount")) $id("statusViewersCount").textContent = String(viewers.length);
+    if ($id("statusViewersLikeCount")) $id("statusViewersLikeCount").textContent = String(likes.length);
+
+    const listEl = $id("statusViewersList");
+    const emptyEl = $id("statusViewersEmpty");
+
+    if (!viewers.length) {
+        if (listEl) listEl.innerHTML = "";
+        if (emptyEl) emptyEl.classList.remove("hidden");
+    } else {
+        if (emptyEl) emptyEl.classList.add("hidden");
+
+        // people who liked show up first, most recent view first within
+        // each group — same ordering WhatsApp uses for its viewer sheet
+        const sorted = [...viewers].sort((a, b) => {
+            const aLiked = likedIds.has(a.id) ? 1 : 0;
+            const bLiked = likedIds.has(b.id) ? 1 : 0;
+            if (aLiked !== bLiked) return bLiked - aLiked;
+            return b.at - a.at;
+        });
+
+        if (listEl) {
+            listEl.innerHTML = sorted.map(v => {
+                const profile = usersOnline[v.id] || friendProfiles[v.id] || null;
+                const avatarUrl = profile && profile.avatar;
+                const liked = likedIds.has(v.id);
+
+                return `
+                    <div class="status-viewer-row">
+                        <span class="modal-picker-avatar">${avatarMarkup(v.name, avatarUrl)}</span>
+                        <span class="status-viewer-row-name">${escapeHtml(v.name || "Someone")}</span>
+                        <span class="status-viewer-row-time">${v.at ? new Date(v.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}</span>
+                        ${liked ? `<i class="fa-solid fa-heart status-viewer-row-liked"></i>` : ""}
+                    </div>
+                `;
+            }).join("");
+        }
+    }
+
+    $id("statusViewersModal").classList.remove("hidden");
+}
+
+function closeStatusViewersModal() {
+    if ($id("statusViewersModal")) $id("statusViewersModal").classList.add("hidden");
+    // resume the story where it was, since opening the sheet paused it
+    if (!$id("statusViewerOverlay").classList.contains("hidden")) playCurrentStatus();
+}
+
+if ($id("statusViewCountWrap")) {
+    $id("statusViewCountWrap").addEventListener("click", openStatusViewersModal);
+    $id("statusViewCountWrap").addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") openStatusViewersModal();
+    });
+}
+
+if ($id("closeStatusViewersModal")) $id("closeStatusViewersModal").addEventListener("click", closeStatusViewersModal);
+if ($id("statusViewersBackdrop")) $id("statusViewersBackdrop").addEventListener("click", closeStatusViewersModal);
 
 if ($id("statusReplySendBtn")) {
     $id("statusReplySendBtn").addEventListener("click", () => {

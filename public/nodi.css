@@ -5922,6 +5922,17 @@ img.twemoji {
     background: white;
 }
 
+.status-progress-bar.active .status-progress-fill {
+    animation-name: statusFillGrow;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+@keyframes statusFillGrow {
+    from { width: 0%; }
+    to { width: 100%; }
+}
+
 .status-viewer-top {
     display: flex;
     align-items: center;
@@ -6083,5 +6094,142 @@ img.twemoji {
 }
 
 #statusViewerLikeBtn.hidden {
+    display: none;
+}
+
+/* =========================================================
+   STATUS VIEWERS SHEET (who viewed / who liked)
+========================================================= */
+
+.status-viewers-overlay {
+    position: fixed;
+    inset: 0;
+
+    z-index: 400;
+
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.status-viewers-overlay.hidden {
+    display: none;
+}
+
+.status-viewers-backdrop {
+    position: absolute;
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.status-viewers-sheet {
+    position: relative;
+
+    width: 100%;
+    max-width: 420px;
+    max-height: 65vh;
+
+    display: flex;
+    flex-direction: column;
+
+    background: #111827;
+    border: 1px solid #293548;
+    border-bottom: none;
+    border-radius: 18px 18px 0 0;
+
+    padding: 10px 16px 16px;
+
+    box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.5);
+
+    animation: statusSheetUp 0.2s ease;
+}
+
+@keyframes statusSheetUp {
+    from { transform: translateY(24px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.status-viewers-handle {
+    width: 40px;
+    height: 4px;
+
+    margin: 4px auto 10px;
+
+    border-radius: 4px;
+    background: #334155;
+}
+
+.status-viewers-head {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+
+    border-bottom: 1px solid #1f2a3d;
+
+    color: #cbd5e1;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.status-viewers-head i.fa-heart {
+    color: #f87171;
+}
+
+.status-viewers-head .panel-close {
+    margin-left: auto;
+}
+
+.status-viewers-list {
+    overflow-y: auto;
+}
+
+.status-viewer-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 8px 2px;
+}
+
+.status-viewer-row .modal-picker-avatar {
+    width: 34px;
+    height: 34px;
+}
+
+.status-viewer-row-name {
+    flex: 1;
+    min-width: 0;
+
+    color: white;
+    font-size: 13.5px;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.status-viewer-row-time {
+    color: #64748b;
+    font-size: 11px;
+    margin-right: 6px;
+}
+
+.status-viewer-row-liked {
+    color: #f87171;
+    font-size: 13px;
+}
+
+.status-viewers-empty {
+    padding: 30px 10px;
+    text-align: center;
+    color: #64748b;
+    font-size: 13px;
+}
+
+.status-viewers-empty.hidden {
     display: none;
 }

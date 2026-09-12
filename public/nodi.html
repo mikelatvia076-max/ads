@@ -2485,13 +2485,44 @@
                 <i class="fa-solid fa-paper-plane"></i>
             </button>
 
-            <div id="statusViewCountWrap" class="status-view-count-wrap hidden">
+            <div id="statusViewCountWrap" class="status-view-count-wrap hidden" role="button" tabindex="0" title="See who viewed and liked">
                 <i class="fa-solid fa-eye"></i>
                 <span id="statusViewCount">0</span>
                 <i class="fa-solid fa-heart status-like-count-icon"></i>
                 <span id="statusLikeCount">0</span>
             </div>
 
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     STATUS VIEWERS SHEET (who viewed / who liked - WhatsApp style)
+========================================================= -->
+
+<div id="statusViewersModal" class="status-viewers-overlay hidden">
+
+    <div id="statusViewersBackdrop" class="status-viewers-backdrop"></div>
+
+    <div class="status-viewers-sheet">
+
+        <div class="status-viewers-handle"></div>
+
+        <div class="status-viewers-head">
+            <span><i class="fa-solid fa-eye"></i> <span id="statusViewersCount">0</span> views</span>
+            <span><i class="fa-solid fa-heart"></i> <span id="statusViewersLikeCount">0</span> likes</span>
+            <button id="closeStatusViewersModal" class="panel-close" aria-label="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div id="statusViewersList" class="status-viewers-list"></div>
+
+        <div id="statusViewersEmpty" class="status-viewers-empty hidden">
+            No one has viewed this update yet.
         </div>
 
     </div>
