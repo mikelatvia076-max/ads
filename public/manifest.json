@@ -1,7 +1,7 @@
 {
-    "name": "Site Chat",
-    "short_name": "Site Chat",
-    "description": "Chat and calls",
+    "name": "Kenya Campus Hub",
+    "short_name": "Campus Hub",
+    "description": "Kenya Campus Hub - Student information, HELB, KUCCPS, scholarships, jobs and student tools.",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",
