@@ -13,6 +13,37 @@
     "orientation": "any",
     "categories": ["education", "social"],
     "prefer_related_applications": false,
+    "related_applications": [],
+    "display_override": ["standalone"],
+    "launch_handler": {
+        "client_mode": "focus-existing"
+    },
+    "shortcuts": [
+        {
+            "name": "Chat With Members",
+            "short_name": "Chat",
+            "description": "Open the chat and calls page",
+            "url": "/nodi.html",
+            "icons": [
+                {
+                    "src": "/icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        },
+        {
+            "name": "Home",
+            "short_name": "Home",
+            "description": "Open the Kenya Campus Hub homepage",
+            "url": "/",
+            "icons": [
+                {
+                    "src": "/icon-192.png",
+                    "sizes": "192x192"
+                }
+            ]
+        }
+    ],
     "icons": [
         {
             "src": "/icon-192.png",
