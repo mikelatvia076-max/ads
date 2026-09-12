@@ -4184,6 +4184,61 @@ img.twemoji {
 
 
 /* =========================================================
+   ONGOING CALL BANNER (in-chat, scroll-triggered)
+========================================================= */
+
+.active-call-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 9px 16px;
+
+    background: #0f3d2a;
+    border-bottom: 1px solid #1c6b47;
+
+    color: #d1fae5;
+    font-size: 13px;
+}
+
+.active-call-banner.hidden {
+    display: none;
+}
+
+.active-call-banner i.fa-phone {
+    color: #34d399;
+}
+
+.active-call-banner-text {
+    flex: 1;
+    min-width: 0;
+
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#activeCallBannerJoin {
+    border: none;
+    border-radius: 999px;
+
+    padding: 5px 14px;
+
+    background: #10b981;
+    color: #06281c;
+
+    font-size: 12px;
+    font-weight: 600;
+
+    cursor: pointer;
+}
+
+#activeCallBannerJoin:hover {
+    background: #34d399;
+}
+
+
+/* =========================================================
    QUOTED REPLY / FORWARDED LABEL (inside a bubble)
 ========================================================= */
 

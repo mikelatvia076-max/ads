@@ -11,6 +11,122 @@ const socket = io({
     transports: ["websocket", "polling"]
 });
 
+// ============================================================
+// SERVICE WORKER + PUSH NOTIFICATIONS
+// Lets the phone show a notification (new message, incoming
+// call) even when this tab isn't open/focused. Registering the
+// worker just makes push possible; actually subscribing (which
+// triggers the permission prompt) only happens once the user
+// has joined the chat - see setupPushNotifications() below.
+// ============================================================
+
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker
+            .register("/sw.js")
+            .catch(error => console.error("Service worker registration failed:", error));
+    });
+}
+
+function urlBase64ToUint8Array(base64String) {
+
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    const output = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; i++) {
+        output[i] = rawData.charCodeAt(i);
+    }
+
+    return output;
+}
+
+async function setupPushNotifications() {
+
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (Notification.permission === "denied") return;
+
+    try {
+
+        const keyRes = await fetch("/api/push/vapid-public-key");
+        const { enabled, publicKey } = await keyRes.json();
+        if (!enabled) return;
+
+        const permission =
+            Notification.permission === "granted"
+                ? "granted"
+                : await Notification.requestPermission();
+
+        if (permission !== "granted") return;
+
+        const registration = await navigator.serviceWorker.ready;
+
+        let subscription = await registration.pushManager.getSubscription();
+
+        if (!subscription) {
+            subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(publicKey)
+            });
+        }
+
+        socket.emit("push-subscribe", subscription.toJSON());
+
+    } catch (error) {
+        console.error("Push subscription failed:", error);
+    }
+}
+
+// routes a tap on a background notification (or the ?openChat=/
+// ?answerCall= link it opened the app with) to the right screen
+function handleNotificationRoute(data) {
+
+    if (!data) return;
+
+    if (data.type === "call" && data.fromId) {
+        waitForIncomingOfferAndAnswer(data.fromId);
+    } else if (data.type === "message" && data.chatId) {
+        openChatFromNotification(data.chatId);
+    }
+}
+
+function openChatFromNotification(chatId) {
+
+    if (isGroupChatId(chatId)) {
+        const group = myGroups.get(chatId);
+        if (group) openChat(group.id, group.name, group);
+        return;
+    }
+
+    const name = (usersOnline[chatId] && usersOnline[chatId].name) || chatId;
+    openChat(chatId, name);
+}
+
+// the actual WebRTC offer only arrives over the socket (see
+// socket.on("incoming-call") below) - it may take a moment to land
+// after we've just (re)joined, so this waits briefly rather than
+// assuming it's already there the instant the app opens
+function waitForIncomingOfferAndAnswer(fromId, triesLeft = 25) {
+
+    if (pendingOffer && pendingOffer.fromId === fromId) {
+        if (acceptCallBtn) acceptCallBtn.click();
+        return;
+    }
+
+    if (triesLeft <= 0) return;
+
+    setTimeout(() => waitForIncomingOfferAndAnswer(fromId, triesLeft - 1), 200);
+}
+
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "notification-click") {
+            handleNotificationRoute(event.data.data);
+        }
+    });
+}
+
 let me = null;
 let activeChat = null;
 let myAvatar =
@@ -471,6 +587,15 @@ const floatingCallBubbleTimer =
 const floatingCallBubbleHangup =
     document.getElementById("floatingCallBubbleHangup");
 
+const activeCallBanner =
+    document.getElementById("activeCallBanner");
+
+const activeCallBannerText =
+    document.getElementById("activeCallBannerText");
+
+const activeCallBannerJoin =
+    document.getElementById("activeCallBannerJoin");
+
 const incomingCall =
     document.getElementById("incomingCall");
 
@@ -648,6 +773,20 @@ function playTrill(
 
 const RINGTONE_PRESETS = {
 
+    whatsapp: {
+        label: "WhatsApp-style Ring",
+        cycleMs: 3200,
+        // a bright two-note "brring-brring" double pulse, repeated -
+        // close in cadence/feel to the familiar WhatsApp ringtone
+        // without reproducing any actual copyrighted audio
+        play: (ctx) => {
+            [0, 0.32].forEach(offset => {
+                playTone(ctx, { freq: 1000, start: offset, duration: 0.22, type: "sine", gain: 0.26 });
+                playTone(ctx, { freq: 1300, start: offset + 0.06, duration: 0.2, type: "sine", gain: 0.2 });
+            });
+        }
+    },
+
     classic: {
         label: "Classic Ring",
         cycleMs: 3600,
@@ -706,7 +845,7 @@ function getSoundChoice(kind) {
 
     return (
         localStorage.getItem(`siteChat${kind}Choice`) ||
-        (kind === "Ringtone" ? "classic" : "chime")
+        (kind === "Ringtone" ? "whatsapp" : "chime")
     );
 
 }
@@ -804,7 +943,7 @@ function startRingtoneLoop() {
 
     const preset =
         RINGTONE_PRESETS[choice] ||
-        RINGTONE_PRESETS.classic;
+        RINGTONE_PRESETS.whatsapp;
 
     const ctx =
         getAudioCtx();
@@ -8335,6 +8474,19 @@ let callPartnerId =
 let pendingOffer =
     null;
 
+// same idea as pendingOffer, but for a group-call ring (either a
+// fresh group call rung from a group chat, or someone adding us to
+// an already-running call) - kept separate so the accept/decline
+// buttons on the shared incoming-call screen know which flow to run
+let pendingGroupInvite =
+    null;
+
+// which chat (1:1 partner id, or group id) the current call belongs
+// to - lets the in-chat "call in progress" banner know whether to
+// show itself for the chat that's currently open
+let activeCallChatId =
+    null;
+
 // tracked globally (not just as a local var inside startCall/accept)
 // so the record/share-screen buttons know what kind of call is live
 let currentCallType =
@@ -8531,12 +8683,24 @@ function removeGroupPeerTile(peerId) {
 
 function resetGroupCallState() {
 
-    groupPeers.forEach((entry, id) => {
+    // notify everyone who's part of this call - not just the peers
+    // we've actually finished connecting to. Someone who was invited
+    // but hasn't answered yet (still on their own ringing screen)
+    // never got a peer connection in `groupPeers`, so if we only
+    // told already-connected peers "bye", anyone still ringing would
+    // be left ringing forever after we hang up.
+    if (activeCallId) {
 
-        try {
-            socket.emit("group-peer-bye", { toId: id, callId: activeCallId });
-        } catch (err) {}
+        Array.from(myParticipants.keys())
+            .filter(id => me && id !== me.id)
+            .forEach(id => {
+                try {
+                    socket.emit("group-peer-bye", { toId: id, callId: activeCallId });
+                } catch (err) {}
+            });
+    }
 
+    groupPeers.forEach((entry) => {
         try { entry.pc.close(); } catch (err) {}
     });
 
@@ -8610,7 +8774,7 @@ function openAddParticipantPicker() {
     });
 }
 
-function inviteToCall(targetId, targetName) {
+function inviteToCall(targetId, targetName, meta = {}) {
 
     if (!activeCallId || !targetId || myParticipants.has(targetId)) return;
 
@@ -8624,7 +8788,14 @@ function inviteToCall(targetId, targetName) {
         callId: activeCallId,
         callType: currentCallType || "audio",
         participantIds,
-        participantNames
+        participantNames,
+        // when this invite is really "a group call just started ringing"
+        // (as opposed to someone being added mid-call), the ring screen
+        // shows the group instead of naming whoever happened to tap
+        // "call" first - see call-add-invite below
+        isGroupCall: !!meta.isGroupCall,
+        groupName: meta.groupName || null,
+        groupId: meta.groupId || null
     });
 
     // optimistic - if they decline, "call-add-declined" removes them again
@@ -8635,7 +8806,7 @@ if (addParticipantBtn) {
     addParticipantBtn.addEventListener("click", openAddParticipantPicker);
 }
 
-socket.on("call-add-invite", async ({ fromId, fromName, callId, callType, participantIds, participantNames } = {}) => {
+socket.on("call-add-invite", ({ fromId, fromName, callId, callType, participantIds, participantNames, isGroupCall, groupName, groupId } = {}) => {
 
     if (!fromId || !callId) return;
 
@@ -8644,25 +8815,47 @@ socket.on("call-add-invite", async ({ fromId, fromName, callId, callType, partic
 
     const roster = (participantIds || []).filter(id => me && id !== me.id);
 
-    const rosterNames =
-        roster.map(id => namesById[id] || "Someone").filter(Boolean);
+    pendingGroupInvite = {
+        fromId,
+        fromName,
+        callId,
+        callType,
+        roster,
+        namesById,
+        groupId: isGroupCall ? (groupId || null) : null
+    };
 
-    const promptText =
-        `${fromName || "Someone"} wants to add you to a ${callType === "video" ? "video" : "voice"} call` +
-        (rosterNames.length ? ` with ${rosterNames.join(", ")}` : "") +
-        ". Join?";
+    if (isGroupCall) {
 
-    const accept = await showNiceConfirm(promptText, {
-        title: "Incoming call invite",
-        icon: callType === "video" ? "fa-video" : "fa-phone",
-        danger: false,
-        confirmText: "Join"
-    });
+        // a real group call ringing everyone at once - shown like
+        // WhatsApp's group call screen: the group, not an individual
+        // caller's name
+        showIncomingCallScreen(
+            groupName || "Group Call",
+            `Incoming ${callType === "video" ? "video" : "voice"} call`
+        );
 
-    if (!accept) {
-        socket.emit("call-add-decline", { toId: fromId, callId });
-        return;
+    } else {
+
+        const rosterNames =
+            roster.map(id => namesById[id] || "Someone").filter(Boolean);
+
+        showIncomingCallScreen(
+            "Incoming Call",
+            `${fromName || "Someone"} wants to add you to a ${callType === "video" ? "video" : "voice"} call` +
+            (rosterNames.length ? ` with ${rosterNames.join(", ")}` : "")
+        );
     }
+});
+
+async function acceptGroupInvite() {
+
+    if (!pendingGroupInvite) return;
+
+    const { fromId, callId, callType, roster, namesById, groupId } = pendingGroupInvite;
+
+    pendingGroupInvite = null;
+    hideIncomingCallScreen();
 
     if (!mediaDevicesAvailable()) {
         showNiceAlert(mediaErrorMessage(null), { title: "Camera & mic", icon: "fa-video" });
@@ -8681,6 +8874,7 @@ socket.on("call-add-invite", async ({ fromId, fromName, callId, callType, partic
     currentCallType = callType;
     cameraTrack = callType === "video" ? (localStream.getVideoTracks()[0] || null) : null;
     activeCallId = callId;
+    activeCallChatId = groupId || null;
 
     myParticipants = new Map();
     if (me) myParticipants.set(me.id, { name: me.name });
@@ -8689,12 +8883,22 @@ socket.on("call-add-invite", async ({ fromId, fromName, callId, callType, partic
     showCallUI(callType, "Connecting...");
 
     roster.forEach(id => connectToGroupPeer(id, namesById[id] || "Participant", callId));
-});
+}
 
 socket.on("call-add-declined", ({ fromId, callId } = {}) => {
 
     if (callId !== activeCallId) return;
     myParticipants.delete(fromId);
+
+    // if we're the one who started this call and everyone we invited
+    // has now declined (nobody ever connected either), don't leave
+    // ourselves stuck in a call screen with no one else on it
+    if (groupPeers.size === 0 && myParticipants.size <= 1 && callStatusText) {
+        callStatusText.textContent = "No one answered";
+        setTimeout(() => {
+            if (activeCallId === callId) endCallCleanup();
+        }, 1500);
+    }
 });
 
 // Someone we're already on a call with is sending us their offer -
@@ -8773,8 +8977,32 @@ socket.on("group-peer-ice", async ({ fromId, callId, candidate } = {}) => {
 
 socket.on("group-peer-bye", ({ fromId, callId } = {}) => {
 
+    // we might still be on the ringing screen for this exact call
+    // (invited, never accepted/connected yet) - if the caller hangs
+    // up before we answer, dismiss the ring instead of leaving it
+    // stuck forever.
+    if (pendingGroupInvite && pendingGroupInvite.callId === callId && pendingGroupInvite.fromId === fromId) {
+        pendingGroupInvite = null;
+        hideIncomingCallScreen();
+        return;
+    }
+
     if (callId !== activeCallId) return;
+
     removeGroupPeerTile(fromId);
+
+    // if that was the last other person on the call (no more group
+    // peers, and this isn't a 1:1 call still going with its own
+    // `pc`), the call is effectively over for us too - close our own
+    // screen instead of sitting alone in an empty call.
+    const onlySelfLeft =
+        groupPeers.size === 0 &&
+        !pc &&
+        myParticipants.size <= 1;
+
+    if (onlySelfLeft) {
+        endCallCleanup();
+    }
 });
 
 async function flushPendingIceCandidates() {
@@ -8869,6 +9097,7 @@ async function startGroupCallFromGroup(callType) {
     currentCallType = callType;
     cameraTrack = callType === "video" ? (localStream.getVideoTracks()[0] || null) : null;
     activeCallId = genCallId("c");
+    activeCallChatId = activeChat.id;
     myParticipants = new Map([[me.id, { name: me.name }]]);
 
     showCallUI(callType, `Calling ${activeChat.name}...`);
@@ -8877,7 +9106,11 @@ async function startGroupCallFromGroup(callType) {
         (activeChat.memberIds || [])
             .filter(id => id !== me.id && usersOnline[id]);
 
-    members.forEach(id => inviteToCall(id, usersOnline[id].name));
+    members.forEach(id => inviteToCall(id, usersOnline[id].name, {
+        isGroupCall: true,
+        groupName: activeChat.name,
+        groupId: activeChat.id
+    }));
 }
 
 
@@ -8982,6 +9215,7 @@ async function startCall(
     // an otherwise ordinary 1:1 call too - see the MULTI-PARTY
     // (GROUP) CALLING section further down
     activeCallId = genCallId("c");
+    activeCallChatId = callPartnerId;
     myParticipants = new Map([
         [me.id, { name: me.name }],
         [callPartnerId, { name: activeChat.name }]
@@ -9281,6 +9515,8 @@ function minimizeCall() {
         floatingCallBubble.classList.remove("hidden");
     }
 
+    updateActiveCallBannerVisibility();
+
 }
 
 function restoreCall() {
@@ -9295,6 +9531,58 @@ function restoreCall() {
         callOverlay.classList.remove("hidden");
     }
 
+    updateActiveCallBannerVisibility();
+
+}
+
+// Shows a small "call in progress, tap to return" banner inside the
+// currently-open chat once the person has scrolled up a good way
+// from the bottom while their call is minimized - mirrors WhatsApp's
+// ongoing-call bar, but only surfaces when they've scrolled away
+// instead of sitting on screen the whole time.
+function updateActiveCallBannerVisibility() {
+
+    if (!activeCallBanner || !messagesEl) return;
+
+    const belongsToOpenChat =
+        isCallMinimized &&
+        activeCallChatId &&
+        activeChat &&
+        activeCallChatId === activeChat.id;
+
+    if (!belongsToOpenChat) {
+        activeCallBanner.classList.add("hidden");
+        return;
+    }
+
+    const distanceFromBottom =
+        messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight;
+
+    // only surface once they've scrolled up a good way from the
+    // latest messages - near the bottom, the floating call bubble
+    // is already visible and this would just be redundant
+    const scrolledUpFar = distanceFromBottom > 220;
+
+    if (!scrolledUpFar) {
+        activeCallBanner.classList.add("hidden");
+        return;
+    }
+
+    if (activeCallBannerText) {
+        activeCallBannerText.textContent =
+            (currentCallType === "video" ? "Video call" : "Voice call") + " in progress";
+    }
+
+    activeCallBanner.classList.remove("hidden");
+
+}
+
+if (messagesEl) {
+    messagesEl.addEventListener("scroll", updateActiveCallBannerVisibility);
+}
+
+if (activeCallBannerJoin) {
+    activeCallBannerJoin.addEventListener("click", restoreCall);
 }
 
 if (minimizeCallBtn) {
@@ -9367,7 +9655,15 @@ if (floatingCallBubbleHangup) {
         // don't let this also trigger the bubble's own tap-to-restore
         e.stopPropagation();
 
-        if (callPartnerId) {
+        // "call-end" forces the call fully closed on the other end -
+        // only fire it for a genuine 1:1 (nobody else on the call).
+        // With extra participants, resetGroupCallState (inside
+        // endCallCleanup below) tells each of them individually that
+        // we've left, and their own side decides whether the call is
+        // now over for them too - so it doesn't yank a still-ongoing
+        // group call out from under everyone else just because one
+        // person hung up.
+        if (callPartnerId && myParticipants.size <= 2) {
             socket.emit("call-end", { toId: callPartnerId });
         }
 
@@ -9388,6 +9684,19 @@ function endCallCleanup() {
     // screen closes (accept/decline/hangup/rejected/ended)
     stopRingtoneLoop();
 
+    // if the other side ends/cancels the call while we're still on
+    // the ringing screen (either the classic 1:1 "Incoming Call" or
+    // a group-call ring we haven't answered yet), that screen has to
+    // close too - otherwise it's stuck showing a call that no longer
+    // exists on the other end
+    if (incomingCall && !incomingCall.classList.contains("hidden")) {
+        incomingCall.classList.add("hidden");
+    }
+    if (incomingTitle) incomingTitle.textContent = "Incoming Call";
+    pendingOffer = null;
+    pendingGroupInvite = null;
+    activeCallChatId = null;
+
     // tear down any extra (beyond the original 1:1 partner) call
     // participants - see MULTI-PARTY (GROUP) CALLING
     resetGroupCallState();
@@ -9398,6 +9707,10 @@ function endCallCleanup() {
 
     if (floatingCallBubble) {
         floatingCallBubble.classList.add("hidden");
+    }
+
+    if (activeCallBanner) {
+        activeCallBanner.classList.add("hidden");
     }
 
     if (callOverlay) {
@@ -9495,8 +9808,15 @@ if (hangupBtn) {
         "click",
         () => {
 
+            // "call-end" forces the call fully closed on the other
+            // end - only fire it for a genuine 1:1 (nobody else on
+            // the call). With extra participants, resetGroupCallState
+            // (inside endCallCleanup below) tells each of them
+            // individually that we've left, and their own side
+            // decides whether the call is now over for them too.
             if (
-                callPartnerId
+                callPartnerId &&
+                myParticipants.size <= 2
             ) {
 
                 socket.emit(
@@ -9886,6 +10206,36 @@ if (recordCallBtn) {
 // INCOMING CALL
 // ============================================================
 
+const incomingTitle =
+    document.getElementById("incomingTitle");
+
+// Shared by every kind of incoming ring (1:1 call, a fresh group
+// call, or being added to an in-progress call) so they all get the
+// same full-screen ring treatment + looping ringtone instead of
+// some using a plain confirm popup.
+function showIncomingCallScreen(titleText, bodyText) {
+
+    if (incomingTitle) incomingTitle.textContent = titleText;
+    if (incomingText) incomingText.textContent = bodyText;
+
+    if (incomingCall) {
+        incomingCall.classList.remove("hidden");
+    }
+
+    startRingtoneLoop();
+}
+
+function hideIncomingCallScreen() {
+
+    stopRingtoneLoop();
+
+    if (incomingCall) {
+        incomingCall.classList.add("hidden");
+    }
+
+    if (incomingTitle) incomingTitle.textContent = "Incoming Call";
+}
+
 socket.on(
     "incoming-call",
     ({
@@ -9904,29 +10254,14 @@ socket.on(
 
         };
 
-
-        if (incomingText) {
-
-            incomingText.textContent =
-                `${fromName} is ${
-                    callType === "video"
-                        ? "video calling"
-                        : "calling"
-                } you`;
-
-        }
-
-
-        if (incomingCall) {
-
-            incomingCall.classList.remove(
-                "hidden"
-            );
-
-        }
-
-
-        startRingtoneLoop();
+        showIncomingCallScreen(
+            "Incoming Call",
+            `${fromName} is ${
+                callType === "video"
+                    ? "video calling"
+                    : "calling"
+            } you`
+        );
 
     }
 );
@@ -9942,12 +10277,17 @@ if (acceptCallBtn) {
         "click",
         async () => {
 
+            if (pendingGroupInvite) {
+                await acceptGroupInvite();
+                return;
+            }
+
             if (!pendingOffer) {
                 return;
             }
 
 
-            stopRingtoneLoop();
+            hideIncomingCallScreen();
 
 
             const {
@@ -9957,15 +10297,6 @@ if (acceptCallBtn) {
                 callType
             } =
                 pendingOffer;
-
-
-            if (incomingCall) {
-
-                incomingCall.classList.add(
-                    "hidden"
-                );
-
-            }
 
 
             callPartnerId =
@@ -10091,6 +10422,7 @@ if (acceptCallBtn) {
             // seed the multi-party call state so "Add participant"
             // works on an otherwise ordinary 1:1 call too
             activeCallId = genCallId("c");
+            activeCallChatId = fromId;
             myParticipants = new Map([
                 [me.id, { name: me.name }],
                 [fromId, { name: fromName || "Caller" }]
@@ -10116,12 +10448,21 @@ if (declineCallBtn) {
         "click",
         () => {
 
-            if (!pendingOffer) {
+            if (pendingGroupInvite) {
+
+                socket.emit("call-add-decline", {
+                    toId: pendingGroupInvite.fromId,
+                    callId: pendingGroupInvite.callId
+                });
+
+                pendingGroupInvite = null;
+                hideIncomingCallScreen();
                 return;
             }
 
-
-            stopRingtoneLoop();
+            if (!pendingOffer) {
+                return;
+            }
 
 
             socket.emit(
@@ -10133,13 +10474,7 @@ if (declineCallBtn) {
             );
 
 
-            if (incomingCall) {
-
-                incomingCall.classList.add(
-                    "hidden"
-                );
-
-            }
+            hideIncomingCallScreen();
 
 
             pendingOffer =
@@ -12451,4 +12786,24 @@ socket.on("joined", () => {
     requestStatuses();
     requestChannels();
     requestCommunities();
+
+    setupPushNotifications();
+
+    // came here from a background notification tap (either the service
+    // worker opened a new window with these params, or we're in an
+    // already-open tab that just got postMessage'd instead - handle
+    // whichever actually happens)
+    const params = new URLSearchParams(window.location.search);
+    const openChatId = params.get("openChat");
+    const answerCallFromId = params.get("answerCall");
+
+    if (openChatId) {
+        openChatFromNotification(openChatId);
+    } else if (answerCallFromId) {
+        waitForIncomingOfferAndAnswer(answerCallFromId);
+    }
+
+    if (openChatId || answerCallFromId) {
+        window.history.replaceState({}, "", window.location.pathname);
+    }
 });

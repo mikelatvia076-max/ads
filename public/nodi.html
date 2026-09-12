@@ -13,6 +13,15 @@
 
     <title>Site Chat</title>
 
+    <!-- PWA: lets the site be installed to the home screen. Required on
+         iOS for push notifications to work at all, and gives Android an
+         app-like launch (its own window, no browser address bar). -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0b7d5b">
+    <link rel="apple-touch-icon" href="/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
     <link rel="stylesheet" href="nodi.css">
 
     <script src="/socket.io/socket.io.js"></script>
@@ -1075,6 +1084,17 @@
         </div>
 
 
+        <!-- Ongoing call banner - only surfaces once you've scrolled
+             away from the bottom of the chat while a call you're on
+             is minimized, so you don't lose track of it (like
+             WhatsApp's "tap to return to call" bar) -->
+        <div id="activeCallBanner" class="active-call-banner hidden">
+            <i class="fa-solid fa-phone"></i>
+            <span id="activeCallBannerText" class="active-call-banner-text">Call in progress</span>
+            <button id="activeCallBannerJoin" type="button">Tap to return</button>
+        </div>
+
+
         <!-- Floating message context menu (reply/forward/star/edit/pin/delete/react/copy) -->
         <div id="msgContextMenu" class="msg-context-menu hidden" role="menu"></div>
 
@@ -1747,7 +1767,7 @@
 
         </div>
 
-        <h2>
+        <h2 id="incomingTitle">
             Incoming Call
         </h2>
 

@@ -14,6 +14,7 @@ import http from "http";
 import os from "os";
 import { nanoid } from "nanoid";
 import { Server as SocketIOServer } from "socket.io";
+import webpush from "web-push";
 
 /*
 =========================================================
@@ -1959,6 +1960,169 @@ between browsers, not through this server)
 =========================================================
 */
 
+/*
+=========================================================
+WEB PUSH (background notifications for messages + calls)
+=========================================================
+Lets the phone show a notification for a new message or an
+incoming call even when the site isn't open in a foreground
+tab — as long as it's been installed to the home screen
+(iOS) or just visited once and granted permission (Android/
+desktop). Requires VAPID keys: generate with
+
+    npx web-push generate-vapid-keys
+
+and set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT
+(e.g. "mailto:you@example.com") in the environment. Without
+them, push is silently disabled and everything else in the
+app keeps working exactly as before.
+*/
+
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:admin@example.com";
+
+const pushEnabled = !!(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+
+if (pushEnabled) {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+} else {
+    console.warn(
+        "Push notifications disabled: set VAPID_PUBLIC_KEY / " +
+        "VAPID_PRIVATE_KEY to enable background message/call alerts."
+    );
+}
+
+const pushSubscriptionsFile = path.join(os.tmpdir(), "site-chat-push-subs.json");
+
+function readPushStore() { return readJsonStore(pushSubscriptionsFile, {}); }
+function writePushStore(store) { writeJsonStore(pushSubscriptionsFile, store); }
+
+// true while at least one browser tab/window for this user has a live
+// socket connection right now (used to decide whether a push is needed
+// on top of the normal in-app realtime event)
+function hasActiveSocket(userKey) {
+    const room = io.sockets.adapter.rooms.get(userKey);
+    return !!room && room.size > 0;
+}
+
+function addPushSubscription(userKey, subscription) {
+
+    if (!userKey || !subscription || !subscription.endpoint) return;
+
+    const store = readPushStore();
+    const list = store[userKey] || [];
+
+    if (!list.some(s => s.endpoint === subscription.endpoint)) {
+        list.push(subscription);
+    }
+
+    store[userKey] = list;
+    writePushStore(store);
+}
+
+function removePushSubscription(userKey, endpoint) {
+
+    if (!userKey) return;
+
+    const store = readPushStore();
+    if (!store[userKey]) return;
+
+    store[userKey] = store[userKey].filter(s => s.endpoint !== endpoint);
+    if (store[userKey].length === 0) delete store[userKey];
+
+    writePushStore(store);
+}
+
+// Sends a push notification to every device/browser this user has
+// subscribed from. Best-effort: a dead subscription (user revoked
+// permission, uninstalled, etc.) is pruned instead of retried.
+async function sendPushToUser(userKey, notification) {
+
+    if (!pushEnabled || !userKey) return;
+
+    const store = readPushStore();
+    const subs = store[userKey];
+    if (!subs || subs.length === 0) return;
+
+    const payload = JSON.stringify(notification);
+
+    await Promise.all(subs.map(async (sub) => {
+
+        try {
+            await webpush.sendNotification(sub, payload);
+        } catch (error) {
+
+            // 404/410 = the subscription is gone (uninstalled, permission
+            // revoked, browser storage cleared) - stop trying it forever
+            if (error && (error.statusCode === 404 || error.statusCode === 410)) {
+                removePushSubscription(userKey, sub.endpoint);
+            } else {
+                console.error(`Push to ${userKey} failed:`, error && error.message);
+            }
+        }
+    }));
+}
+
+app.get("/api/push/vapid-public-key", (req, res) => {
+    res.json({ enabled: pushEnabled, publicKey: VAPID_PUBLIC_KEY });
+});
+
+/*
+=========================================================
+PRESENCE GRACE PERIOD
+=========================================================
+A phone locking, the browser being backgrounded, or a brief
+network blip all fire a socket "disconnect" even though the
+person hasn't actually left. Flipping them to offline that
+instantly made presence flicker constantly. Instead, on
+disconnect we keep them in onlineChatUsers (so they still
+show "online") and only remove them — really marking them
+offline — if they haven't reconnected within a grace window.
+Rejoining with the same name before that window elapses
+(e.g. re-opening the app) just cancels the pending removal.
+*/
+
+const PRESENCE_GRACE_MS = 45 * 1000;
+const pendingOfflineTimers = new Map(); // userKey -> setTimeout handle
+
+function cancelPendingOffline(userKey) {
+
+    const timer = pendingOfflineTimers.get(userKey);
+    if (timer) {
+        clearTimeout(timer);
+        pendingOfflineTimers.delete(userKey);
+    }
+}
+
+/*
+=========================================================
+PENDING CALLS (ring-through-push)
+=========================================================
+A plain socket.io emit only reaches a socket that's connected
+right now — if the callee's app is closed/backgrounded, the
+"incoming-call" event (and the WebRTC offer inside it) is
+simply lost the instant it's sent. We keep the most recent
+unanswered offer per callee here for a normal "ring" window;
+a push notification wakes the phone in parallel, and when the
+callee's app (re)joins during that window it's handed the
+same offer immediately, so tapping "Answer" on the
+notification can actually connect the call, not just open
+the app to a call that already vanished.
+*/
+
+const CALL_RING_MS = 45 * 1000;
+const pendingCalls = new Map(); // toId -> { fromId, fromName, offer, callType, timer }
+
+function clearPendingCall(toId) {
+
+    const pending = pendingCalls.get(toId);
+    if (pending) {
+        clearTimeout(pending.timer);
+        pendingCalls.delete(toId);
+    }
+}
+
 const onlineChatUsers = new Map();
 
 function isSafeAvatarUrl(url) {
@@ -2014,20 +2178,30 @@ io.on("connection", (socket) => {
         // history/friend list keeps working.
         const userKey = safeName.toLowerCase();
 
-        if (onlineChatUsers.has(userKey)) {
-            // Someone else is already online under this exact name —
-            // don't let a second person collide with them.
+        if (onlineChatUsers.has(userKey) && hasActiveSocket(userKey)) {
+            // Someone else is already actively connected under this exact
+            // name — don't let a second person collide with them. (If the
+            // name is only "online" because it's sitting in the presence
+            // grace period after a disconnect, this same person
+            // reconnecting is allowed to reclaim it below.)
             socket.emit("name-taken", { name: safeName });
             return;
         }
 
         chatUserId = userKey;
 
+        // reconnecting before the grace window ran out — cancel the
+        // scheduled "gone offline" removal, this was a false alarm
+        cancelPendingOffline(userKey);
+
+        const existingAvatar =
+            onlineChatUsers.has(userKey) ? onlineChatUsers.get(userKey).avatar : null;
+
         socket.join(userKey);
 
         onlineChatUsers.set(
             chatUserId,
-            { name: safeName, socketId: socket.id, avatar: null }
+            { name: safeName, socketId: socket.id, avatar: existingAvatar }
         );
 
         socket.data.name = safeName;
@@ -2051,6 +2225,21 @@ io.on("connection", (socket) => {
 
         socket.emit("joined", { id: chatUserId, name: safeName });
         socket.emit("my-groups", myGroups);
+
+        // if a call came in while this user was disconnected (app closed,
+        // phone locked) and it's still within its ring window, hand them
+        // the same offer now so answering actually connects the call
+        // instead of opening the app to a call that's already gone
+        const pendingCall = pendingCalls.get(chatUserId);
+        if (pendingCall) {
+            socket.emit("incoming-call", {
+                fromId: pendingCall.fromId,
+                fromName: pendingCall.fromName,
+                offer: pendingCall.offer,
+                callType: pendingCall.callType
+            });
+        }
+
         broadcastChatUserList();
         socket.broadcast.emit(
             "system-message",
@@ -2146,6 +2335,41 @@ io.on("connection", (socket) => {
         // was never in the recipient's personal room anyway.
         socket.to(payload.toId).emit("chat-message", message);
         socket.emit("chat-message", message); // echo back to sender
+
+        // wake up anyone this reached who doesn't have the app open
+        // right now via a push notification, so a new message shows
+        // up on the phone even with the site fully closed
+        const preview =
+            message.text ? message.text.slice(0, 120)
+                : message.attachment ? "Sent an attachment"
+                    : "New message";
+
+        // the chat to deep-link into when the notification is tapped:
+        // the sender's own id for a 1:1 chat, or the group's id for a
+        // group chat (so it opens the group, not a DM with the sender)
+        const notifyChatId = isGroupId(payload.toId) ? payload.toId : chatUserId;
+
+        const notifyRecipient = (recipientId) => {
+
+            if (recipientId === chatUserId) return; // never push the sender
+            if (hasActiveSocket(recipientId)) return; // already seeing it live
+
+            sendPushToUser(recipientId, {
+                type: "message",
+                title: from.name,
+                body: preview,
+                chatId: notifyChatId,
+                chatName: from.name,
+                icon: senderAvatar || null
+            });
+        };
+
+        if (isGroupId(payload.toId)) {
+            const group = groupsStore.get(payload.toId);
+            if (group) group.memberIds.forEach(notifyRecipient);
+        } else {
+            notifyRecipient(payload.toId);
+        }
     });
 
     // a client opening a conversation asks for what's already been
@@ -2377,15 +2601,40 @@ io.on("connection", (socket) => {
     });
 
     socket.on("call-user", ({ toId, offer, callType }) => {
-        io.to(toId).emit("incoming-call", {
-            fromId: chatUserId,
-            fromName: socket.data.name,
-            offer,
-            callType // "audio" | "video"
+
+        if (!toId || !chatUserId) return;
+
+        const fromId = chatUserId;
+        const fromName = socket.data.name;
+
+        io.to(toId).emit("incoming-call", { fromId, fromName, offer, callType });
+
+        // keep the offer around for the length of a normal ring so a
+        // reconnect (app opened from the notification) can still be
+        // handed the call instead of finding it already gone, and so
+        // the caller sees "no answer" instead of hanging forever if
+        // it's genuinely never picked up
+        clearPendingCall(toId);
+        const timer = setTimeout(() => {
+            pendingCalls.delete(toId);
+            io.to(fromId).emit("call-rejected", { fromId: toId, reason: "no-answer" });
+        }, CALL_RING_MS);
+
+        pendingCalls.set(toId, { fromId, fromName, offer, callType, timer });
+
+        // ring the phone even if it's locked/backgrounded/closed
+        sendPushToUser(toId, {
+            type: "call",
+            title: fromName,
+            body: callType === "video" ? "Incoming video call" : "Incoming voice call",
+            fromId,
+            fromName,
+            callType
         });
     });
 
     socket.on("call-answer", ({ toId, answer }) => {
+        clearPendingCall(chatUserId);
         io.to(toId).emit("call-answer", { fromId: chatUserId, answer });
     });
 
@@ -2394,11 +2643,24 @@ io.on("connection", (socket) => {
     });
 
     socket.on("call-reject", ({ toId }) => {
+        clearPendingCall(chatUserId);
         io.to(toId).emit("call-rejected", { fromId: chatUserId });
     });
 
     socket.on("call-end", ({ toId }) => {
+        clearPendingCall(toId);
+        clearPendingCall(chatUserId);
         io.to(toId).emit("call-ended", { fromId: chatUserId });
+    });
+
+    // client tells us about (or removes) a push subscription for this
+    // browser/device once the user has granted Notification permission
+    socket.on("push-subscribe", (subscription) => {
+        if (chatUserId) addPushSubscription(chatUserId, subscription);
+    });
+
+    socket.on("push-unsubscribe", ({ endpoint } = {}) => {
+        if (chatUserId && endpoint) removePushSubscription(chatUserId, endpoint);
     });
 
 
@@ -2680,7 +2942,7 @@ io.on("connection", (socket) => {
     // Ring `toId` to join `callId`. `participantIds`/`participantNames`
     // is a snapshot of who's already on the call, provided by the
     // inviter, so the invitee knows who to connect to once they accept.
-    socket.on("call-add-participant", ({ toId, callId, callType, participantIds, participantNames } = {}) => {
+    socket.on("call-add-participant", ({ toId, callId, callType, participantIds, participantNames, isGroupCall, groupName, groupId } = {}) => {
 
         if (!toId || !callId || !chatUserId) return;
 
@@ -2690,7 +2952,10 @@ io.on("connection", (socket) => {
             callId,
             callType,
             participantIds: Array.isArray(participantIds) ? participantIds : [],
-            participantNames: Array.isArray(participantNames) ? participantNames : []
+            participantNames: Array.isArray(participantNames) ? participantNames : [],
+            isGroupCall: !!isGroupCall,
+            groupName: typeof groupName === "string" ? groupName.slice(0, 60) : null,
+            groupId: typeof groupId === "string" ? groupId : null
         });
     });
 
@@ -2997,16 +3262,29 @@ io.on("connection", (socket) => {
 
     socket.on("disconnect", () => {
 
-        if (chatUserId && onlineChatUsers.has(chatUserId)) {
+        if (!chatUserId || !onlineChatUsers.has(chatUserId)) return;
 
-            const name = onlineChatUsers.get(chatUserId).name;
-            onlineChatUsers.delete(chatUserId);
+        // don't drop them offline immediately - a locked phone or a
+        // backgrounded tab disconnects the socket too, and they're
+        // still reachable by push. Only actually go offline if they
+        // haven't reconnected by the end of the grace window.
+        cancelPendingOffline(chatUserId);
+
+        const userKey = chatUserId;
+        const timer = setTimeout(() => {
+
+            pendingOfflineTimers.delete(userKey);
+
+            if (!onlineChatUsers.has(userKey) || hasActiveSocket(userKey)) return;
+
+            const name = onlineChatUsers.get(userKey).name;
+            onlineChatUsers.delete(userKey);
             broadcastChatUserList();
-            socket.broadcast.emit(
-                "system-message",
-                `${name} left the chat`
-            );
-        }
+            io.emit("system-message", `${name} left the chat`);
+
+        }, PRESENCE_GRACE_MS);
+
+        pendingOfflineTimers.set(userKey, timer);
     });
 });
 
