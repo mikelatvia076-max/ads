@@ -11603,7 +11603,6 @@ function refreshOpenStatusViewer(statuses) {
     const isMine = me && freshGroup.id === me.id;
     if (viewCountWrap) viewCountWrap.classList.toggle("hidden", !isMine);
     if (isMine && $id("statusViewCount")) $id("statusViewCount").textContent = String((freshUpdate.viewers || []).length);
-    if (isMine && $id("statusLikeCount")) $id("statusLikeCount").textContent = String((freshUpdate.likes || []).length);
 
     const likeBtn = $id("statusViewerLikeBtn");
     if (likeBtn) {
@@ -11691,8 +11690,45 @@ if ($id("statusMediaInput")) {
     });
 }
 
+// uploads a file with real progress events (fetch doesn't expose
+// upload progress, which is exactly why a big video felt "stuck" -
+// the button gave zero feedback while it silently transferred)
+function uploadFileWithProgress(file, onProgress) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const formData = new FormData();
+        formData.append("file", file);
+
+        xhr.upload.addEventListener("progress", (e) => {
+            if (e.lengthComputable && onProgress) {
+                onProgress(Math.round((e.loaded / e.total) * 100));
+            }
+        });
+
+        xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    resolve(JSON.parse(xhr.responseText));
+                } catch (e) {
+                    reject(e);
+                }
+            } else {
+                reject(new Error(`Upload failed (${xhr.status})`));
+            }
+        });
+
+        xhr.addEventListener("error", () => reject(new Error("Upload failed")));
+
+        xhr.open("POST", "/upload");
+        xhr.send(formData);
+    });
+}
+
 if ($id("postStatusBtn")) {
     $id("postStatusBtn").addEventListener("click", async () => {
+
+        const btn = $id("postStatusBtn");
+        if (btn.disabled) return; // already posting - ignore extra clicks
 
         const activeTab = document.querySelector(".status-compose-tab.active");
         const isMedia = activeTab && activeTab.dataset.statusTab === "media";
@@ -11705,12 +11741,16 @@ if ($id("postStatusBtn")) {
                 return;
             }
 
-            const formData = new FormData();
-            formData.append("file", statusMediaFile);
+            const originalLabel = btn.textContent;
+            btn.disabled = true;
 
             try {
-                const res = await fetch("/upload", { method: "POST", body: formData });
-                const data = await res.json();
+                const data = await uploadFileWithProgress(statusMediaFile, (pct) => {
+                    btn.textContent = `Uploading... ${pct}%`;
+                });
+
+                btn.textContent = "Posting...";
+
                 socket.emit("post-status", {
                     kind: "media",
                     url: data.url,
@@ -11719,8 +11759,13 @@ if ($id("postStatusBtn")) {
                 });
             } catch (err) {
                 showNiceAlert("Couldn't upload that file right now.", { title: "Upload failed" });
+                btn.disabled = false;
+                btn.textContent = originalLabel;
                 return;
             }
+
+            btn.disabled = false;
+            btn.textContent = originalLabel;
 
         } else {
 
@@ -11814,12 +11859,32 @@ function playCurrentStatus() {
     if (content) {
         if (update.kind === "media") {
             content.innerHTML = isVideo
-                ? `<video src="${update.url}" autoplay muted playsinline></video>`
+                ? `<video src="${update.url}" autoplay playsinline></video>`
                 : `<img src="${update.url}" alt="">`;
 
             if (isVideo) {
                 const videoEl = content.querySelector("video");
                 if (videoEl) {
+
+                    // videos play WITH sound by default, unless the
+                    // viewer has already muted this session (mirrors
+                    // the mute button's current icon state)
+                    const muteBtn = $id("statusViewerMuteBtn");
+                    const muteIcon = muteBtn && muteBtn.querySelector("i");
+                    const wantsMuted = !!(muteIcon && muteIcon.classList.contains("fa-volume-xmark"));
+                    videoEl.muted = wantsMuted;
+
+                    videoEl.play().catch(() => {
+                        // some browsers block autoplay-with-sound - fall
+                        // back to muted playback instead of a frozen/silent video
+                        videoEl.muted = true;
+                        if (muteIcon) {
+                            muteIcon.classList.remove("fa-volume-high");
+                            muteIcon.classList.add("fa-volume-xmark");
+                        }
+                        videoEl.play().catch(() => {});
+                    });
+
                     videoEl.addEventListener("loadedmetadata", () => {
                         if (!videoEl.duration || !isFinite(videoEl.duration)) return;
                         // sync the moving line + auto-advance timer to the
@@ -11839,7 +11904,6 @@ function playCurrentStatus() {
     const isMine = me && group.id === me.id;
     if (viewCountWrap) viewCountWrap.classList.toggle("hidden", !isMine);
     if (isMine && $id("statusViewCount")) $id("statusViewCount").textContent = String((update.viewers || []).length);
-    if (isMine && $id("statusLikeCount")) $id("statusLikeCount").textContent = String((update.likes || []).length);
 
     const likeBtn = $id("statusViewerLikeBtn");
     if (likeBtn) {
@@ -11856,8 +11920,6 @@ function playCurrentStatus() {
 
     if (!isMine) socket.emit("view-status", { statusId: update.id, ownerId: group.id });
 
-    statusViewerTimer = setTimeout(nextStatus, 5000);
-
 }
 
 function nextStatus() {
@@ -11868,11 +11930,11 @@ function nextStatus() {
     if (statusViewerUpdateIdx < group.updates.length - 1) {
         statusViewerUpdateIdx++;
         playCurrentStatus();
-    } else if (statusViewerGroupIdx < statusViewerGroups.length - 1) {
-        statusViewerGroupIdx++;
-        statusViewerUpdateIdx = 0;
-        playCurrentStatus();
     } else {
+        // finished this person's last update - close back to the list
+        // instead of rolling into the next contact's status, so each
+        // person's story stays its own separate viewing session
+        clearTimeout(statusViewerTimer);
         closeModal($id("statusViewerOverlay"));
     }
 
@@ -11883,11 +11945,9 @@ function prevStatus() {
     if (statusViewerUpdateIdx > 0) {
         statusViewerUpdateIdx--;
         playCurrentStatus();
-    } else if (statusViewerGroupIdx > 0) {
-        statusViewerGroupIdx--;
-        statusViewerUpdateIdx = Math.max(0, (currentStatusGroup().updates.length - 1));
-        playCurrentStatus();
     }
+    // already at this person's first update - stay put rather than
+    // jumping back into a different person's story
 
 }
 
@@ -11980,7 +12040,6 @@ function openStatusViewersModal() {
     const likedIds = new Set(likes.map(l => l.id));
 
     if ($id("statusViewersCount")) $id("statusViewersCount").textContent = String(viewers.length);
-    if ($id("statusViewersLikeCount")) $id("statusViewersLikeCount").textContent = String(likes.length);
 
     const listEl = $id("statusViewersList");
     const emptyEl = $id("statusViewersEmpty");

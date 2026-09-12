@@ -6078,11 +6078,6 @@ img.twemoji {
     display: none;
 }
 
-.status-like-count-icon {
-    margin-left: 8px;
-    color: #f87171;
-}
-
 #statusViewerLikeBtn i {
     color: white;
     transition: transform 0.15s ease, color 0.15s ease;
