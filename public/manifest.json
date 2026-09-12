@@ -8,6 +8,11 @@
     "display": "standalone",
     "background_color": "#0b0f14",
     "theme_color": "#0b7d5b",
+    "lang": "en",
+    "dir": "ltr",
+    "orientation": "any",
+    "categories": ["education", "social"],
+    "prefer_related_applications": false,
     "icons": [
         {
             "src": "/icon-192.png",
