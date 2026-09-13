@@ -581,6 +581,9 @@ const floatingCallBubble =
 const floatingCallBubbleLabel =
     document.getElementById("floatingCallBubbleLabel");
 
+const floatingCallBubbleIcon =
+    document.getElementById("floatingCallBubbleIcon");
+
 const floatingCallBubbleTimer =
     document.getElementById("floatingCallBubbleTimer");
 
@@ -8646,6 +8649,7 @@ function showGroupPeerTile(peerId, name, stream) {
         tile.className = "call-tile";
         tile.id = "callTile-" + peerId;
         tile.innerHTML =
+            '<div class="call-tile-avatar"><div class="call-tile-avatar-circle"></div></div>' +
             '<video autoplay playsinline></video><span class="call-tile-name"></span>';
 
         grid.appendChild(tile);
@@ -8653,6 +8657,14 @@ function showGroupPeerTile(peerId, name, stream) {
 
     const nameEl = tile.querySelector(".call-tile-name");
     if (nameEl) nameEl.textContent = name;
+
+    // fill in the picture once - it doesn't change for the life of
+    // this tile, no need to redo it on every track update
+    const avatarCircle = tile.querySelector(".call-tile-avatar-circle");
+    if (avatarCircle && !avatarCircle.dataset.filled) {
+        avatarCircle.innerHTML = avatarMarkup(name, getUserAvatar(peerId));
+        avatarCircle.dataset.filled = "1";
+    }
 
     const videoEl = tile.querySelector("video");
 
@@ -8664,6 +8676,16 @@ function showGroupPeerTile(peerId, name, stream) {
         videoEl.srcObject = stream;
         videoEl.play().catch(() => {});
     }
+
+    // show the picture instead of a blank/black box whenever this
+    // participant has no live video track (voice call, or their
+    // camera's off) - re-checked on every track update so a tile
+    // flips to their real video the moment they turn their camera on
+    const hasLiveVideo =
+        !!stream &&
+        stream.getVideoTracks().some(t => t.enabled && t.readyState === "live");
+
+    tile.classList.toggle("audio-only", !hasLiveVideo);
 }
 
 function removeGroupPeerTile(peerId) {
@@ -8822,7 +8844,8 @@ socket.on("call-add-invite", ({ fromId, fromName, callId, callType, participantI
         callType,
         roster,
         namesById,
-        groupId: isGroupCall ? (groupId || null) : null
+        groupId: isGroupCall ? (groupId || null) : null,
+        groupName: isGroupCall ? (groupName || null) : null
     };
 
     if (isGroupCall) {
@@ -8832,7 +8855,8 @@ socket.on("call-add-invite", ({ fromId, fromName, callId, callType, participantI
         // caller's name
         showIncomingCallScreen(
             groupName || "Group Call",
-            `Incoming ${callType === "video" ? "video" : "voice"} call`
+            `Incoming ${callType === "video" ? "video" : "voice"} call`,
+            avatarMarkup(groupName || "Group Call", getGroupAvatar(groupId))
         );
 
     } else {
@@ -8843,7 +8867,8 @@ socket.on("call-add-invite", ({ fromId, fromName, callId, callType, participantI
         showIncomingCallScreen(
             "Incoming Call",
             `${fromName || "Someone"} wants to add you to a ${callType === "video" ? "video" : "voice"} call` +
-            (rosterNames.length ? ` with ${rosterNames.join(", ")}` : "")
+            (rosterNames.length ? ` with ${rosterNames.join(", ")}` : ""),
+            avatarMarkup(fromName || "Someone", getUserAvatar(fromId))
         );
     }
 });
@@ -8852,7 +8877,7 @@ async function acceptGroupInvite() {
 
     if (!pendingGroupInvite) return;
 
-    const { fromId, callId, callType, roster, namesById, groupId } = pendingGroupInvite;
+    const { fromId, callId, callType, roster, namesById, groupId, groupName } = pendingGroupInvite;
 
     pendingGroupInvite = null;
     hideIncomingCallScreen();
@@ -8880,7 +8905,11 @@ async function acceptGroupInvite() {
     if (me) myParticipants.set(me.id, { name: me.name });
     roster.forEach(id => myParticipants.set(id, { name: namesById[id] || "Participant" }));
 
-    showCallUI(callType, "Connecting...");
+    showCallUI(
+        callType,
+        "Connecting...",
+        groupId ? avatarMarkup(groupName || "Group", getGroupAvatar(groupId)) : null
+    );
 
     roster.forEach(id => connectToGroupPeer(id, namesById[id] || "Participant", callId));
 }
@@ -9100,7 +9129,11 @@ async function startGroupCallFromGroup(callType) {
     activeCallChatId = activeChat.id;
     myParticipants = new Map([[me.id, { name: me.name }]]);
 
-    showCallUI(callType, `Calling ${activeChat.name}...`);
+    showCallUI(
+        callType,
+        `Calling ${activeChat.name}...`,
+        avatarMarkup(activeChat.name, getGroupAvatar(activeChat.id))
+    );
 
     const members =
         (activeChat.memberIds || [])
@@ -9166,7 +9199,8 @@ async function startCall(
 
     showCallUI(
         callType,
-        `Calling ${activeChat.name}...`
+        `Calling ${activeChat.name}...`,
+        avatarMarkup(activeChat.name, getUserAvatar(activeChat.id))
     );
 
 
@@ -9363,9 +9397,16 @@ function createPeerConnection() {
 // CALL UI
 // ============================================================
 
+const callRemoteAvatar =
+    document.getElementById("callRemoteAvatar");
+
+const callRemoteAvatarCircle =
+    document.getElementById("callRemoteAvatarCircle");
+
 function showCallUI(
     callType,
-    statusText
+    statusText,
+    avatarHtml
 ) {
 
     if (callOverlay) {
@@ -9409,6 +9450,18 @@ function showCallUI(
 
     }
 
+    if (callRemoteAvatarCircle) {
+        callRemoteAvatarCircle.innerHTML =
+            avatarHtml || avatarMarkup(null, null);
+    }
+
+    if (callRemoteAvatar) {
+        callRemoteAvatar.classList.toggle(
+            "hidden",
+            callType === "video"
+        );
+    }
+
     if (addParticipantBtn) {
         addParticipantBtn.hidden = false;
     }
@@ -9419,6 +9472,11 @@ function showCallUI(
     if (floatingCallBubbleLabel) {
         floatingCallBubbleLabel.textContent =
             callType === "video" ? "Video call" : "Voice call";
+    }
+
+    if (floatingCallBubbleIcon) {
+        floatingCallBubbleIcon.innerHTML =
+            avatarHtml || DEFAULT_INCOMING_CALL_ICON;
     }
 
 }
@@ -9755,6 +9813,14 @@ function endCallCleanup() {
         remoteVideo.srcObject =
             null;
 
+    }
+
+    if (callRemoteAvatarCircle) {
+        callRemoteAvatarCircle.innerHTML = "";
+    }
+
+    if (floatingCallBubbleIcon) {
+        floatingCallBubbleIcon.innerHTML = DEFAULT_INCOMING_CALL_ICON;
     }
 
 
@@ -10213,10 +10279,20 @@ const incomingTitle =
 // call, or being added to an in-progress call) so they all get the
 // same full-screen ring treatment + looping ringtone instead of
 // some using a plain confirm popup.
-function showIncomingCallScreen(titleText, bodyText) {
+const incomingCallAvatar =
+    document.getElementById("incomingCallAvatar");
+
+const DEFAULT_INCOMING_CALL_ICON =
+    '<i class="fa-solid fa-phone"></i>';
+
+function showIncomingCallScreen(titleText, bodyText, avatarHtml) {
 
     if (incomingTitle) incomingTitle.textContent = titleText;
     if (incomingText) incomingText.textContent = bodyText;
+
+    if (incomingCallAvatar) {
+        incomingCallAvatar.innerHTML = avatarHtml || DEFAULT_INCOMING_CALL_ICON;
+    }
 
     if (incomingCall) {
         incomingCall.classList.remove("hidden");
@@ -10234,6 +10310,10 @@ function hideIncomingCallScreen() {
     }
 
     if (incomingTitle) incomingTitle.textContent = "Incoming Call";
+
+    if (incomingCallAvatar) {
+        incomingCallAvatar.innerHTML = DEFAULT_INCOMING_CALL_ICON;
+    }
 }
 
 socket.on(
@@ -10260,7 +10340,8 @@ socket.on(
                 callType === "video"
                     ? "video calling"
                     : "calling"
-            } you`
+            } you`,
+            avatarMarkup(fromName, getUserAvatar(fromId))
         );
 
     }
@@ -10366,7 +10447,8 @@ if (acceptCallBtn) {
 
             showCallUI(
                 callType,
-                "Connecting..."
+                "Connecting...",
+                avatarMarkup(fromName, getUserAvatar(fromId))
             );
 
 
@@ -10696,6 +10778,29 @@ function escapeAttr(
 
 }
 
+
+// looks up a person's profile picture wherever we might have it cached -
+// the live presence list first (freshest), then the saved friend profile
+// (so it still works for someone who's currently offline)
+function getUserAvatar(id) {
+
+    if (!id) return null;
+
+    return (
+        (usersOnline[id] && usersOnline[id].avatar) ||
+        (friendProfiles[id] && friendProfiles[id].avatar) ||
+        null
+    );
+}
+
+function getGroupAvatar(groupId) {
+
+    if (!groupId) return null;
+
+    const group = myGroups.get(groupId);
+
+    return (group && group.icon) || null;
+}
 
 function avatarMarkup(
     name,

@@ -2581,6 +2581,46 @@ img.twemoji {
     background: #111827;
 }
 
+.call-avatar-layer {
+    position: absolute;
+    inset: 0;
+
+    z-index: 1;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #05070c;
+}
+
+.call-avatar-layer.hidden {
+    display: none;
+}
+
+.call-avatar-circle {
+    width: 140px;
+    height: 140px;
+
+    border-radius: 50%;
+    overflow: hidden;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #1e293b;
+    color: #e2e8f0;
+
+    font-size: 52px;
+    font-weight: 700;
+}
+
+.call-avatar-circle .avatar-img {
+    width: 100%;
+    height: 100%;
+}
+
 .call-controls {
     position: absolute;
 
@@ -5103,6 +5143,48 @@ img.twemoji {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+.call-tile-avatar {
+    position: absolute;
+    inset: 0;
+
+    display: none;
+    align-items: center;
+    justify-content: center;
+
+    background: #1e293b;
+}
+
+.call-tile.audio-only .call-tile-avatar {
+    display: flex;
+}
+
+.call-tile.audio-only video {
+    display: none;
+}
+
+.call-tile-avatar-circle {
+    width: 52px;
+    height: 52px;
+
+    border-radius: 50%;
+    overflow: hidden;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #334155;
+    color: #e2e8f0;
+
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.call-tile-avatar-circle .avatar-img {
+    width: 100%;
+    height: 100%;
 }
 
 .call-tile-name {

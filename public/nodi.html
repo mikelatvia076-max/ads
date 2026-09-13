@@ -1624,6 +1624,16 @@
             playsinline>
         </video>
 
+        <!-- Remote avatar (shown for voice calls, or until video connects) -->
+
+        <div
+            id="callRemoteAvatar"
+            class="call-avatar-layer hidden">
+
+            <div class="call-avatar-circle" id="callRemoteAvatarCircle"></div>
+
+        </div>
+
 
         <!-- Local video -->
 
@@ -1729,7 +1739,7 @@
     class="floating-call-bubble hidden"
     title="Tap to return to call">
 
-    <div class="floating-call-bubble-icon">
+    <div class="floating-call-bubble-icon" id="floatingCallBubbleIcon">
         <i class="fa-solid fa-phone"></i>
     </div>
 
@@ -1761,7 +1771,7 @@
 
     <div class="incoming-card">
 
-        <div class="incoming-icon">
+        <div class="incoming-icon" id="incomingCallAvatar">
 
             <i class="fa-solid fa-phone"></i>
 
