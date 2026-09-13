@@ -557,6 +557,9 @@ const localVideo =
 const muteBtn =
     document.getElementById("muteBtn");
 
+const speakerBtn =
+    document.getElementById("speakerBtn");
+
 const screenShareBtn =
     document.getElementById("screenShareBtn");
 
@@ -8495,6 +8498,11 @@ let activeCallChatId =
 let currentCallType =
     null;
 
+// whether incoming call audio is currently audible - toggled by the
+// speaker button, and applied to any group-call tile created while
+// it's switched off so a late joiner doesn't get an unmuted surprise
+let speakerOn = true;
+
 // the original camera video track, kept aside while screen sharing
 // so we can switch back to it when the share ends
 let cameraTrack =
@@ -8674,6 +8682,7 @@ function showGroupPeerTile(peerId, name, stream) {
     // group call from feeding back into itself.
     if (videoEl && videoEl.srcObject !== stream) {
         videoEl.srcObject = stream;
+        videoEl.muted = !speakerOn;
         videoEl.play().catch(() => {});
     }
 
@@ -9823,6 +9832,17 @@ function endCallCleanup() {
         floatingCallBubbleIcon.innerHTML = DEFAULT_INCOMING_CALL_ICON;
     }
 
+    speakerOn = true;
+
+    if (speakerBtn) {
+
+        speakerBtn.classList.remove("speaker-off");
+
+        const speakerIcon = speakerBtn.querySelector("i");
+        if (speakerIcon) speakerIcon.className = "fa-solid fa-volume-high";
+
+    }
+
 
     if (localVideo) {
 
@@ -9937,6 +9957,43 @@ if (muteBtn) {
                 "recording",
                 !track.enabled
             );
+
+        }
+    );
+
+}
+
+
+// ============================================================
+// SPEAKER
+// ============================================================
+// Toggles whether we can hear the other side - applied to the 1:1
+// remote stream and every group-call tile's audio at once, so it
+// works the same regardless of how many people are on the call.
+
+if (speakerBtn) {
+
+    speakerBtn.addEventListener(
+        "click",
+        () => {
+
+            speakerOn = !speakerOn;
+
+            speakerBtn.classList.toggle("speaker-off", !speakerOn);
+
+            const icon = speakerBtn.querySelector("i");
+            if (icon) {
+                icon.className =
+                    speakerOn
+                        ? "fa-solid fa-volume-high"
+                        : "fa-solid fa-volume-xmark";
+            }
+
+            if (remoteVideo) remoteVideo.muted = !speakerOn;
+
+            document
+                .querySelectorAll(".call-tile video")
+                .forEach(v => { v.muted = !speakerOn; });
 
         }
     );

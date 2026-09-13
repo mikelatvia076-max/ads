@@ -2570,6 +2570,8 @@ img.twemoji {
     right: 20px;
     bottom: 95px;
 
+    z-index: 2;
+
     width: 170px;
     height: 120px;
 
@@ -2585,7 +2587,7 @@ img.twemoji {
     position: absolute;
     inset: 0;
 
-    z-index: 1;
+    z-index: 0;
 
     display: flex;
     align-items: center;
@@ -2626,6 +2628,8 @@ img.twemoji {
 
     bottom: 20px;
     left: 50%;
+
+    z-index: 2;
 
     transform: translateX(-50%);
 
@@ -3549,6 +3553,15 @@ img.twemoji {
 }
 
 .call-control-btn.recording:hover {
+    background: #b91c1c;
+}
+
+.call-control-btn.speaker-off {
+    background: #dc2626;
+    color: white;
+}
+
+.call-control-btn.speaker-off:hover {
     background: #b91c1c;
 }
 
