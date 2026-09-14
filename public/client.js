@@ -269,6 +269,30 @@ const forgotNameMsg =
 const forgotNameSubmit =
     document.getElementById("forgotNameSubmit");
 
+const createAccountBtn =
+    document.getElementById("createAccountBtn");
+
+const createAccountModal =
+    document.getElementById("createAccountModal");
+
+const createAccountBackdrop =
+    document.getElementById("createAccountBackdrop");
+
+const closeCreateAccountModalBtn =
+    document.getElementById("closeCreateAccountModal");
+
+const createAccountNameInput =
+    document.getElementById("createAccountNameInput");
+
+const createAccountEmailInput =
+    document.getElementById("createAccountEmailInput");
+
+const createAccountMsg =
+    document.getElementById("createAccountMsg");
+
+const createAccountSubmit =
+    document.getElementById("createAccountSubmit");
+
 const niceAlertModal =
     document.getElementById("niceAlertModal");
 
@@ -1113,13 +1137,14 @@ if (emailInput) {
 
 if (
     savedName &&
+    savedEmail &&
     nameInput
 ) {
 
     nameInput.value =
         savedName;
 
-    if (emailInput && savedEmail) {
+    if (emailInput) {
         emailInput.value = savedEmail;
     }
 
@@ -1137,6 +1162,13 @@ if (
 
     join();
 
+} else if (savedName && nameInput) {
+
+    // we know their name but not their email (e.g. saved before
+    // accounts existed) - pre-fill it but let them fill in email
+    // and tap Join themselves rather than auto-submitting
+    nameInput.value = savedName;
+
 }
 
 
@@ -1152,6 +1184,20 @@ function join() {
     const email =
         emailInput ? emailInput.value.trim() : "";
 
+    if (!email) {
+
+        resetJoinButton();
+
+        showNiceAlert(
+            "Enter the email you used to create your account, then join. Don't have one yet? Tap \"Create new account\" first.",
+            { title: "Email needed", icon: "fa-user-lock", onClose: () => {
+                if (emailInput) emailInput.focus();
+            } }
+        );
+
+        return;
+    }
+
     // audio playback needs a user gesture to unlock in most browsers —
     // the join click is that gesture, so future notification/ringtone
     // sounds triggered by socket events don't need one of their own
@@ -1162,9 +1208,7 @@ function join() {
         name
     );
 
-    if (email) {
-        localStorage.setItem("siteChatEmail", email);
-    }
+    localStorage.setItem("siteChatEmail", email);
 
     if (joinBtn) {
 
@@ -1182,7 +1226,7 @@ function join() {
 
     socket.emit(
         "join",
-        { name, email: email || null }
+        { name, email }
     );
 
 }
@@ -1344,6 +1388,50 @@ socket.on(
 
 
 // ============================================================
+// ACCOUNT REQUIRED (join was rejected - no matching account)
+// ============================================================
+
+socket.on(
+    "account-required",
+    ({ reason, email, name } = {}) => {
+
+        resetJoinButton();
+
+        localStorage.removeItem("siteChatName");
+        localStorage.removeItem("siteChatEmail");
+
+        if (joinScreen) joinScreen.classList.remove("hidden");
+        if (app) app.classList.add("hidden");
+
+        let message;
+
+        if (reason === "not-found") {
+            message = `We don't have an account for ${email || "that email"} yet. Tap "Create new account" first.`;
+        } else if (reason === "mismatch") {
+            message = `That name doesn't match the account for ${email || "that email"}${name ? ` (it's registered as "${name}")` : ""}. Try "Forgot your name?" or check your email.`;
+        } else {
+            message = "Enter the email you used to create your account, then join.";
+        }
+
+        showNiceAlert(
+            message,
+            { title: "Account needed", icon: "fa-user-lock", onClose: () => {
+
+                if (reason === "mismatch" && name && nameInput) {
+                    nameInput.value = name;
+                }
+
+                if (emailInput) emailInput.focus();
+                else if (nameInput) nameInput.focus();
+
+            } }
+        );
+
+    }
+);
+
+
+// ============================================================
 // FORGOT NAME (looks up the name saved against an email)
 // ============================================================
 
@@ -1439,6 +1527,160 @@ socket.on("name-lookup-result", ({ found, name, email }) => {
         forgotNameMsg.textContent = "We couldn't find a name saved for that email.";
         forgotNameMsg.classList.remove("hidden");
 
+    }
+
+});
+
+
+// ============================================================
+// CREATE ACCOUNT (registers a name against an email so "Join"
+// and "Forgot your name?" can find it later; refuses to create
+// a duplicate if that email is already registered)
+// ============================================================
+
+function openCreateAccountModal() {
+
+    if (!createAccountModal) return;
+
+    if (createAccountNameInput) {
+        createAccountNameInput.value = nameInput ? nameInput.value.trim() : "";
+    }
+
+    if (createAccountEmailInput) {
+        createAccountEmailInput.value = emailInput ? emailInput.value.trim() : "";
+    }
+
+    if (createAccountMsg) {
+        createAccountMsg.classList.add("hidden");
+        createAccountMsg.textContent = "";
+    }
+
+    createAccountModal.classList.remove("hidden");
+
+    if (createAccountNameInput) createAccountNameInput.focus();
+}
+
+function closeCreateAccountModal() {
+    if (createAccountModal) createAccountModal.classList.add("hidden");
+}
+
+if (createAccountBtn) {
+    createAccountBtn.addEventListener("click", openCreateAccountModal);
+}
+
+if (closeCreateAccountModalBtn) {
+    closeCreateAccountModalBtn.addEventListener("click", closeCreateAccountModal);
+}
+
+if (createAccountBackdrop) {
+    createAccountBackdrop.addEventListener("click", closeCreateAccountModal);
+}
+
+function resetCreateAccountSubmit() {
+
+    if (!createAccountSubmit) return;
+
+    createAccountSubmit.disabled = false;
+    createAccountSubmit.textContent = "Create account";
+}
+
+function submitCreateAccount() {
+
+    if (!createAccountNameInput || !createAccountEmailInput) return;
+
+    const name = createAccountNameInput.value.trim();
+    const email = createAccountEmailInput.value.trim();
+
+    if (!name || !email) {
+
+        if (createAccountMsg) {
+            createAccountMsg.textContent = "Enter both your name and email.";
+            createAccountMsg.classList.remove("hidden");
+        }
+
+        return;
+    }
+
+    if (createAccountMsg) {
+        createAccountMsg.classList.add("hidden");
+        createAccountMsg.textContent = "";
+    }
+
+    if (createAccountSubmit) {
+        createAccountSubmit.disabled = true;
+        createAccountSubmit.textContent = "Creating…";
+    }
+
+    socket.emit("create-account", { name, email });
+}
+
+if (createAccountSubmit) {
+    createAccountSubmit.addEventListener("click", submitCreateAccount);
+}
+
+if (createAccountNameInput) {
+
+    createAccountNameInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") submitCreateAccount();
+    });
+
+}
+
+if (createAccountEmailInput) {
+
+    createAccountEmailInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") submitCreateAccount();
+    });
+
+}
+
+socket.on("account-created", ({ name, email } = {}) => {
+
+    resetCreateAccountSubmit();
+    closeCreateAccountModal();
+
+    // carry the new account straight into the join fields so the
+    // person can just hit "Join Site Chat" next
+    if (nameInput && name) nameInput.value = name;
+    if (emailInput && email) emailInput.value = email;
+
+    // and remember it locally too, so the NEXT time they open the
+    // site (new tab, closed browser, etc.) the join screen already
+    // has it filled in / auto-signs them straight in
+    if (name) localStorage.setItem("siteChatName", name);
+    if (email) localStorage.setItem("siteChatEmail", email);
+
+    showNiceAlert(
+        `Account created — welcome, ${name}! Tap "Join Site Chat" to get started.`,
+        { title: "Account created", icon: "fa-circle-check" }
+    );
+
+});
+
+socket.on("account-exists", ({ name, email } = {}) => {
+
+    resetCreateAccountSubmit();
+    closeCreateAccountModal();
+
+    // don't overwrite an existing account - just point them at Join,
+    // pre-filling what we already know so it's a single tap
+    if (emailInput && email) emailInput.value = email;
+    if (nameInput && name) nameInput.value = name;
+
+    showNiceAlert(
+        `An account with that email already exists${name ? ` (${name})` : ""}. Please join the chat instead.`,
+        { title: "Account already exists", icon: "fa-user-check" }
+    );
+
+});
+
+socket.on("account-create-error", ({ message } = {}) => {
+
+    resetCreateAccountSubmit();
+
+    if (createAccountMsg) {
+        createAccountMsg.textContent = message || "Something went wrong. Please try again.";
+        createAccountMsg.classList.remove("hidden");
     }
 
 });

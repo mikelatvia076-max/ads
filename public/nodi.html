@@ -72,6 +72,11 @@
                 Join Site Chat
             </button>
 
+            <button id="createAccountBtn" type="button" class="create-account-btn">
+                <i class="fa-solid fa-user-plus"></i>
+                Create new account
+            </button>
+
             <button id="forgotNameBtn" type="button" class="forgot-name-btn">
                 Forgot your name?
             </button>
@@ -115,6 +120,52 @@
 
         <button id="forgotNameSubmit" class="forgot-modal-submit">
             Find my name
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     CREATE ACCOUNT MODAL
+========================================================= -->
+
+<div id="createAccountModal" class="forgot-modal-overlay hidden">
+
+    <div id="createAccountBackdrop" class="forgot-modal-backdrop"></div>
+
+    <div class="forgot-modal">
+
+        <button id="closeCreateAccountModal" class="forgot-modal-close" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="forgot-modal-icon">
+            <i class="fa-solid fa-user-plus"></i>
+        </div>
+
+        <h2>Create your account</h2>
+        <p>Save your name against your email so you can sign back in later.</p>
+
+        <input
+            id="createAccountNameInput"
+            type="text"
+            placeholder="Enter your name"
+            autocomplete="off"
+        >
+
+        <input
+            id="createAccountEmailInput"
+            type="email"
+            placeholder="Enter your email"
+            autocomplete="off"
+        >
+
+        <div id="createAccountMsg" class="forgot-modal-msg hidden"></div>
+
+        <button id="createAccountSubmit" class="forgot-modal-submit">
+            Create account
         </button>
 
     </div>

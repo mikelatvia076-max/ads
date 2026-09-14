@@ -2154,21 +2154,46 @@ io.on("connection", (socket) => {
     socket.on("join", (payload) => {
 
         // accepts either the old plain-string form or the newer
-        // { name, email } shape, so older clients still work
+        // { name, email } shape
         const isObj = payload && typeof payload === "object";
 
         const rawName = isObj ? payload.name : payload;
         const rawEmail = isObj ? payload.email : null;
 
-        const safeName =
-            String(rawName || "Guest").slice(0, 40).trim();
-
-        if (!safeName) return;
+        const enteredName =
+            String(rawName || "").slice(0, 40).trim();
 
         const safeEmail =
             rawEmail
                 ? String(rawEmail).slice(0, 120).trim()
-                : null;
+                : "";
+
+        // joining now requires an account created up front via
+        // "Create new account" - no more walking in with any random
+        // name/email. The email is the account key; the name typed
+        // in must match what that account was registered with.
+        if (!safeEmail) {
+            socket.emit("account-required", { reason: "no-email" });
+            return;
+        }
+
+        const emailKey = safeEmail.toLowerCase();
+        const registry = readUsersRegistry();
+        const account = registry[emailKey];
+
+        if (!account) {
+            socket.emit("account-required", { reason: "not-found", email: safeEmail });
+            return;
+        }
+
+        if (!enteredName || account.name.toLowerCase() !== enteredName.toLowerCase()) {
+            socket.emit("account-required", { reason: "mismatch", email: safeEmail, name: account.name });
+            return;
+        }
+
+        // use the name exactly as it was registered, so capitalization
+        // stays consistent no matter how the person typed it just now
+        const safeName = account.name;
 
         // Identity is derived from the name itself (not the raw
         // socket.id, which changes on every reconnect). That way
@@ -2205,10 +2230,6 @@ io.on("connection", (socket) => {
         );
 
         socket.data.name = safeName;
-
-        if (safeEmail) {
-            rememberUserEmail(safeName, safeEmail);
-        }
 
         // rejoin the room for every group this user already
         // belongs to, so group messages/calls reach them without
@@ -2255,6 +2276,47 @@ io.on("connection", (socket) => {
             found: !!name,
             name: name || null,
             email
+        });
+    });
+
+    socket.on("create-account", (payload) => {
+
+        const isObj = payload && typeof payload === "object";
+
+        const rawName = isObj ? payload.name : null;
+        const rawEmail = isObj ? payload.email : null;
+
+        const safeName =
+            String(rawName || "").slice(0, 40).trim();
+
+        const safeEmail =
+            String(rawEmail || "").slice(0, 120).trim();
+
+        if (!safeName || !safeEmail) {
+            socket.emit("account-create-error", {
+                message: "Please enter both your name and email."
+            });
+            return;
+        }
+
+        const emailKey = safeEmail.toLowerCase();
+        const registry = readUsersRegistry();
+
+        if (registry[emailKey]) {
+            // an account is already registered under this email - don't
+            // overwrite it, point the user at "Join" instead
+            socket.emit("account-exists", {
+                name: registry[emailKey].name,
+                email: safeEmail
+            });
+            return;
+        }
+
+        rememberUserEmail(safeName, safeEmail);
+
+        socket.emit("account-created", {
+            name: safeName,
+            email: safeEmail
         });
     });
 
