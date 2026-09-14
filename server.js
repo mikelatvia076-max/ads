@@ -222,6 +222,30 @@ function lookupNameByEmail(email) {
     return entry ? entry.name : null;
 }
 
+function deleteUserAccount(email) {
+
+    const emailKey = String(email || "").trim().toLowerCase();
+
+    if (!emailKey) return false;
+
+    const registry = readUsersRegistry();
+
+    if (!registry[emailKey]) return false;
+
+    delete registry[emailKey];
+    writeUsersRegistry(registry);
+
+    return true;
+}
+
+// server-side check too - never trust the client alone. This is a
+// deliberately simple check (has an @, something on each side, a
+// dot in the domain) rather than a full RFC 5322 validator, which
+// is exactly what a real email address needs to satisfy anyway.
+function isValidEmailFormat(value) {
+    return typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 
 /*
 =========================================================
@@ -2177,6 +2201,11 @@ io.on("connection", (socket) => {
             return;
         }
 
+        if (!isValidEmailFormat(safeEmail)) {
+            socket.emit("account-required", { reason: "invalid-email", email: safeEmail });
+            return;
+        }
+
         const emailKey = safeEmail.toLowerCase();
         const registry = readUsersRegistry();
         const account = registry[emailKey];
@@ -2230,6 +2259,7 @@ io.on("connection", (socket) => {
         );
 
         socket.data.name = safeName;
+        socket.data.email = safeEmail;
 
         // rejoin the room for every group this user already
         // belongs to, so group messages/calls reach them without
@@ -2299,6 +2329,20 @@ io.on("connection", (socket) => {
             return;
         }
 
+        if (safeName.includes("@")) {
+            socket.emit("account-create-error", {
+                message: "That doesn't look like a name - check the name and email fields aren't swapped."
+            });
+            return;
+        }
+
+        if (!isValidEmailFormat(safeEmail)) {
+            socket.emit("account-create-error", {
+                message: "Enter a valid email address (e.g. name@example.com)."
+            });
+            return;
+        }
+
         const emailKey = safeEmail.toLowerCase();
         const registry = readUsersRegistry();
 
@@ -2318,6 +2362,52 @@ io.on("connection", (socket) => {
             name: safeName,
             email: safeEmail
         });
+    });
+
+    socket.on("delete-account", () => {
+
+        // only ever deletes the account of whoever is asking - the
+        // email comes from the server's own record of this socket's
+        // join, never from client-supplied input, so there's no way
+        // to delete someone else's account by passing a different
+        // email in the payload
+        if (!chatUserId || !socket.data.email) {
+            socket.emit("account-delete-error", {
+                message: "You need to be signed in to delete your account."
+            });
+            return;
+        }
+
+        const deleted = deleteUserAccount(socket.data.email);
+
+        if (!deleted) {
+            socket.emit("account-delete-error", {
+                message: "We couldn't find an account to delete."
+            });
+            return;
+        }
+
+        const deletedName = socket.data.name;
+        const userKey = chatUserId;
+
+        // sign them out of the live session immediately - the account
+        // that got them in no longer exists
+        cancelPendingOffline(userKey);
+        onlineChatUsers.delete(userKey);
+        broadcastChatUserList();
+
+        socket.emit("account-deleted");
+
+        if (deletedName) {
+            socket.broadcast.emit(
+                "system-message",
+                `${deletedName} left the chat`
+            );
+        }
+
+        chatUserId = null;
+        socket.data.name = null;
+        socket.data.email = null;
     });
 
     socket.on("set-avatar", (avatarUrl) => {

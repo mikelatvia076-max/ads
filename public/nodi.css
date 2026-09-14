@@ -968,6 +968,14 @@ button {
     color: #f87171 !important;
 }
 
+.delete-account-menu-btn {
+    margin-top: 4px;
+    padding-top: 12px;
+
+    border-top: 1px solid #1e293b;
+    border-radius: 0 0 9px 9px;
+}
+
 .request-count {
     min-width: 18px;
     height: 18px;

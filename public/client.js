@@ -508,6 +508,9 @@ const accountRequestDot =
 const logoutBtn =
     document.getElementById("logoutBtn");
 
+const deleteAccountBtn =
+    document.getElementById("deleteAccountBtn");
+
 const accountPanel =
     document.getElementById("accountPanel");
 
@@ -1172,6 +1175,13 @@ if (
 }
 
 
+// a real email check - type="email" on the inputs only validates
+// through the browser's native form machinery, which we bypass by
+// reading .value directly on button clicks, so we check it ourselves
+function isValidEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
 function join() {
 
     if (!nameInput) return;
@@ -1191,6 +1201,34 @@ function join() {
         showNiceAlert(
             "Enter the email you used to create your account, then join. Don't have one yet? Tap \"Create new account\" first.",
             { title: "Email needed", icon: "fa-user-lock", onClose: () => {
+                if (emailInput) emailInput.focus();
+            } }
+        );
+
+        return;
+    }
+
+    if (name.includes("@")) {
+
+        resetJoinButton();
+
+        showNiceAlert(
+            "That doesn't look like a name. Check you haven't put your email in the name field.",
+            { title: "Check your name", icon: "fa-triangle-exclamation", onClose: () => {
+                if (nameInput) nameInput.focus();
+            } }
+        );
+
+        return;
+    }
+
+    if (!isValidEmail(email)) {
+
+        resetJoinButton();
+
+        showNiceAlert(
+            "Enter a valid email address (e.g. name@example.com).",
+            { title: "Check your email", icon: "fa-triangle-exclamation", onClose: () => {
                 if (emailInput) emailInput.focus();
             } }
         );
@@ -1409,6 +1447,8 @@ socket.on(
             message = `We don't have an account for ${email || "that email"} yet. Tap "Create new account" first.`;
         } else if (reason === "mismatch") {
             message = `That name doesn't match the account for ${email || "that email"}${name ? ` (it's registered as "${name}")` : ""}. Try "Forgot your name?" or check your email.`;
+        } else if (reason === "invalid-email") {
+            message = "That doesn't look like a valid email address. Please check it and try again.";
         } else {
             message = "Enter the email you used to create your account, then join.";
         }
@@ -1481,6 +1521,19 @@ function submitForgotName() {
             forgotNameMsg.classList.remove("hidden");
         }
         return;
+    }
+
+    if (!isValidEmail(email)) {
+        if (forgotNameMsg) {
+            forgotNameMsg.textContent = "Enter a valid email address (e.g. name@example.com).";
+            forgotNameMsg.classList.remove("hidden");
+        }
+        return;
+    }
+
+    if (forgotNameMsg) {
+        forgotNameMsg.classList.add("hidden");
+        forgotNameMsg.textContent = "";
     }
 
     if (forgotNameSubmit) {
@@ -1598,6 +1651,28 @@ function submitCreateAccount() {
             createAccountMsg.classList.remove("hidden");
         }
 
+        return;
+    }
+
+    if (name.includes("@")) {
+
+        if (createAccountMsg) {
+            createAccountMsg.textContent = "That doesn't look like a name — check the name and email fields aren't swapped.";
+            createAccountMsg.classList.remove("hidden");
+        }
+
+        createAccountNameInput.focus();
+        return;
+    }
+
+    if (!isValidEmail(email)) {
+
+        if (createAccountMsg) {
+            createAccountMsg.textContent = "Enter a valid email address (e.g. name@example.com).";
+            createAccountMsg.classList.remove("hidden");
+        }
+
+        createAccountEmailInput.focus();
         return;
     }
 
@@ -5166,6 +5241,10 @@ if (logoutBtn) {
                 "siteChatName"
             );
 
+            localStorage.removeItem(
+                "siteChatEmail"
+            );
+
 
             if (
                 socket.connected
@@ -5184,6 +5263,65 @@ if (logoutBtn) {
     );
 
 }
+
+
+// ============================================================
+// DELETE ACCOUNT
+// ============================================================
+
+if (deleteAccountBtn) {
+
+    deleteAccountBtn.addEventListener(
+        "click",
+        async () => {
+
+            const confirmed = await showNiceConfirm(
+                "This permanently deletes your account. You'll need to create a new account to join the chat again. This can't be undone.",
+                {
+                    title: "Delete account?",
+                    icon: "fa-trash-can",
+                    danger: true,
+                    confirmText: "Delete account",
+                    cancelText: "Cancel"
+                }
+            );
+
+            if (!confirmed) return;
+
+            if (deleteAccountBtn) {
+                deleteAccountBtn.disabled = true;
+            }
+
+            socket.emit("delete-account");
+
+        }
+    );
+
+}
+
+socket.on("account-deleted", () => {
+
+    localStorage.removeItem("siteChatName");
+    localStorage.removeItem("siteChatEmail");
+
+    // a fresh reload is the simplest way to drop every bit of
+    // in-memory session state and land back on a clean join screen
+    location.reload();
+
+});
+
+socket.on("account-delete-error", ({ message } = {}) => {
+
+    if (deleteAccountBtn) {
+        deleteAccountBtn.disabled = false;
+    }
+
+    showNiceAlert(
+        message || "Couldn't delete your account. Please try again.",
+        { title: "Couldn't delete account", icon: "fa-triangle-exclamation" }
+    );
+
+});
 
 
 // ============================================================
