@@ -3759,14 +3759,40 @@ READ ARTICLES
 =========================================================
 
 isArticleExpired() and the filter inside readArticles() mean
-an article disappears from every API response the instant its
-expiresAt (or legacy "deadline") date passes - not just after
-the next scheduled ai-updater.js sweep, which can be up to
-UPDATE_INTERVAL_MINUTES away. The file on disk still holds the
-expired row until that next sweep physically deletes it (or
-until pruneExpiredArticlesFile() below runs), but nothing
-expired is ever served in the meantime.
+an article disappears from every API response the instant it
+expires - not just after the next scheduled ai-updater.js
+sweep, which can be up to UPDATE_INTERVAL_MINUTES away. The
+file on disk still holds the expired row until that next sweep
+physically deletes it (or until pruneExpiredArticlesFile()
+below runs), but nothing expired is ever served in the
+meantime.
+
+An article is considered expired the same way ai-updater.js's
+pruneExpiredArticles() decides it:
+  1. If it has an explicit expiresAt (or legacy "deadline"),
+     that date rules.
+  2. Otherwise, once it's older than its category's fallback
+     max age (FALLBACK_EXPIRY_DAYS below - kept identical to
+     the constant of the same name in ai-updater.js) it counts
+     as expired too. Without this, articles that never get an
+     explicit expiry date from the AI would never expire here,
+     even though the full AI refresh does age them out
+     eventually - this keeps the two in sync at all times, not
+     just once every UPDATE_INTERVAL_MINUTES.
 */
+
+const FALLBACK_EXPIRY_DAYS = {
+
+    "HELB": 150,
+
+    "KUCCPS": 120,
+
+    "Scholarships": 120,
+
+    "Jobs": 45,
+
+    "University Alerts": 30
+};
 
 function isArticleExpired(
     article,
@@ -3777,20 +3803,54 @@ function isArticleExpired(
         article.expiresAt ||
         article.deadline;
 
-    if (!explicitExpiry) {
+    if (explicitExpiry) {
+
+        const expiry =
+            new Date(
+                explicitExpiry
+            );
+
+        return (
+            !isNaN(expiry) &&
+            expiry < now
+        );
+    }
+
+    const fallbackDays =
+        FALLBACK_EXPIRY_DAYS[
+            article.category
+        ];
+
+    if (!fallbackDays) {
 
         return false;
     }
 
-    const expiry =
-        new Date(
-            explicitExpiry
-        );
+    const reference =
+        article.date ||
+        article.updated ||
+        article.lastChecked ||
+        article.publishedDate ||
+        article.updatedAt;
 
-    return (
-        !isNaN(expiry) &&
-        expiry < now
-    );
+    if (!reference) {
+
+        return false;
+    }
+
+    const referenceDate =
+        new Date(reference);
+
+    if (isNaN(referenceDate)) {
+
+        return false;
+    }
+
+    const ageInDays =
+        (now - referenceDate) /
+        (1000 * 60 * 60 * 24);
+
+    return ageInDays > fallbackDays;
 }
 
 
