@@ -82,7 +82,7 @@ const PORT =
 
 const UPDATE_INTERVAL =
     Number(
-        process.env.UPDATE_INTERVAL_MINUTES || 180
+        process.env.UPDATE_INTERVAL_MINUTES || 120
     );
 
 
@@ -854,7 +854,7 @@ let universityRumoursCache = {
 
 const UNIVERSITY_RUMOURS_CACHE_TIME =
     Number(
-        process.env.UPDATE_INTERVAL_MINUTES || 180
+        process.env.UPDATE_INTERVAL_MINUTES || 120
     ) *
     60 *
     1000;
@@ -3757,7 +3757,129 @@ function isBlockedPair(store, a, b) {
 =========================================================
 READ ARTICLES
 =========================================================
+
+isArticleExpired() and the filter inside readArticles() mean
+an article disappears from every API response the instant its
+expiresAt (or legacy "deadline") date passes - not just after
+the next scheduled ai-updater.js sweep, which can be up to
+UPDATE_INTERVAL_MINUTES away. The file on disk still holds the
+expired row until that next sweep physically deletes it (or
+until pruneExpiredArticlesFile() below runs), but nothing
+expired is ever served in the meantime.
 */
+
+function isArticleExpired(
+    article,
+    now
+) {
+
+    const explicitExpiry =
+        article.expiresAt ||
+        article.deadline;
+
+    if (!explicitExpiry) {
+
+        return false;
+    }
+
+    const expiry =
+        new Date(
+            explicitExpiry
+        );
+
+    return (
+        !isNaN(expiry) &&
+        expiry < now
+    );
+}
+
+
+// How often the cheap, AI-free expiry sweep below runs. Separate
+// from UPDATE_INTERVAL_MINUTES (which paces the expensive AI
+// refresh) so this can run much more often without touching any
+// AI provider or its rate limits.
+const EXPIRY_SWEEP_INTERVAL_MINUTES =
+    Number(
+        process.env.EXPIRY_SWEEP_INTERVAL_MINUTES || 5
+    );
+
+function pruneExpiredArticlesFile() {
+
+    try {
+
+        if (
+            !fs.existsSync(
+                articlesFile
+            )
+        ) {
+
+            return;
+        }
+
+        const raw =
+            fs.readFileSync(
+                articlesFile,
+                "utf8"
+            );
+
+        if (!raw.trim()) {
+
+            return;
+        }
+
+        const data =
+            JSON.parse(raw);
+
+        if (
+            !Array.isArray(data)
+        ) {
+
+            return;
+        }
+
+        const now =
+            new Date();
+
+        const kept =
+            data.filter(
+                article =>
+                    !isArticleExpired(
+                        article,
+                        now
+                    )
+            );
+
+        if (
+            kept.length ===
+            data.length
+        ) {
+
+            return;
+        }
+
+        fs.writeFileSync(
+            articlesFile,
+            JSON.stringify(
+                kept,
+                null,
+                2
+            ),
+            "utf8"
+        );
+
+        console.log(
+            `Expiry sweep: removed ${data.length - kept.length} ` +
+            `expired article(s), ${kept.length} remain.`
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Expiry sweep failed:",
+            error.message
+        );
+    }
+}
 
 function readArticles() {
 
@@ -3786,9 +3908,23 @@ function readArticles() {
         const data =
             JSON.parse(raw);
 
-        return Array.isArray(data)
-            ? data
-            : [];
+        if (
+            !Array.isArray(data)
+        ) {
+
+            return [];
+        }
+
+        const now =
+            new Date();
+
+        return data.filter(
+            article =>
+                !isArticleExpired(
+                    article,
+                    now
+                )
+        );
 
     } catch (error) {
 
@@ -5815,6 +5951,27 @@ server.listen(
             setInterval(
                 runUniversityRumoursAutoUpdate,
                 UNIVERSITY_RUMOURS_CACHE_TIME
+            );
+
+
+            /*
+            -----------------------------------------
+            FREQUENT EXPIRY SWEEP (no AI calls)
+            -----------------------------------------
+            readArticles() already hides expired articles from
+            every response the instant they expire, so this isn't
+            needed for visitors to stop seeing them. This just
+            keeps data/articles.json itself physically clean on a
+            tight schedule too, since only date math is involved
+            (no AI provider, no rate limit, negligible cost) it's
+            safe to run far more often than the full AI refresh.
+            */
+
+            setInterval(
+                pruneExpiredArticlesFile,
+                EXPIRY_SWEEP_INTERVAL_MINUTES *
+                60 *
+                1000
             );
         }
     );
