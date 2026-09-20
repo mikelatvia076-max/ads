@@ -133,7 +133,7 @@ function renderArticle(article) {
 
     const publishedDate = article.publishedDate || article.date || "";
     const updatedDate = article.updatedAt || article.updated || "";
-    const deadline = article.deadline;
+    const deadline = article.expiresAt || article.deadline;
 
     let dateText = "";
     if (publishedDate) {

@@ -2,7 +2,6 @@
 <html lang="en">
 
 <head>
-
     <meta charset="UTF-8">
 
     <meta
@@ -10,19 +9,25 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>
-        Kenya Campus Hub
-    </title>
+    <meta
+        name="description"
+        content="Kenya Campus Hub - Article."
+    >
+
+    <title id="pageTitle">Kenya Campus Hub</title>
 
     <link
         rel="stylesheet"
         href="style.css"
     >
-
 </head>
+
 
 <body>
 
+<!-- =====================================================
+     HEADER
+===================================================== -->
 
 <header>
 
@@ -30,26 +35,15 @@
         🎓 Kenya Campus Hub
     </div>
 
+
     <nav>
 
         <a href="index.html">
             Home
         </a>
 
-        <a href="index.html?category=HELB">
-            HELB
-        </a>
-
-        <a href="index.html?category=KUCCPS">
-            KUCCPS
-        </a>
-
-        <a href="index.html?category=Jobs">
-            Jobs
-        </a>
-
-        <a href="index.html?category=Scholarships">
-            Scholarships
+        <a href="index.html#tools">
+            Student Tools
         </a>
 
     </nav>
@@ -57,20 +51,19 @@
 </header>
 
 
-<main class="article-page">
+<!-- =====================================================
+     ARTICLE
+===================================================== -->
 
-    <button
-        class="back-button"
-        onclick="history.back()"
-    >
-        ← Back
-    </button>
+<main
+    class="article-page"
+    id="articleContainer"
+>
 
-
-    <article id="articleContent">
+    <article class="full-article">
 
         <p class="loading">
-            Loading latest information...
+            ⏳ Loading article...
         </p>
 
     </article>
@@ -78,352 +71,11 @@
 </main>
 
 
-<footer>
-
-    <h3>
-        🎓 Kenya Campus Hub
-    </h3>
-
-    <p>
-        Student information,
-        opportunities and useful tools.
-    </p>
-
-    <p>
-        © 2026 Kenya Campus Hub
-    </p>
-
-</footer>
-
-
-<script>
-
-async function loadArticle() {
-
-    const params =
-        new URLSearchParams(
-            window.location.search
-        );
-
-
-    const id =
-        params.get("id");
-
-
-    const container =
-        document.getElementById(
-            "articleContent"
-        );
-
-
-    if (!id) {
-
-        showError(
-            "Article not found",
-            "No article ID was supplied."
-        );
-
-        return;
-    }
-
-
-    try {
-
-        const response =
-            await fetch(
-                `/api/article/${encodeURIComponent(
-                    id
-                )}`
-            );
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                "Article not found"
-            );
-        }
-
-
-        const article =
-            await response.json();
-
-
-        document.title =
-            `${article.title} - Kenya Campus Hub`;
-
-
-        container.innerHTML = `
-
-            <span class="category-label">
-                ${escapeHTML(
-                    article.category
-                )}
-            </span>
-
-
-            <h1>
-                ${escapeHTML(
-                    article.title
-                )}
-            </h1>
-
-
-            <div class="article-meta">
-
-                Published:
-                ${escapeHTML(
-                    article.date || ""
-                )}
-
-                ${
-                    article.updated
-                    ? `
-                    <br>
-                    Updated:
-                    ${escapeHTML(
-                        article.updated
-                    )}
-                    `
-                    : ""
-                }
-
-                ${
-                    article.expiresAt
-                    ? `
-                    <br>
-                    Expires:
-                    ${escapeHTML(
-                        article.expiresAt
-                    )}
-                    `
-                    : ""
-                }
-
-            </div>
-
-
-            ${
-                article.summary
-                ? `
-                <div class="article-summary">
-
-                    <strong>
-                        Summary
-                    </strong>
-
-                    <p>
-                        ${escapeHTML(
-                            article.summary
-                        )}
-                    </p>
-
-                </div>
-                `
-                : ""
-            }
-
-
-            <div class="article-body">
-
-                ${formatContent(
-                    article.content
-                )}
-
-            </div>
-
-
-            <div class="article-source">
-
-                <strong>
-                    Official Source:
-                </strong>
-
-                ${escapeHTML(
-                    article.source || ""
-                )}
-
-                <br>
-
-                <a
-                    href="${escapeAttribute(
-                        article.sourceUrl || "#"
-                    )}"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    Verify on Official Source →
-                </a>
-
-            </div>
-
-        `;
-
-    } catch (error) {
-
-        console.error(
-            error
-        );
-
-        showError(
-            "Unable to load article",
-            "The requested article could not be found."
-        );
-    }
-}
-
-
-/* ========================================
-   FORMAT CONTENT
-======================================== */
-
-function formatContent(
-    content
-) {
-
-    if (!content) {
-
-        return `
-            <p>
-                No article content available.
-            </p>
-        `;
-    }
-
-
-    return String(content)
-
-        .split(/\n\s*\n/)
-
-        .map(
-            paragraph => `
-                <p>
-                    ${escapeHTML(
-                        paragraph.trim()
-                    ).replaceAll(
-                        "\n",
-                        "<br>"
-                    )}
-                </p>
-            `
-        )
-
-        .join("");
-}
-
-
-/* ========================================
-   ERROR
-======================================== */
-
-function showError(
-    title,
-    message
-) {
-
-    document.getElementById(
-        "articleContent"
-    ).innerHTML = `
-
-        <div class="article-error">
-
-            <h1>
-                ${escapeHTML(title)}
-            </h1>
-
-            <p>
-                ${escapeHTML(message)}
-            </p>
-
-            <button
-                class="back-button"
-                onclick="location.href='index.html'"
-            >
-                ← Return Home
-            </button>
-
-        </div>
-
-    `;
-}
-
-
-/* ========================================
-   ESCAPE HTML
-======================================== */
-
-function escapeHTML(
-    text
-) {
-
-    return String(
-        text ?? ""
-    )
-
-        .replaceAll(
-            "&",
-            "&amp;"
-        )
-
-        .replaceAll(
-            "<",
-            "&lt;"
-        )
-
-        .replaceAll(
-            ">",
-            "&gt;"
-        )
-
-        .replaceAll(
-            '"',
-            "&quot;"
-        )
-
-        .replaceAll(
-            "'",
-            "&#039;"
-        );
-}
-
-
-/* ========================================
-   ESCAPE ATTRIBUTE
-======================================== */
-
-function escapeAttribute(
-    text
-) {
-
-    return String(
-        text ?? ""
-    )
-
-        .replaceAll(
-            "&",
-            "&amp;"
-        )
-
-        .replaceAll(
-            '"',
-            "&quot;"
-        )
-
-        .replaceAll(
-            "<",
-            "&lt;"
-        )
-
-        .replaceAll(
-            ">",
-            "&gt;"
-        );
-}
-
-
-loadArticle();
-
-</script>
+<!-- =====================================================
+     JAVASCRIPT
+===================================================== -->
+
+<script src="article.js"></script>
 
 </body>
 
