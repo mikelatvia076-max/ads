@@ -205,7 +205,13 @@ const FALLBACK_EXPIRY_DAYS = {
 
     "Jobs": 45,
 
-    "University Alerts": 30
+    "University Alerts": 30,
+
+    "Internships": 45,
+
+    "Attachments": 45,
+
+    "Competitions": 60
 };
 
 const sourcesFile =

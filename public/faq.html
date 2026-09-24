@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Frequently asked questions about HigherSpace Connect — HELB, KUCCPS, scholarships, jobs and student tools.">
+    <title>FAQ — HigherSpace Connect</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0b7d5b">
+</head>
+
+<body>
+
+<header>
+
+    <div class="logo">
+        <a href="index.html" style="color:inherit;text-decoration:none;">🎓 HigherSpace Connect</a>
+    </div>
+
+
+    <div class="nav-more">
+
+        <button class="nav-more-btn" onclick="toggleMoreMenu(event)" aria-label="Menu">
+            ☰
+        </button>
+
+        <div class="nav-more-dropdown" id="navMoreDropdown">
+
+            <a href="index.html">Home</a>
+            <a href="category.html?type=helb">HELB</a>
+            <a href="category.html?type=kuccps">KUCCPS</a>
+            <a href="category.html?type=jobs">Jobs</a>
+            <a href="category.html?type=scholarships">Scholarships</a>
+            <a href="category.html?type=rumours">University Rumours</a>
+            <a href="category.html?type=university-alerts">University Alerts</a>
+            <a href="deadlines.html">Deadlines</a>
+            <a href="discounts.html">Student Discounts</a>
+            <a href="helplines.html">Helplines &amp; Support</a>
+
+            <div class="nav-divider"></div>
+
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
+            <a href="faq.html">FAQ</a>
+
+        </div>
+
+    </div>
+
+</header>
+
+<script>
+function toggleMoreMenu(e) {
+    e.stopPropagation();
+    document.getElementById("navMoreDropdown").classList.toggle("open");
+}
+document.addEventListener("click", function () {
+    var d = document.getElementById("navMoreDropdown");
+    if (d) d.classList.remove("open");
+});
+</script>
+
+
+<section class="static-page">
+
+    <div class="static-page-content">
+
+        <h1>Frequently Asked Questions</h1>
+
+        <h2>Is HigherSpace Connect an official HELB or KUCCPS website?</h2>
+        <p>
+            No. We are an independent, privately run information platform
+            for Kenyan university students. Always confirm loan, placement
+            or fee status on the official HELB and KUCCPS portals.
+        </p>
+
+        <h2>Is it free to use?</h2>
+        <p>
+            Yes. All articles, the Deadlines Tracker and the community
+            chat are free. The site is supported by advertising.
+        </p>
+
+        <h2>How do I report outdated or wrong information?</h2>
+        <p>
+            Email us at <a href="mailto:info@higherspaceconnect.co.ke">info@higherspaceconnect.co.ke</a>
+            or use the <a href="contact.html">Contact page</a> with a link
+            to the affected article.
+        </p>
+
+        <h2>Can I contribute campus news or rumours?</h2>
+        <p>
+            Yes, through the University Rumours section and member chat.
+            Please keep submissions accurate and respectful — see our
+            <a href="terms.html">Terms of Service</a>.
+        </p>
+
+        <h2>Do you have a mobile app?</h2>
+        <p>
+            HigherSpace Connect works as a installable web app (PWA) — open
+            the site in your mobile browser and choose "Add to Home
+            Screen" for an app-like experience.
+        </p>
+
+        <h2>How do I get in touch?</h2>
+        <p>
+            Visit our <a href="contact.html">Contact page</a> for email,
+            live chat and Campus AI options.
+        </p>
+
+    </div>
+
+</section>
+
+<footer>
+
+    <div class="footer-content">
+
+        <div>
+
+            <h3>
+                🎓 HigherSpace Connect
+            </h3>
+
+            <p>
+                Helping Kenyan university students find
+                useful information, opportunities and tools.
+            </p>
+
+        </div>
+
+
+        <div>
+
+            <h4>
+                Quick Links
+            </h4>
+
+            <a href="category.html?type=helb">
+                HELB
+            </a>
+
+            <a href="category.html?type=kuccps">
+                KUCCPS
+            </a>
+
+            <a href="category.html?type=jobs">
+                Jobs
+            </a>
+
+            <a href="category.html?type=scholarships">
+                Scholarships
+            </a>
+
+            <a href="deadlines.html">
+                Deadlines
+            </a>
+
+            <a href="discounts.html">
+                Student Discounts
+            </a>
+
+            <a href="helplines.html">
+                Helplines &amp; Support
+            </a>
+
+        </div>
+
+
+    </div>
+
+
+    <div class="footer-bottom">
+
+        <p>
+            © 2026 HigherSpace Connect. All rights reserved.
+        </p>
+
+        <p>
+            HigherSpace Connect is an independent student information
+            platform and is not officially affiliated with HELB,
+            KUCCPS, or any university.
+        </p>
+
+    </div>
+
+</footer>
+
+
+<script src="/pwa-register.js"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="HigherSpace Connect - Browse Kenyan universities, TVETs and colleges by type and county."
+    >
+
+    <title>Institutions Directory — HigherSpace Connect</title>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1573899062811104"
+     crossorigin="anonymous"></script>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+    <link href="load.css" rel="stylesheet">
+
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0b7d5b">
+    <meta name="referrer" content="no-referrer-when-downgrade" />
+</head>
+
+
+<body>
+
+<!-- ==========================================
+     HIGHERSPACE CONNECT LOADING PAGE
+========================================== -->
+
+<style>
+/* LOADING PAGE */
+#kchLoader {
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: linear-gradient(
+        135deg,
+        #063b8f,
+        #0b5ed7,
+        #087f5b
+    );
+
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+
+#kchLoader.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.loader-content {
+    width: 90%;
+    max-width: 430px;
+    text-align: center;
+    color: white;
+}
+
+.loader-logo {
+    width: 90px;
+    height: 90px;
+    margin: 0 auto 22px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255,255,255,0.12);
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 22px;
+
+    font-size: 42px;
+
+    box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+
+    animation: loaderLogoPulse 1.5s ease-in-out infinite;
+}
+
+.loader-content h1 {
+    margin: 0;
+    font-size: 30px;
+    font-weight: 800;
+}
+
+.loader-content p {
+    margin: 10px 0 28px;
+    font-size: 14px;
+    color: rgba(255,255,255,0.88);
+}
+
+.loader-progress {
+    width: 100%;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 50px;
+    background: rgba(255,255,255,0.2);
+}
+
+.loader-progress::before {
+    content: "";
+    display: block;
+
+    width: 35%;
+    height: 100%;
+
+    border-radius: 50px;
+    background: white;
+
+    animation: loaderProgress 1.4s ease-in-out infinite;
+}
+
+.loader-status {
+    margin-top: 14px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.8);
+}
+
+/* ANIMATIONS */
+@keyframes loaderLogoPulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.08);
+    }
+}
+
+@keyframes loaderProgress {
+    0% {
+        transform: translateX(-120%);
+    }
+
+    50% {
+        transform: translateX(180%);
+    }
+
+    100% {
+        transform: translateX(320%);
+    }
+}
+
+/* MOBILE */
+@media (max-width: 600px) {
+    .loader-content {
+        width: 85%;
+    }
+
+    .loader-logo {
+        width: 75px;
+        height: 75px;
+        font-size: 34px;
+    }
+
+    .loader-content h1 {
+        font-size: 24px;
+    }
+
+    .loader-content p {
+        font-size: 13px;
+    }
+}
+</style>
+
+
+<!-- ==========================================
+     LOADING PAGE HTML
+========================================== -->
+
+<div id="kchLoader">
+
+    <div class="loader-content">
+
+        <div class="loader-logo">
+            🎓
+        </div>
+
+        <h1>HigherSpace Connect</h1>
+
+        <p>Preparing your campus experience...</p>
+
+        <div class="loader-progress"></div>
+
+        <div class="loader-status">
+            Loading...
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- ==========================================
+     LOADING PAGE JAVASCRIPT
+========================================== -->
+
+<script>
+(function () {
+
+    function hideKCHLoader() {
+
+        const loader = document.getElementById("kchLoader");
+
+        if (!loader) return;
+
+        loader.classList.add("hidden");
+
+        setTimeout(function () {
+            loader.style.display = "none";
+        }, 650);
+    }
+
+
+    /* Hide after the complete page loads */
+    window.addEventListener("load", function () {
+
+        setTimeout(function () {
+            hideKCHLoader();
+        }, 500);
+
+    });
+
+
+    /* Safety fallback:
+       loader disappears after 3 seconds
+       even if the server/API fails.
+    */
+    setTimeout(function () {
+        hideKCHLoader();
+    }, 3000);
+
+})();
+</script>
+
+
+<!-- =====================================================
+     HEADER
+===================================================== -->
+
+<header>
+
+    <div class="logo">
+        🎓 HigherSpace Connect
+    </div>
+
+
+    <div class="nav-more">
+
+        <button class="nav-more-btn" onclick="toggleMoreMenu(event)" aria-label="Menu">
+            ☰
+        </button>
+
+        <div class="nav-more-dropdown" id="navMoreDropdown">
+
+            <a href="index.html">Home</a>
+            <a href="index.html#institutionsSection">Institutions</a>
+            <a href="index.html#opportunitiesSection">Opportunities</a>
+            <a href="index.html#myCampusSection">My Campus</a>
+            <a href="category.html?type=helb">HELB</a>
+            <a href="category.html?type=kuccps">KUCCPS</a>
+            <a href="category.html?type=jobs">Jobs</a>
+            <a href="category.html?type=scholarships">Scholarships</a>
+            <a href="category.html?type=rumours">University Rumours</a>
+            <a href="category.html?type=university-alerts">University Alerts</a>
+            <a href="deadlines.html">Deadlines</a>
+            <a href="discounts.html">Student Discounts</a>
+            <a href="helplines.html">Helplines &amp; Support</a>
+
+            <div class="nav-divider"></div>
+
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
+            <a href="faq.html">FAQ</a>
+
+        </div>
+
+    </div>
+
+</header>
+
+<script>
+function toggleMoreMenu(e) {
+    e.stopPropagation();
+    document.getElementById("navMoreDropdown").classList.toggle("open");
+}
+document.addEventListener("click", function () {
+    var d = document.getElementById("navMoreDropdown");
+    if (d) d.classList.remove("open");
+});
+</script>
+
+<style>
+/* =====================================================
+   FIX: keep the hamburger dropdown from covering the
+   fixed "Chat With Members" and "Ask AI" buttons.
+===================================================== */
+.nav-more-dropdown {
+    z-index: 40000 !important;
+    max-height: 220px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+.chat-members-button,
+.campus-ai-button {
+    z-index: 99999 !important;
+}
+</style>
+
+
+<!-- =====================================================
+     PAGE HERO
+===================================================== -->
+
+<section class="hero">
+
+    <div class="hero-content">
+
+        <h1>
+            Institutions Directory
+        </h1>
+
+        <p>
+            Browse Kenyan universities, TVETs and colleges.
+            Search by name, or filter by type and county.
+        </p>
+
+        <div class="institutions-search">
+
+            <input
+                type="search"
+                id="institutionsPageSearchInput"
+                placeholder="Search university, college, TVET..."
+                autocomplete="off"
+            >
+
+            <button type="button" onclick="filterInstitutionsPage()">
+                Search
+            </button>
+
+        </div>
+
+        <div class="institutions-filters" id="institutionsPageFilters">
+
+            <button type="button" class="filter-chip active" data-filter="all" onclick="setInstitutionsPageFilter('all', this)">
+                All
+            </button>
+
+            <button type="button" class="filter-chip" data-filter="university" onclick="setInstitutionsPageFilter('university', this)">
+                Universities
+            </button>
+
+            <button type="button" class="filter-chip" data-filter="tvet" onclick="setInstitutionsPageFilter('tvet', this)">
+                TVET
+            </button>
+
+            <button type="button" class="filter-chip" data-filter="college" onclick="setInstitutionsPageFilter('college', this)">
+                Colleges
+            </button>
+
+        </div>
+
+        <div class="institutions-county">
+
+            <label for="institutionsPageCounty">Filter by county</label>
+
+            <select id="institutionsPageCounty" onchange="filterInstitutionsPage()">
+                <option value="">All Counties</option>
+                <option value="mombasa">Mombasa</option>
+                <option value="kwale">Kwale</option>
+                <option value="kilifi">Kilifi</option>
+                <option value="tana-river">Tana River</option>
+                <option value="lamu">Lamu</option>
+                <option value="taita-taveta">Taita-Taveta</option>
+                <option value="garissa">Garissa</option>
+                <option value="wajir">Wajir</option>
+                <option value="mandera">Mandera</option>
+                <option value="marsabit">Marsabit</option>
+                <option value="isiolo">Isiolo</option>
+                <option value="meru">Meru</option>
+                <option value="tharaka-nithi">Tharaka-Nithi</option>
+                <option value="embu">Embu</option>
+                <option value="kitui">Kitui</option>
+                <option value="machakos">Machakos</option>
+                <option value="makueni">Makueni</option>
+                <option value="nyandarua">Nyandarua</option>
+                <option value="nyeri">Nyeri</option>
+                <option value="kirinyaga">Kirinyaga</option>
+                <option value="muranga">Murang'a</option>
+                <option value="kiambu">Kiambu</option>
+                <option value="turkana">Turkana</option>
+                <option value="west-pokot">West Pokot</option>
+                <option value="samburu">Samburu</option>
+                <option value="trans-nzoia">Trans Nzoia</option>
+                <option value="uasin-gishu">Uasin Gishu</option>
+                <option value="elgeyo-marakwet">Elgeyo-Marakwet</option>
+                <option value="nandi">Nandi</option>
+                <option value="baringo">Baringo</option>
+                <option value="laikipia">Laikipia</option>
+                <option value="nakuru">Nakuru</option>
+                <option value="narok">Narok</option>
+                <option value="kajiado">Kajiado</option>
+                <option value="kericho">Kericho</option>
+                <option value="bomet">Bomet</option>
+                <option value="kakamega">Kakamega</option>
+                <option value="vihiga">Vihiga</option>
+                <option value="bungoma">Bungoma</option>
+                <option value="busia">Busia</option>
+                <option value="siaya">Siaya</option>
+                <option value="kisumu">Kisumu</option>
+                <option value="homa-bay">Homa Bay</option>
+                <option value="migori">Migori</option>
+                <option value="kisii">Kisii</option>
+                <option value="nyamira">Nyamira</option>
+                <option value="nairobi">Nairobi</option>
+            </select>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     RESULTS
+===================================================== -->
+
+<section class="institutions-section">
+
+    <div class="section-heading">
+        <h2>Institutions</h2>
+        <p id="institutionsResultCount"></p>
+    </div>
+
+    <div class="institutions-results-grid" id="institutionsResultsGrid"></div>
+
+    <p class="institutions-empty" id="institutionsEmpty" hidden>
+        No institutions match your search. Try a different filter or county.
+    </p>
+
+    <p class="institutions-note">
+        Showing a sample list — full nationwide institution data is coming soon.
+    </p>
+
+</section>
+
+
+<!-- =====================================================
+     AD ZONE - Banner 300x250
+===================================================== -->
+
+<div class="ad-slot ad-slot-banner" style="display:flex;justify-content:center;margin:24px auto;">
+    <!-- HilltopAds banner 300x250 code goes here -->
+</div>
+
+
+<!-- =====================================================
+     FOOTER
+===================================================== -->
+
+<footer>
+
+    <div class="footer-content">
+
+        <div>
+
+            <h3>
+                🎓 HigherSpace Connect
+            </h3>
+
+            <p>
+                Helping Kenyan university students find
+                useful information and opportunities.
+            </p>
+
+        </div>
+
+
+        <div>
+
+            <h4>
+                Quick Links
+            </h4>
+
+            <a href="category.html?type=helb">
+                HELB
+            </a>
+
+            <a href="category.html?type=kuccps">
+                KUCCPS
+            </a>
+
+            <a href="category.html?type=jobs">
+                Jobs
+            </a>
+
+            <a href="category.html?type=scholarships">
+                Scholarships
+            </a>
+
+            <a href="deadlines.html">
+                Deadlines
+            </a>
+
+            <a href="discounts.html">
+                Student Discounts
+            </a>
+
+            <a href="helplines.html">
+                Helplines &amp; Support
+            </a>
+
+        </div>
+
+    </div>
+
+    <div class="footer-bottom">
+
+        <p>
+            © 2026 HigherSpace Connect. All rights reserved.
+        </p>
+
+        <p>
+            HigherSpace Connect is an independent student information
+            platform and is not officially affiliated with HELB,
+            KUCCPS, or any university.
+        </p>
+
+    </div>
+
+</footer>
+<!-- =====================================================
+     CHAT WITH MEMBERS FIXED BUTTON
+===================================================== -->
+
+<a
+    href="nodi.html"
+    id="chatMembersButton"
+    class="chat-members-button"
+    title="Chat with your fellow members"
+    aria-label="Chat with your fellow members"
+>
+    <span class="chat-members-icon">
+        <svg
+            viewBox="0 0 24 24"
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+    </span>
+
+    <span class="chat-members-label">
+       Chat With other Members in this site 
+    </span>
+</a>
+
+
+<style>
+.chat-members-button {
+    position: fixed;
+    right: 22px;
+    bottom: 96px;
+    z-index: 99999;
+
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 13px 18px;
+
+    background: linear-gradient(
+        135deg,
+        #7c3aed,
+        #a855f7,
+        #06b6d4
+    );
+
+    color: #ffffff;
+    text-decoration: none;
+
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 50px;
+
+    box-shadow:
+        0 10px 30px rgba(0,0,0,0.25),
+        0 4px 12px rgba(124,58,237,0.35);
+
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
+}
+
+.chat-members-button:hover {
+    transform: translateY(-4px) scale(1.02);
+
+    box-shadow:
+        0 15px 35px rgba(0,0,0,0.3),
+        0 6px 18px rgba(124,58,237,0.45);
+}
+
+.chat-members-button:active {
+    transform: translateY(-1px) scale(0.98);
+}
+
+.chat-members-icon {
+    width: 38px;
+    height: 38px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255,255,255,0.18);
+    border-radius: 50%;
+
+    flex-shrink: 0;
+}
+
+.chat-members-label {
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+
+    .chat-members-button {
+        right: 15px;
+        bottom: 77px;
+
+        padding: 10px 14px;
+        gap: 8px;
+    }
+
+    .chat-members-icon {
+        width: 30px;
+        height: 30px;
+    }
+
+    .chat-members-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .chat-members-label {
+        font-size: 12px;
+        white-space: nowrap;
+    }
+}
+</style>
+
+
+<!-- =====================================================
+     KENYAN CAMPUS AI FIXED BUTTON
+===================================================== -->
+
+<a
+    href="ai.html"
+    id="campusAiButton"
+    class="campus-ai-button"
+    title="Open HigherSpace Connect AI"
+    aria-label="Open HigherSpace Connect AI"
+>
+    <span class="campus-ai-icon">
+        <svg
+            viewBox="0 0 24 24"
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+        >
+            <path d="M21 11.5a8.38 8.38 0 0 1-9 8.3
+                     8.5 8.5 0 0 1-3.8-.9L3 21l1.6-4.8
+                     A8.5 8.5 0 1 1 21 11.5z"/>
+            <path d="M8 11h.01"/>
+            <path d="M12 11h.01"/>
+            <path d="M16 11h.01"/>
+        </svg>
+    </span>
+
+    <span class="campus-ai-label">
+       Ask HigherSpace Connect AI Anything
+    </span>
+</a>
+
+
+<style>
+.campus-ai-button {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    z-index: 99999;
+
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 13px 18px;
+
+    background: linear-gradient(
+        135deg,
+        #063b8f,
+        #0b5ed7,
+        #087f5b
+    );
+
+    color: #ffffff;
+    text-decoration: none;
+
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 50px;
+
+    box-shadow:
+        0 10px 30px rgba(0,0,0,0.25),
+        0 4px 12px rgba(6,59,143,0.3);
+
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease;
+}
+
+.campus-ai-button:hover {
+    transform: translateY(-4px) scale(1.02);
+
+    box-shadow:
+        0 15px 35px rgba(0,0,0,0.3),
+        0 6px 18px rgba(6,59,143,0.4);
+}
+
+.campus-ai-button:active {
+    transform: translateY(-1px) scale(0.98);
+}
+
+.campus-ai-icon {
+    width: 38px;
+    height: 38px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255,255,255,0.16);
+    border-radius: 50%;
+
+    flex-shrink: 0;
+}
+
+.campus-ai-label {
+    white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+
+    .campus-ai-button {
+        right: 15px;
+        bottom: 15px;
+
+        padding: 10px 14px;
+        gap: 8px;
+    }
+
+    .campus-ai-icon {
+        width: 30px;
+        height: 30px;
+    }
+
+    .campus-ai-icon svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .campus-ai-label {
+        font-size: 12px;
+        white-space: nowrap;
+    }
+}
+</style>
+
+
+<!-- =====================================================
+     JAVASCRIPT
+===================================================== -->
+
+<script src="app.js"></script>
+<script src="/pwa-register.js"></script>
+
+
+</body>
+
+</html>

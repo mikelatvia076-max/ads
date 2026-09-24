@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HigherSpace Connect Terms of Service — the rules for using our website, tools and community chat.">
+    <title>Terms of Service — HigherSpace Connect</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0b7d5b">
+</head>
+
+<body>
+
+<header>
+
+    <div class="logo">
+        <a href="index.html" style="color:inherit;text-decoration:none;">🎓 HigherSpace Connect</a>
+    </div>
+
+
+    <div class="nav-more">
+
+        <button class="nav-more-btn" onclick="toggleMoreMenu(event)" aria-label="Menu">
+            ☰
+        </button>
+
+        <div class="nav-more-dropdown" id="navMoreDropdown">
+
+            <a href="index.html">Home</a>
+            <a href="category.html?type=helb">HELB</a>
+            <a href="category.html?type=kuccps">KUCCPS</a>
+            <a href="category.html?type=jobs">Jobs</a>
+            <a href="category.html?type=scholarships">Scholarships</a>
+            <a href="category.html?type=rumours">University Rumours</a>
+            <a href="category.html?type=university-alerts">University Alerts</a>
+            <a href="deadlines.html">Deadlines</a>
+            <a href="discounts.html">Student Discounts</a>
+            <a href="helplines.html">Helplines &amp; Support</a>
+
+            <div class="nav-divider"></div>
+
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
+            <a href="faq.html">FAQ</a>
+
+        </div>
+
+    </div>
+
+</header>
+
+<script>
+function toggleMoreMenu(e) {
+    e.stopPropagation();
+    document.getElementById("navMoreDropdown").classList.toggle("open");
+}
+document.addEventListener("click", function () {
+    var d = document.getElementById("navMoreDropdown");
+    if (d) d.classList.remove("open");
+});
+</script>
+
+
+<section class="static-page">
+
+    <div class="static-page-content">
+
+        <h1>Terms of Service</h1>
+        <p><small>Last updated: September 2026</small></p>
+
+        <p>
+            By using HigherSpace Connect ("the site"), you agree to the
+            following terms. If you do not agree, please do not use the
+            site.
+        </p>
+
+        <h2>1. Informational Use Only</h2>
+        <p>
+            Content on this site relating to HELB, KUCCPS, scholarships,
+            jobs and university matters is provided for general
+            informational purposes only. It is not official guidance.
+            Always verify critical decisions on the relevant official
+            government, institutional or employer portal.
+        </p>
+
+        <h2>2. No Official Affiliation</h2>
+        <p>
+            HigherSpace Connect is independently operated and is not
+            affiliated with, endorsed by, or acting on behalf of HELB,
+            KUCCPS, the Ministry of Education, or any university.
+        </p>
+
+        <h2>3. Community Chat and User Content</h2>
+        <p>
+            When using the member chat or submitting rumours/tips, you
+            agree not to post false, defamatory, abusive, illegal or
+            harassing content. We reserve the right to remove content
+            and restrict access for violations.
+        </p>
+
+        <h2>4. Intellectual Property</h2>
+        <p>
+            Site design, branding and original written content belong to
+            HigherSpace Connect. Third-party content (news excerpts,
+            official announcements) remains the property of its
+            respective owners.
+        </p>
+
+        <h2>5. Advertising</h2>
+        <p>
+            This site displays third-party advertising. We are not
+            responsible for the content, products or services offered by
+            advertisers.
+        </p>
+
+        <h2>6. Limitation of Liability</h2>
+        <p>
+            HigherSpace Connect is provided "as is" without warranties of
+            any kind. We are not liable for any loss arising from
+            reliance on information or tools provided on this site.
+        </p>
+
+        <h2>7. Changes to These Terms</h2>
+        <p>
+            We may update these Terms from time to time. Continued use of
+            the site after changes constitutes acceptance of the revised
+            Terms.
+        </p>
+
+        <h2>8. Contact</h2>
+        <p>
+            Questions about these Terms? Visit our <a href="contact.html">Contact page</a>.
+        </p>
+
+    </div>
+
+</section>
+
+<footer>
+
+    <div class="footer-content">
+
+        <div>
+
+            <h3>
+                🎓 HigherSpace Connect
+            </h3>
+
+            <p>
+                Helping Kenyan university students find
+                useful information, opportunities and tools.
+            </p>
+
+        </div>
+
+
+        <div>
+
+            <h4>
+                Quick Links
+            </h4>
+
+            <a href="category.html?type=helb">
+                HELB
+            </a>
+
+            <a href="category.html?type=kuccps">
+                KUCCPS
+            </a>
+
+            <a href="category.html?type=jobs">
+                Jobs
+            </a>
+
+            <a href="category.html?type=scholarships">
+                Scholarships
+            </a>
+
+            <a href="deadlines.html">
+                Deadlines
+            </a>
+
+            <a href="discounts.html">
+                Student Discounts
+            </a>
+
+            <a href="helplines.html">
+                Helplines &amp; Support
+            </a>
+
+        </div>
+
+
+    </div>
+
+
+    <div class="footer-bottom">
+
+        <p>
+            © 2026 HigherSpace Connect. All rights reserved.
+        </p>
+
+        <p>
+            HigherSpace Connect is an independent student information
+            platform and is not officially affiliated with HELB,
+            KUCCPS, or any university.
+        </p>
+
+    </div>
+
+</footer>
+
+
+<script src="/pwa-register.js"></script>
+
+</body>
+
+</html>

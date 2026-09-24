@@ -15,6 +15,7 @@ import os from "os";
 import { nanoid } from "nanoid";
 import { Server as SocketIOServer } from "socket.io";
 import webpush from "web-push";
+import { registerOpportunitiesRoutes } from "./opportunities.js";
 
 /*
 =========================================================
@@ -1986,6 +1987,16 @@ between browsers, not through this server)
 
 /*
 =========================================================
+OPPORTUNITIES (Internships, Attachments, Competitions)
+Loaded live from Serper.dev (no Groq), saved into articles.json and
+removed when they end. See opportunities.js
+=========================================================
+*/
+
+registerOpportunitiesRoutes(app, { dataFolder, readArticles, writeArticles });
+
+/*
+=========================================================
 WEB PUSH (background notifications for messages + calls)
 =========================================================
 Lets the phone show a notification for a new message or an
@@ -3791,7 +3802,13 @@ const FALLBACK_EXPIRY_DAYS = {
 
     "Jobs": 45,
 
-    "University Alerts": 30
+    "University Alerts": 30,
+
+    "Internships": 45,
+
+    "Attachments": 45,
+
+    "Competitions": 60
 };
 
 function isArticleExpired(

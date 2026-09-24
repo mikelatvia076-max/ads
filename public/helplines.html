@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Emergency, academic, financial and mental health helplines every Kenyan university student should have — HigherSpace Connect.">
+    <title>Helplines &amp; Support — HigherSpace Connect</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0b7d5b">
+</head>
+
+<body>
+
+<header>
+
+    <div class="logo">
+        <a href="index.html" style="color:inherit;text-decoration:none;">🎓 HigherSpace Connect</a>
+    </div>
+
+
+    <div class="nav-more">
+
+        <button class="nav-more-btn" onclick="toggleMoreMenu(event)" aria-label="Menu">
+            ☰
+        </button>
+
+        <div class="nav-more-dropdown" id="navMoreDropdown">
+
+            <a href="index.html">Home</a>
+            <a href="category.html?type=helb">HELB</a>
+            <a href="category.html?type=kuccps">KUCCPS</a>
+            <a href="category.html?type=jobs">Jobs</a>
+            <a href="category.html?type=scholarships">Scholarships</a>
+            <a href="category.html?type=rumours">University Rumours</a>
+            <a href="category.html?type=university-alerts">University Alerts</a>
+            <a href="deadlines.html">Deadlines</a>
+            <a href="discounts.html">Student Discounts</a>
+            <a href="helplines.html">Helplines &amp; Support</a>
+
+            <div class="nav-divider"></div>
+
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
+            <a href="faq.html">FAQ</a>
+
+        </div>
+
+    </div>
+
+</header>
+
+<script>
+function toggleMoreMenu(e) {
+    e.stopPropagation();
+    document.getElementById("navMoreDropdown").classList.toggle("open");
+}
+document.addEventListener("click", function () {
+    var d = document.getElementById("navMoreDropdown");
+    if (d) d.classList.remove("open");
+});
+</script>
+
+
+<section class="static-page">
+
+    <div class="static-page-content">
+
+        <h1>Helplines &amp; Support</h1>
+
+        <p>
+            Numbers worth saving in your phone before you need them.
+            If you or someone else is in immediate danger, call
+            <strong>999</strong> or <strong>112</strong> first — it works
+            free from any network, with or without airtime.
+        </p>
+
+        <h2>Emergency (24/7)</h2>
+        <div class="support-list">
+
+            <div class="support-card cat-emergency">
+                <div>
+                    <span class="support-tag">Emergency</span>
+                    <h3>Police, Fire &amp; Ambulance</h3>
+                    <p>National emergency line, toll-free, 24/7.</p>
+                </div>
+                <a class="support-number" href="tel:999">999 / 112</a>
+            </div>
+
+            <div class="support-card cat-emergency">
+                <div>
+                    <span class="support-tag">Emergency</span>
+                    <h3>Kenya Red Cross Ambulance</h3>
+                    <p>Emergency ambulance and disaster response.</p>
+                </div>
+                <a class="support-number" href="tel:1199">1199</a>
+            </div>
+
+        </div>
+
+        <h2>HELB &amp; KUCCPS Support</h2>
+        <div class="support-list">
+
+            <div class="support-card cat-academic">
+                <div>
+                    <span class="support-tag">HELB</span>
+                    <h3>HELB Contact Centre</h3>
+                    <p>Loan applications, disbursement and account queries. Also *642# by USSD.</p>
+                </div>
+                <a class="support-number" href="tel:0711052000">0711 052 000</a>
+            </div>
+
+            <div class="support-card cat-academic">
+                <div>
+                    <span class="support-tag">KUCCPS</span>
+                    <h3>KUCCPS Customer Care</h3>
+                    <p>Placement, course revision and application queries.</p>
+                </div>
+                <a class="support-number" href="tel:0205137400">020 513 7400</a>
+            </div>
+
+        </div>
+
+        <h2>Mental Health &amp; Wellbeing</h2>
+        <div class="support-list">
+
+            <div class="support-card cat-mental">
+                <div>
+                    <span class="support-tag">Mental Health</span>
+                    <h3>Befrienders Kenya</h3>
+                    <p>Free, confidential emotional support by call, SMS or WhatsApp. Mon–Fri, 9am–5pm.</p>
+                </div>
+                <a class="support-number" href="tel:+254722178177">+254 722 178 177</a>
+            </div>
+
+            <div class="support-card cat-mental">
+                <div>
+                    <span class="support-tag">Substance Use</span>
+                    <h3>NACADA Toll-Free Helpline</h3>
+                    <p>Support around alcohol and drug use, for yourself or someone you're worried about.</p>
+                </div>
+                <a class="support-number" href="tel:1192">1192</a>
+            </div>
+
+        </div>
+
+        <h2>Gender-Based Violence &amp; Child Protection</h2>
+        <div class="support-list">
+
+            <div class="support-card cat-safety">
+                <div>
+                    <span class="support-tag">GBV</span>
+                    <h3>National GBV Helpline</h3>
+                    <p>Toll-free support for gender-based violence, available nationwide.</p>
+                </div>
+                <a class="support-number" href="tel:1195">1195</a>
+            </div>
+
+            <div class="support-card cat-safety">
+                <div>
+                    <span class="support-tag">Child Protection</span>
+                    <h3>Childline Kenya</h3>
+                    <p>24/7 toll-free line for reporting child abuse or neglect.</p>
+                </div>
+                <a class="support-number" href="tel:116">116</a>
+            </div>
+
+        </div>
+
+        <p class="deadlines-note">
+            These numbers are collected from public sources and may
+            change — if one isn't working, please
+            <a href="contact.html">let us know</a> so we can update it.
+        </p>
+
+    </div>
+
+</section>
+
+<footer>
+
+    <div class="footer-content">
+
+        <div>
+
+            <h3>
+                🎓 HigherSpace Connect
+            </h3>
+
+            <p>
+                Helping Kenyan university students find
+                useful information, opportunities and tools.
+            </p>
+
+        </div>
+
+
+        <div>
+
+            <h4>
+                Quick Links
+            </h4>
+
+            <a href="category.html?type=helb">
+                HELB
+            </a>
+
+            <a href="category.html?type=kuccps">
+                KUCCPS
+            </a>
+
+            <a href="category.html?type=jobs">
+                Jobs
+            </a>
+
+            <a href="category.html?type=scholarships">
+                Scholarships
+            </a>
+
+            <a href="deadlines.html">
+                Deadlines
+            </a>
+
+            <a href="discounts.html">
+                Student Discounts
+            </a>
+
+            <a href="helplines.html">
+                Helplines &amp; Support
+            </a>
+
+        </div>
+
+    </div>
+
+
+    <div class="footer-bottom">
+
+        <p>
+            © 2026 HigherSpace Connect. All rights reserved.
+        </p>
+
+        <p>
+            HigherSpace Connect is an independent student information
+            platform and is not officially affiliated with HELB,
+            KUCCPS, or any university.
+        </p>
+
+    </div>
+
+</footer>
+
+
+<script src="/pwa-register.js"></script>
+
+</body>
+
+</html>

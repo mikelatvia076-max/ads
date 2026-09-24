@@ -1,1 +1,706 @@
-/* ========================================================= KENYA CAMPUS HUB COMPLETE APP.JS VERSION: 2026 UPGRADED + FIXED ARTICLE API --------------------------------------------------------- Contains: - Articles - Search - Categories - Student tools - GPA / CGPA - Grade calculator - Target GPA - Exam calculator - Timetable - Loan - Budget - Rent - Fees - Currency - Countdown - Unit converter - Scientific calculator CAMPUS AI IS IN ai.js ========================================================= */ "use strict"; /* ========================================================= GLOBAL STATE ========================================================= */ let currentCategory = "all"; let semesterCountdownTimer = null; let deadlineCountdownTimer = null; let timetableEntries = []; let scientificAngleMode = "DEG"; let scientificAnswer = 0; let scientificMemory = 0; /* Article state */ let allArticles = []; let articleRefreshTimer = null; /* ========================================================= DOM HELPERS ========================================================= */ function $(id) { return document.getElementById(id); } function setHTML(id, html) { const element = $(id); if (element) { element.innerHTML = html; } } function getNumber(id, fallback = NaN) { const element = $(id); if (!element) return fallback; const value = Number(element.value); return Number.isFinite(value) ? value : fallback; } function escapeHTML(value) { return String(value ?? "") .replace(/&/g, "&amp;") .replace(/</g, "&lt;") .replace(/>/g, "&gt;") .replace(/"/g, "&quot;") .replace(/'/g, "&#039;"); } /* ========================================================= PAGE INITIALIZATION ========================================================= */ document.addEventListener("DOMContentLoaded", () => { console.log( "Kenya Campus Hub app.js loaded successfully." ); initializeSearch(); initializeUnitConverter(); loadTimetable(); scientificClear(); }); /* ========================================================= ARTICLE API ========================================================= */ async function fetchAllArticles() { const response = await fetch( `/api/content?t=${Date.now()}`, { method: "GET", cache: "no-store", headers: { "Accept": "application/json" } } ); if (!response.ok) { throw new Error( `Article API returned HTTP ${response.status}` ); } const data = await response.json(); if (!Array.isArray(data)) { throw new Error( "Article API returned invalid data." ); } allArticles = data; /* Store articles globally so openArticle() can open them without requiring another endpoint that may not exist. */ window.__campusArticles = {}; data.forEach(article => { if (article && article.id) { window.__campusArticles[ String(article.id) ] = article; } }); return data; } /* ========================================================= SEARCH INITIALIZATION ========================================================= */ function initializeSearch() { const searchInput = $("searchInput"); if (!searchInput) return; searchInput.addEventListener( "keydown", event => { if (event.key === "Enter") { event.preventDefault(); goToSearch(); } } ); } function goToSearch() { const searchInput = $("searchInput"); if (!searchInput) return; const query = searchInput.value.trim(); if (!query) return; window.location.href = `category.html?type=search&q=${encodeURIComponent(query)}`; } /* ========================================================= SEARCH ========================================================= */ async function searchContent() { const searchInput = $("searchInput"); if (!searchInput) return; const query = searchInput.value.trim(); if (!query) { loadCategory("all"); return; } const container = $("articles"); if (container) { container.innerHTML = ` <div class="loading"> 🔎 Searching for <strong> ${escapeHTML(query)} </strong>... </div> `; } try { /* Try the server search endpoint first. */ const response = await fetch( `/api/search?q=${encodeURIComponent(query)}&t=${Date.now()}`, { method: "GET", cache: "no-store", headers: { "Accept": "application/json" } } ); if (!response.ok) { throw new Error( `Search API returned ${response.status}` ); } const results = await response.json(); currentCategory = "search"; if ($("sectionTitle")) { $("sectionTitle").textContent = `Search results for "${query}"`; } renderArticles( Array.isArray(results) ? results : [] ); } catch (error) { console.error( "Server search failed:", error ); /* FALLBACK SEARCH If /api/search is unavailable, search the main /api/content data. */ try { if (!allArticles.length) { await fetchAllArticles(); } const searchTerm = query.toLowerCase(); const results = allArticles.filter(article => { const searchableText = [ article.title, article.description, article.summary, article.organization, article.category, article.source, article.whyItMatters, article.content ] .filter(Boolean) .join(" ") .toLowerCase(); return searchableText.includes( searchTerm ); }); currentCategory = "search"; if ($("sectionTitle")) { $("sectionTitle").textContent = `Search results for "${query}"`; } renderArticles(results); } catch (fallbackError) { console.error( "Fallback search failed:", fallbackError ); showArticleError( "Unable to search right now. Please try again." ); } } } /* ========================================================= OLD SEARCH COMPATIBILITY ========================================================= */ function performSearch() { searchContent(); } /* ========================================================= CATEGORY LOADING ========================================================= */ async function loadCategory( category = "all" ) { category = String(category) .trim() .toLowerCase(); currentCategory = category; const container = $("articles"); if (container) { container.innerHTML = ` <div class="loading"> ⏳ Loading latest student information... </div> `; } updateSectionTitle(category); try { /* IMPORTANT FIX: Always request /api/content. We do NOT request: /api/content/helb /api/content/kuccps /api/content/jobs /api/content/scholarships because your current server provides the articles through /api/content. */ const articles = await fetchAllArticles(); let filteredArticles = articles; if (category !== "all") { filteredArticles = articles.filter(article => { const articleCategory = String( article.category || "" ) .trim() .toLowerCase(); return ( articleCategory === category ); }); } /* Newest updated information first. */ filteredArticles.sort( (a, b) => { const dateA = new Date( a.updatedAt || a.publishedDate || a.updated || a.date || 0 ).getTime(); const dateB = new Date( b.updatedAt || b.publishedDate || b.updated || b.date || 0 ).getTime(); return dateB - dateA; } ); renderArticles( filteredArticles ); } catch (error) { console.error( "Article loading error:", error ); showArticleError( "We could not load the latest information. Please check that the server is running." ); } } /* ========================================================= SECTION TITLE ========================================================= */ function updateSectionTitle(category) { const title = $("sectionTitle"); if (!title) return; const titles = { all: "Latest Student Information", helb: "HELB Information", kuccps: "KUCCPS Information", jobs: "Jobs & Internships", scholarships: "Scholarships" }; title.textContent = titles[category] || "Student Information"; } /* ========================================================= ARTICLE DISPLAY ========================================================= */ function renderArticles(articles) { const container = $("articles"); if (!container) return; if ( !Array.isArray(articles) || articles.length === 0 ) { container.innerHTML = ` <div class="calculator-result"> <h3> No information found </h3> <p> There is currently no information available in this category. </p> </div> `; return; } /* Save every displayed article. */ window.__campusArticles = window.__campusArticles || {}; articles.forEach(article => { if (article && article.id) { window.__campusArticles[ String(article.id) ] = article; } }); container.innerHTML = articles.map(article => { const id = escapeHTML( article.id || "" ); const title = escapeHTML( article.title || "Untitled Information" ); const summary = escapeHTML( article.description || article.summary || "Read the latest student information." ); const category = escapeHTML( article.category || "General" ); const organization = escapeHTML( article.organization || article.source || "" ); const status = escapeHTML( article.status || "Active" ); const publishedDate = article.publishedDate || article.date || ""; const updatedDate = article.updatedAt || article.updated || ""; const dateToShow = updatedDate || publishedDate; let formattedDate = ""; if (dateToShow) { const parsedDate = new Date( dateToShow ); if ( !Number.isNaN( parsedDate.getTime() ) ) { formattedDate = parsedDate.toLocaleDateString( "en-KE", { year: "numeric", month: "short", day: "numeric" } ); } } let formattedDeadline = ""; const deadline = article.deadline; if ( deadline && deadline !== "null" ) { const deadlineDate = new Date(deadline); if ( !Number.isNaN( deadlineDate.getTime() ) ) { formattedDeadline = deadlineDate.toLocaleDateString( "en-KE", { year: "numeric", month: "short", day: "numeric" } ); } } return ` <article class="article" onclick="openArticle('${id}')" style="cursor:pointer;" > <div class="article-content"> <span class="article-category"> ${category} </span> <h3> ${title} </h3> <p> ${summary} </p> ${ organization ? ` <small> 🏢 ${organization} </small> ` : "" } ${ formattedDate ? ` <small style=" display:block; margin-top:6px; " > 🔄 Updated: ${formattedDate} </small> ` : "" } ${ formattedDeadline ? ` <small style=" display:block; margin-top:6px; " > ⏰ Deadline: <strong> ${formattedDeadline} </strong> </small> ` : "" } ${ status ? ` <small style=" display:block; margin-top:6px; " > 📌 ${status} </small> ` : "" } <div style=" margin-top:12px; font-weight:600; " > Read more → </div> </div> </article> `; }).join(""); } /* ========================================================= ARTICLE ERROR ========================================================= */ function showArticleError(message) { const container = $("articles"); if (!container) return; container.innerHTML = ` <div class="calculator-result"> <h3> ⚠️ Unable to load information </h3> <p> ${escapeHTML(message)} </p> <button type="button" onclick="loadCategory(currentCategory)" > 🔄 Try Again </button> </div> `; } /* ========================================================= OPEN ARTICLE ========================================================= */ async function openArticle(id) { try { let article = null; /* First find it in memory. */ if ( window.__campusArticles && window.__campusArticles[ String(id) ] ) { article = window.__campusArticles[ String(id) ]; } /* If it isn't in memory, reload from API. */ if (!article) { const articles = await fetchAllArticles(); article = articles.find( item => String(item.id) === String(id) ); } if (!article) { throw new Error( "Article not found." ); } const title = escapeHTML( article.title || "Student Information" ); const category = escapeHTML( article.category || "General" ); const organization = escapeHTML( article.organization || article.source || "" ); const description = escapeHTML( article.description || article.summary || "" ); const whyItMatters = escapeHTML( article.whyItMatters || "" ); const content = article.content || article.description || article.summary || "No additional article content available."; const sourceURL = article.url || ""; const publishedDate = article.publishedDate || article.date || ""; const updatedDate = article.updatedAt || article.updated || ""; const deadline = article.deadline; let dateText = ""; if (publishedDate) { const date = new Date( publishedDate ); if ( !Number.isNaN( date.getTime() ) ) { dateText = date.toLocaleDateString( "en-KE", { year: "numeric", month: "long", day: "numeric" } ); } } let updatedText = ""; if (updatedDate) { const date = new Date( updatedDate ); if ( !Number.isNaN( date.getTime() ) ) { updatedText = date.toLocaleString( "en-KE" ); } } let deadlineText = ""; if ( deadline && deadline !== "null" ) { const deadlineDate = new Date( deadline ); if ( !Number.isNaN( deadlineDate.getTime() ) ) { deadlineText = deadlineDate.toLocaleDateString( "en-KE", { year: "numeric", month: "long", day: "numeric" } ); } } /* Preserve the website design classes. */ document.body.innerHTML = ` <header> <div class="logo"> 🎓 Kenya Campus Hub </div> <nav> <a href="/"> Home </a> <a href="/#tools"> Student Tools </a> </nav> </header> <main class="article-page"> <article class="full-article"> <span class="article-category"> ${category} </span> <h1> ${title} </h1> ${ organization ? ` <p> 🏢 <strong> ${organization} </strong> </p> ` : "" } ${ dateText ? ` <small style=" display:block; margin-bottom:5px; " > 📅 Published: ${dateText} </small> ` : "" } ${ updatedText ? ` <small style=" display:block; margin-bottom:10px; " > 🔄 Last updated: ${escapeHTML( updatedText )} </small> ` : "" } ${ deadlineText ? ` <div style=" margin:20px 0; padding:15px; border-radius:10px; " > ⏰ <strong> Application Deadline: </strong> ${deadlineText} </div> ` : "" } ${ description ? ` <div class="article-summary" style=" margin:20px 0; " > <strong> Summary </strong> <p> ${description} </p> </div> ` : "" } <div class="article-body"> ${formatArticleContent( content )} </div> ${ whyItMatters ? ` <div style=" margin-top:25px; padding:15px; border-radius:10px; " > <strong> 💡 Why it matters </strong> <p> ${whyItMatters} </p> </div> ` : "" } ${ sourceURL ? ` <p style=" margin-top:25px; " > <a href="${escapeHTML( sourceURL )}" target="_blank" rel="noopener noreferrer" > 🔗 View Official Source </a> </p> ` : "" } <br> <button type="button" onclick="location.href='/'" > ← Back to Kenya Campus Hub </button> </article> </main> `; } catch (error) { console.error( "Unable to open article:", error ); alert( "Unable to open this article." ); } } /* ========================================================= ARTICLE CONTENT FORMATTER ========================================================= */ function formatArticleContent(content) { if (!content) { return ` <p> No additional information available. </p> `; } return String(content) .split(/\n{2,}/) .map(paragraph => { const safe = escapeHTML( paragraph ) .replace( /\n/g, "<br>" ); return ` <p> ${safe} </p> `; }) .join(""); } /* ========================================================= AUTOMATIC ARTICLE REFRESH ========================================================= */ function startArticleAutoRefresh() { if (articleRefreshTimer) { clearInterval( articleRefreshTimer ); } /* The backend AI updater runs separately. The website checks for new information every five minutes without requiring the user to refresh the browser. */ articleRefreshTimer = setInterval( async () => { try { await fetchAllArticles(); /* Don't destroy search results. */ if ( currentCategory === "search" ) { return; } let articles = allArticles; if ( currentCategory !== "all" ) { articles = allArticles.filter( article => { return ( String( article.category || "" ) .trim() .toLowerCase() === currentCategory ); } ); } articles.sort( (a, b) => { const dateA = new Date( a.updatedAt || a.publishedDate || 0 ).getTime(); const dateB = new Date( b.updatedAt || b.publishedDate || 0 ).getTime(); return dateB - dateA; } ); renderArticles( articles ); } catch (error) { console.error( "Automatic article refresh failed:", error ); } }, 5 * 60 * 1000 ); } /* ========================================================= TOOL MODAL ========================================================= */ function openTool(tool) { const modal = $("toolModal"); if (!modal) { console.error( "toolModal not found." ); return; } modal.classList.add("active"); const toolMap = { gpa: "gpaTool", cgpa: "cgpaTool", grade: "gradeTool", targetGpa: "targetGpaTool", examMarks: "examTool", exam: "examTool", timetable: "timetableTool", loan: "loanTool", budget: "budgetTool", rent: "rentTool", fees: "feesTool", currency: "currencyTool", semesterCountdown: "countdownTool", countdown: "countdownTool", deadline: "deadlineTool", unit: "converterTool", converter: "converterTool", scientific: "scientificTool" }; document .querySelectorAll(".tool-panel") .forEach( panel => { panel.style.display = "none"; } ); const selectedID = toolMap[tool]; if (!selectedID) { console.error( `No calculator registered for: ${tool}` ); return; } const selected = $(selectedID); if (selected) { selected.style.display = "block"; } if ( tool === "unit" || tool === "converter" ) { updateUnitOptions(); } if (tool === "timetable") { renderTimetable(); } } function closeTool() { const modal = $("toolModal"); if (!modal) return; modal.classList.remove( "active" ); } document.addEventListener( "keydown", event => { if (event.key === "Escape") { closeTool(); } } ); document.addEventListener( "click", event => { const modal = $("toolModal"); if (!modal) return; if (event.target === modal) { closeTool(); } } ); /* ========================================================= GPA ========================================================= */ function addGPARow() { const rows = $("gpaRows") || $("gpaCourses"); if (!rows) return; const row = document.createElement( "div" ); row.className = "gpa-row"; row.innerHTML = ` <input type="text" placeholder="Unit name" class="gpa-name" > <input type="number" placeholder="Grade points" class="gpa-grade" min="0" max="4" step="0.01" > <input type="number" placeholder="Credits" class="gpa-credit" min="0" step="0.5" > <button type="button" title="Remove course" onclick="this.parentElement.remove()" > × </button> `; rows.appendChild(row); } function addGPACourse() { addGPARow(); } function calculateGPA() { const grades = document.querySelectorAll( ".gpa-grade" ); const credits = document.querySelectorAll( ".gpa-credit" ); if (!grades.length) { setHTML( "gpaResult", "⚠️ Add at least one course." ); return; } let totalPoints = 0; let totalCredits = 0; for ( let i = 0; i < grades.length; i++ ) { const grade = Number( grades[i].value ); const credit = Number( credits[i]?.value ); if ( !Number.isFinite(grade) || !Number.isFinite(credit) ) { continue; } if ( grade < 0 || grade > 4 || credit <= 0 ) { continue; } totalPoints += grade * credit; totalCredits += credit; } if (totalCredits <= 0) { setHTML( "gpaResult", "⚠️ Enter valid grade points and credit hours." ); return; } const gpa = totalPoints / totalCredits; setHTML( "gpaResult", ` <strong> GPA: ${gpa.toFixed(2)} </strong> <br> Total Credits: ${formatNumber(totalCredits)} ` ); } /* ========================================================= CGPA ========================================================= */ function addCGPARow() { const rows = $("cgpaRows") || $("cgpaSemesters"); if (!rows) return; const row = document.createElement( "div" ); row.className = "cgpa-row"; row.innerHTML = ` <input type="number" class="semester-gpa" placeholder="Semester GPA" min="0" max="4" step="0.01" > <input type="number" class="semester-credit" placeholder="Credit hours" min="0" step="0.5" > <button type="button" title="Remove semester" onclick="this.parentElement.remove()" > × </button> `; rows.appendChild(row); } function addCGPASemester() { addCGPARow(); } function calculateCGPA() { const gpas = document.querySelectorAll( ".semester-gpa" ); const credits = document.querySelectorAll( ".semester-credit" ); let totalPoints = 0; let totalCredits = 0; for ( let i = 0; i < gpas.length; i++ ) { const gpa = Number( gpas[i].value ); const credit = Number( credits[i]?.value ); if ( !Number.isFinite(gpa) || !Number.isFinite(credit) ) { continue; } if ( gpa < 0 || gpa > 4 || credit <= 0 ) { continue; } totalPoints += gpa * credit; totalCredits += credit; } if (totalCredits <= 0) { setHTML( "cgpaResult", "⚠️ Enter valid semester GPAs and credits." ); return; } const cgpa = totalPoints / totalCredits; setHTML( "cgpaResult", ` <strong> CGPA: ${cgpa.toFixed(2)} </strong> <br> Total Credits: ${formatNumber(totalCredits)} ` ); } /* ========================================================= GRADE ========================================================= */ function addGradeRow() { const rows = $("gradeRows"); if (!rows) return; const row = document.createElement( "div" ); row.className = "grade-row"; row.innerHTML = ` <input type="text" placeholder="Subject / Unit" class="grade-name" > <input type="number" placeholder="Mark %" class="grade-mark" min="0" max="100" step="0.01" > <button type="button" title="Remove subject" onclick="this.parentElement.remove()" > × </button> `; rows.appendChild(row); } function getGrade(mark) { if (mark >= 70) return "A"; if (mark >= 60) return "B"; if (mark >= 50) return "C"; if (mark >= 40) return "D"; return "F"; } function calculateGrade() { const marks = document.querySelectorAll( ".grade-mark" ); if (!marks.length) { setHTML( "gradeResult", "⚠️ Add at least one mark." ); return; } let total = 0; let count = 0; for (const input of marks) { const mark = Number( input.value ); if ( Number.isFinite(mark) && mark >= 0 && mark <= 100 ) { total += mark; count++; } } if (!count) { setHTML( "gradeResult", "⚠️ Enter at least one valid mark." ); return; } const average = total / count; const grade = getGrade(average); setHTML( "gradeResult", ` <strong> Average: ${average.toFixed(2)}% </strong> <br> Grade: <strong> ${grade} </strong> ` ); } /* ========================================================= TARGET GPA ========================================================= */ function calculateTargetGPA() { const currentCGPA = getNumber( "currentCGPA", getNumber( "targetCurrentGpa" ) ); const completedCredits = getNumber( "completedCredits", getNumber( "targetCompletedCredits" ) ); const targetCGPA = getNumber( "targetCGPA", getNumber( "targetDesiredGpa" ) ); const remainingCredits = getNumber( "remainingCredits", getNumber( "targetRemainingCredits" ) ); if ( !Number.isFinite(currentCGPA) || !Number.isFinite(completedCredits) || !Number.isFinite(targetCGPA) || !Number.isFinite(remainingCredits) ) { setHTML( "targetResult", "⚠️ Please enter all values." ); return; } if ( currentCGPA < 0 || currentCGPA > 4 || targetCGPA < 0 || targetCGPA > 4 || completedCredits < 0 || remainingCredits <= 0 ) { setHTML( "targetResult", "⚠️ Please enter valid GPA and credit values." ); return; } const required = ( targetCGPA * ( completedCredits + remainingCredits ) - currentCGPA * completedCredits ) / remainingCredits; if (required > 4) { setHTML( "targetResult", ` ❌ You would need <strong> ${required.toFixed(2)} </strong> GPA. <br> This is above the 4.00 maximum. ` ); return; } if (required <= 0) { setHTML( "targetResult", ` ✅ Your target has already been achieved based on the values entered. ` ); return; } setHTML( "targetResult", ` You need approximately <strong> ${required.toFixed(2)} </strong> GPA in your remaining credits. ` ); } /* ========================================================= EXAM MARKS ========================================================= */ function calculateExamMarks() { const coursework = getNumber( "courseworkMark", getNumber("catMarks") ); const courseworkWeight = getNumber( "courseworkWeight" ); const target = getNumber( "targetFinalMark", getNumber("examMarks") ); if ( !Number.isFinite(coursework) || !Number.isFinite(courseworkWeight) || !Number.isFinite(target) ) { setHTML( "examResult", "⚠️ Please enter all values." ); return; } if ( coursework < 0 || coursework > 100 || courseworkWeight <= 0 || courseworkWeight >= 100 || target < 0 || target > 100 ) { setHTML( "examResult", "⚠️ Please enter valid percentages." ); return; } const examWeight = 100 - courseworkWeight; const required = ( target - coursework * ( courseworkWeight / 100 ) ) / ( examWeight / 100 ); if (required > 100) { setHTML( "examResult", ` ❌ You would need <strong> ${required.toFixed(2)}% </strong> in the exam, which is above 100%. ` ); return; } if (required <= 0) { setHTML( "examResult", ` ✅ You have already reached the target based on your coursework. ` ); return; } setHTML( "examResult", ` You need approximately <strong> ${required.toFixed(2)}% </strong> in the exam. ` ); } /* ========================================================= TIMETABLE ========================================================= */ function loadTimetable() { try { const saved = localStorage.getItem( "kenyaCampusHubTimetable" ); if (!saved) { timetableEntries = []; return; } const parsed = JSON.parse(saved); timetableEntries = Array.isArray(parsed) ? parsed : []; } catch (error) { console.error( "Timetable loading error:", error ); timetableEntries = []; } } function saveTimetable() { localStorage.setItem( "kenyaCampusHubTimetable", JSON.stringify( timetableEntries ) ); } function addTimetableEntry() { const activity = $("timetableActivity")?.value.trim(); const day = $("timetableDay")?.value; const start = $("timetableStart")?.value; const end = $("timetableEnd")?.value; const room = $("timetableRoom")?.value.trim(); const lecturer = $("timetableLecturer")?.value.trim(); if (!activity) { alert( "Please enter the unit or activity." ); return; } if (!start || !end) { alert( "Please enter both start and end time." ); return; } if (start >= end) { alert( "End time must be later than start time." ); return; } const entry = { id: Date.now(), activity, day, start, end, room, lecturer }; timetableEntries.push( entry ); saveTimetable(); renderTimetable(); [ "timetableActivity", "timetableStart", "timetableEnd", "timetableRoom", "timetableLecturer" ].forEach(id => { if ($(id)) { $(id).value = ""; } }); } function deleteTimetableEntry(id) { timetableEntries = timetableEntries.filter( entry => entry.id !== id ); saveTimetable(); renderTimetable(); } function clearTimetable() { if (!timetableEntries.length) { renderTimetable(); return; } const confirmed = confirm( "Are you sure you want to clear your entire timetable?" ); if (!confirmed) return; timetableEntries = []; saveTimetable(); renderTimetable(); } function renderTimetable() { const grid = $("timetableGrid") || $("timetableContainer"); if (!grid) return; const days = [ "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" ]; if (!timetableEntries.length) { grid.innerHTML = ` <p> Your timetable is empty. Add your first class above. </p> `; return; } grid.innerHTML = days.map(day => { const entries = timetableEntries .filter( entry => entry.day === day ) .sort( (a, b) => a.start.localeCompare( b.start ) ); return ` <div class="timetable-day"> <h3> ${day} </h3> ${ entries.length ? entries.map( entry => ` <div class="timetable-entry" > <strong> ${escapeHTML( entry.activity )} </strong> <div> ⏰ ${escapeHTML( entry.start )} - ${escapeHTML( entry.end )} </div> ${ entry.room ? ` <div> 📍 ${escapeHTML( entry.room )} </div> ` : "" } ${ entry.lecturer ? ` <div> 👨‍🏫 ${escapeHTML( entry.lecturer )} </div> ` : "" } <button type="button" title="Delete class" onclick="deleteTimetableEntry(${entry.id})" > 🗑 </button> </div> ` ).join("") : `<p>No classes</p>` } </div> `; }).join(""); } function printTimetable() { if (!timetableEntries.length) { alert( "Your timetable is empty." ); return; } const days = [ "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" ]; const content = days.map(day => { const entries = timetableEntries .filter( entry => entry.day === day ) .sort( (a, b) => a.start.localeCompare( b.start ) ); return ` <section> <h2> ${day} </h2> ${ entries.length ? entries.map( entry => ` <p> <strong> ${escapeHTML( entry.activity )} </strong> <br> ${escapeHTML( entry.start )} - ${escapeHTML( entry.end )} ${ entry.room ? ` <br> 📍 ${escapeHTML( entry.room )} ` : "" } ${ entry.lecturer ? ` <br> 👨‍🏫 ${escapeHTML( entry.lecturer )} ` : "" } </p> ` ).join("") : "<p>No classes</p>" } </section> `; }).join(""); const printWindow = window.open( "", "_blank", "width=900,height=700" ); if (!printWindow) { alert( "Please allow pop-ups to print your timetable." ); return; } printWindow.document.write(` <!DOCTYPE html> <html> <head> <title> My Campus Timetable </title> <style> body { font-family: Arial, sans-serif; padding: 30px; } h1 { text-align: center; } section { margin-bottom: 25px; } p { border: 1px solid #ddd; padding: 10px; } </style> </head> <body> <h1> 🎓 My Campus Timetable </h1> ${content} </body> </html> `); printWindow.document.close(); printWindow.focus(); printWindow.print(); } /* ========================================================= LOAN ========================================================= */ function calculateLoan() { const principal = getNumber( "loanAmount" ); const annualRate = getNumber( "loanRate" ); const months = getNumber( "loanMonths" ); if ( !Number.isFinite(principal) || !Number.isFinite(annualRate) || !Number.isFinite(months) ) { setHTML( "loanResult", "⚠️ Enter all loan details." ); return; } if ( principal <= 0 || annualRate < 0 || months <= 0 ) { setHTML( "loanResult", "⚠️ Enter valid loan details." ); return; } const monthlyRate = annualRate / 100 / 12; let monthlyPayment; if (monthlyRate === 0) { monthlyPayment = principal / months; } else { monthlyPayment = principal * monthlyRate * Math.pow( 1 + monthlyRate, months ) / ( Math.pow( 1 + monthlyRate, months ) - 1 ); } const totalPayment = monthlyPayment * months; const totalInterest = totalPayment - principal; setHTML( "loanResult", ` <strong> Monthly Payment: KSh ${formatMoney( monthlyPayment )} </strong> <br> Total Payment: KSh ${formatMoney( totalPayment )} <br> Total Interest: KSh ${formatMoney( totalInterest )} ` ); } /* ========================================================= BUDGET ========================================================= */ function calculateBudget() { const income = getNumber( "budgetIncome" ); const expenses = [ getNumber("budgetRent"), getNumber("budgetFood"), getNumber("budgetTransport"), getNumber("budgetSchool"), getNumber("budgetOther") ]; if ( !Number.isFinite(income) || income < 0 ) { setHTML( "budgetResult", "⚠️ Enter a valid monthly income." ); return; } const totalExpenses = expenses.reduce( ( sum, value ) => sum + ( Number.isFinite(value) && value > 0 ? value : 0 ), 0 ); const balance = income - totalExpenses; const percentage = income > 0 ? ( totalExpenses / income ) * 100 : 0; setHTML( "budgetResult", ` <strong> Total Expenses: KSh ${formatMoney( totalExpenses )} </strong> <br> ${ balance >= 0 ? ` Remaining: <strong> KSh ${formatMoney( balance )} </strong> ` : ` Deficit: <strong> KSh ${formatMoney( Math.abs(balance) )} </strong> ` } <br> You are using approximately ${percentage.toFixed(1)}% of your income. ` ); } /* ========================================================= RENT ========================================================= */ function calculateRent() { const rent = getNumber( "totalRent", getNumber( "rentAmount" ) ); const people = getNumber( "rentPeople" ); const shared = getNumber( "sharedExpenses" ); if ( !Number.isFinite(rent) || !Number.isFinite(people) || !Number.isFinite(shared) ) { setHTML( "rentResult", "⚠️ Enter all values." ); return; } if ( rent < 0 || shared < 0 || people <= 0 ) { setHTML( "rentResult", "⚠️ Enter valid values." ); return; } const total = rent + shared; const perPerson = total / people; setHTML( "rentResult", ` Total Shared Cost: <strong> KSh ${formatMoney(total)} </strong> <br> Each Person Pays: <strong> KSh ${formatMoney(perPerson)} </strong> ` ); } /* ========================================================= FEES ========================================================= */ function calculateFees() { const total = getNumber( "totalFees", getNumber( "feesTotal" ) ); const paid = getNumber( "feesPaid" ); if ( !Number.isFinite(total) || !Number.isFinite(paid) ) { setHTML( "feesResult", "⚠️ Enter both fee values." ); return; } if ( total < 0 || paid < 0 ) { setHTML( "feesResult", "⚠️ Fee values cannot be negative." ); return; } const balance = total - paid; const percentage = total > 0 ? ( paid / total ) * 100 : 0; if (balance < 0) { setHTML( "feesResult", ` Paid: <strong> KSh ${formatMoney( paid )} </strong> <br> Overpayment: <strong> KSh ${formatMoney( Math.abs(balance) )} </strong> <br> Paid: ${percentage.toFixed(1)}% ` ); return; } setHTML( "feesResult", ` Remaining Balance: <strong> KSh ${formatMoney( balance )} </strong> <br> Paid: ${percentage.toFixed(1)}% ` ); } /* ========================================================= CURRENCY ========================================================= */ function convertCurrency() { const amount = getNumber( "currencyAmount" ); const rate = getNumber( "currencyRate" ); const from = $("currencyFrom")?.value; const to = $("currencyTo")?.value; if ( !Number.isFinite(amount) || !Number.isFinite(rate) ) { setHTML( "currencyResult", "⚠️ Enter amount and exchange rate." ); return; } if ( amount < 0 || rate <= 0 ) { setHTML( "currencyResult", "⚠️ Enter valid values." ); return; } let result; if (from === to) { result = amount; } else if ( from === "foreign" && to === "kes" ) { result = amount * rate; } else if ( from === "kes" && to === "foreign" ) { result = amount / rate; } else { result = amount; } const symbol = to === "kes" ? "KSh" : "Foreign Currency"; setHTML( "currencyResult", ` <strong> ${formatMoney(result)} ${symbol} </strong> ` ); } /* ========================================================= COUNTDOWN ========================================================= */ function calculateCountdown( inputId, resultId ) { const input = $(inputId); const result = $(resultId); if ( !input || !result ) return; const dateValue = input.value; if (!dateValue) { result.innerHTML = "⚠️ Please select a date."; return; } if ( resultId === "semesterCountdown" ) { if (semesterCountdownTimer) { clearInterval( semesterCountdownTimer ); } semesterCountdownTimer = createCountdown( dateValue, resultId, "Semester" ); } else { if (deadlineCountdownTimer) { clearInterval( deadlineCountdownTimer ); } deadlineCountdownTimer = createCountdown( dateValue, resultId, "Deadline" ); } } function createCountdown( dateValue, resultId, label ) { const target = new Date( dateValue ).getTime(); if ( Number.isNaN( target ) ) { setHTML( resultId, "⚠️ Invalid date." ); return null; } function update() { const difference = target - Date.now(); const element = $(resultId); if (!element) return; if (difference <= 0) { element.innerHTML = ` <strong> 🎉 ${label} date has arrived! </strong> `; return; } const totalSeconds = Math.floor( difference / 1000 ); const days = Math.floor( totalSeconds / 86400 ); const hours = Math.floor( ( totalSeconds % 86400 ) / 3600 ); const minutes = Math.floor( ( totalSeconds % 3600 ) / 60 ); const seconds = totalSeconds % 60; element.innerHTML = ` <strong> ${days} days </strong> <br> ${pad(hours)} hours : ${pad(minutes)} minutes : ${pad(seconds)} seconds `; } update(); return setInterval( update, 1000 ); } function startSemesterCountdown() { calculateCountdown( "semesterDate", "semesterCountdown" ); } function startDeadlineCountdown() { const name = $("deadlineName") ?.value .trim(); if (name) { setHTML( "deadlineResult", ` <strong> ${escapeHTML(name)} </strong> <div id="deadlineCountdown" class="live-countdown" > Starting countdown... </div> ` ); } calculateCountdown( "deadlineDate", "deadlineCountdown" ); } function calculateDeadline() { startDeadlineCountdown(); } function pad(number) { return String(number) .padStart( 2, "0" ); } /* ========================================================= UNIT DATA ========================================================= */ const UNIT_DATA = { length: { meter: ["Meter (m)", 1], kilometer: ["Kilometer (km)", 1000], centimeter: ["Centimeter (cm)", 0.01], millimeter: ["Millimeter (mm)", 0.001], micrometer: ["Micrometer (µm)", 0.000001], nanometer: ["Nanometer (nm)", 0.000000001], mile: ["Mile (mi)", 1609.344], yard: ["Yard (yd)", 0.9144], foot: ["Foot (ft)", 0.3048], inch: ["Inch (in)", 0.0254] }, area: { squareMeter: ["Square meter (m²)", 1], squareKilometer: ["Square kilometer (km²)", 1000000], squareCentimeter: ["Square centimeter (cm²)", 0.0001], hectare: ["Hectare (ha)", 10000], acre: ["Acre", 4046.8564224], squareFoot: ["Square foot (ft²)", 0.09290304], squareInch: ["Square inch (in²)", 0.00064516] }, volume: { liter: ["Liter (L)", 1], milliliter: ["Milliliter (mL)", 0.001], cubicMeter: ["Cubic meter (m³)", 1000], cubicCentimeter: ["Cubic centimeter (cm³)", 0.001], gallonUS: ["US gallon", 3.785411784], quartUS: ["US quart", 0.946352946], pintUS: ["US pint", 0.473176473], cupUS: ["US cup", 0.2365882365] }, mass: { kilogram: ["Kilogram (kg)", 1], gram: ["Gram (g)", 0.001], milligram: ["Milligram (mg)", 0.000001], tonne: ["Metric tonne", 1000], pound: ["Pound (lb)", 0.45359237], ounce: ["Ounce (oz)", 0.028349523125] }, time: { second: ["Second (s)", 1], millisecond: ["Millisecond (ms)", 0.001], minute: ["Minute (min)", 60], hour: ["Hour (h)", 3600], day: ["Day", 86400], week: ["Week", 604800], year: ["Year", 31536000] }, speed: { metersPerSecond: ["Meters/second", 1], kilometersPerHour: ["Kilometers/hour", 0.2777777778], milesPerHour: ["Miles/hour", 0.44704], knot: ["Knot", 0.5144444444] }, acceleration: { meterPerSecondSquared: ["m/s²", 1], kilometerPerHourSquared: ["km/h²", 1 / 12960], gravity: ["Standard gravity (g)", 9.80665] }, force: { newton: ["Newton (N)", 1], kilonewton: ["Kilonewton (kN)", 1000], dyne: ["Dyne", 0.00001], poundForce: ["Pound-force", 4.4482216153] }, pressure: { pascal: ["Pascal (Pa)", 1], kilopascal: ["Kilopascal (kPa)", 1000], megapascal: ["Megapascal (MPa)", 1000000], bar: ["Bar", 100000], atmosphere: ["Atmosphere (atm)", 101325], psi: ["PSI", 6894.757293], torr: ["Torr", 133.322368] }, energy: { joule: ["Joule (J)", 1], kilojoule: ["Kilojoule (kJ)", 1000], calorie: ["Calorie", 4.184], kilocalorie: ["Kilocalorie", 4184], wattHour: ["Watt-hour (Wh)", 3600], kilowattHour: ["Kilowatt-hour (kWh)", 3600000], electronVolt: ["Electronvolt (eV)", 1.602176634e-19] }, power: { watt: ["Watt (W)", 1], kilowatt: ["Kilowatt (kW)", 1000], megawatt: ["Megawatt (MW)", 1000000], horsepower: ["Horsepower", 745.699872] }, frequency: { hertz: ["Hertz (Hz)", 1], kilohertz: ["Kilohertz (kHz)", 1000], megahertz: ["Megahertz (MHz)", 1000000], gigahertz: ["Gigahertz (GHz)", 1000000000] }, angle: { degree: ["Degree (°)", 1], radian: ["Radian", 180 / Math.PI], gradian: ["Gradian", 0.9], arcminute: ["Arcminute", 1 / 60], arcsecond: ["Arcsecond", 1 / 3600] }, density: { kilogramPerCubicMeter: ["kg/m³", 1], gramPerCubicCentimeter: ["g/cm³", 1000], kilogramPerLiter: ["kg/L", 1000] }, data: { bit: ["Bit", 1], byte: ["Byte", 8], kilobit: ["Kilobit", 1000], kilobyte: ["Kilobyte", 8000], megabit: ["Megabit", 1000000], megabyte: ["Megabyte", 8000000], gigabit: ["Gigabit", 1000000000], gigabyte: ["Gigabyte", 8000000000], terabyte: ["Terabyte", 8000000000000] }, voltage: { volt: ["Volt (V)", 1], millivolt: ["Millivolt (mV)", 0.001], kilovolt: ["Kilovolt (kV)", 1000] }, current: { ampere: ["Ampere (A)", 1], milliampere: ["Milliampere (mA)", 0.001], microampere: ["Microampere (µA)", 0.000001] }, resistance: { ohm: ["Ohm (Ω)", 1], kilohm: ["Kilohm (kΩ)", 1000], megohm: ["Megohm (MΩ)", 1000000] }, charge: { coulomb: ["Coulomb (C)", 1], millicoulomb: ["Millicoulomb", 0.001], microcoulomb: ["Microcoulomb", 0.000001] }, capacitance: { farad: ["Farad (F)", 1], microfarad: ["Microfarad (µF)", 0.000001], nanofarad: ["Nanofarad (nF)", 0.000000001], picofarad: ["Picofarad (pF)", 0.000000000001] }, inductance: { henry: ["Henry (H)", 1], millihenry: ["Millihenry (mH)", 0.001], microhenry: ["Microhenry (µH)", 0.000001] }, amount: { mole: ["Mole (mol)", 1], millimole: ["Millimole (mmol)", 0.001], micromole: ["Micromole (µmol)", 0.000001] }, viscosity: { pascalSecond: ["Pascal-second (Pa·s)", 1], millipascalSecond: ["Millipascal-second (mPa·s)", 0.001], poise: ["Poise", 0.1], centipoise: ["Centipoise", 0.001] }, illuminance: { lux: ["Lux (lx)", 1], phot: ["Phot", 10000], footCandle: ["Foot-candle", 10.7639104167] }, radioactivity: { becquerel: ["Becquerel (Bq)", 1], kilobecquerel: ["Kilobecquerel (kBq)", 1000], megabecquerel: ["Megabecquerel (MBq)", 1000000], curie: ["Curie (Ci)", 3.7e10] } }; /* ========================================================= UNIT CONVERTER ========================================================= */ function initializeUnitConverter() { const category = $("conversionType"); if (!category) return; category.addEventListener( "change", updateUnitOptions ); updateUnitOptions(); } function updateUnitOptions() { const category = $("conversionType")?.value; const from = $("fromUnit"); const to = $("toUnit"); if ( !category || !from || !to ) return; from.innerHTML = ""; to.innerHTML = ""; if ( category === "temperature" ) { addTemperatureOptions( from ); addTemperatureOptions( to ); return; } const units = UNIT_DATA[category]; if (!units) return; Object.entries(units) .forEach( ([key, data]) => { const option1 = document.createElement( "option" ); option1.value = key; option1.textContent = data[0]; from.appendChild( option1 ); const option2 = document.createElement( "option" ); option2.value = key; option2.textContent = data[0]; to.appendChild( option2 ); } ); if ( to.options.length > 1 ) { to.selectedIndex = 1; } } function addTemperatureOptions( select ) { const options = { celsius: "Celsius (°C)", fahrenheit: "Fahrenheit (°F)", kelvin: "Kelvin (K)" }; Object.entries(options) .forEach( ([value, text]) => { const option = document.createElement( "option" ); option.value = value; option.textContent = text; select.appendChild( option ); } ); } function convertUnit() { const category = $("conversionType")?.value; const value = getNumber( "convertValue" ); const from = $("fromUnit")?.value; const to = $("toUnit")?.value; if ( !Number.isFinite(value) ) { setHTML( "unitResult", "⚠️ Enter a valid value." ); return; } let result; if ( category === "temperature" ) { result = convertTemperature( value, from, to ); } else { const units = UNIT_DATA[ category ]; if ( !units || !units[from] || !units[to] ) { setHTML( "unitResult", "⚠️ Conversion not available." ); return; } const baseValue = value * units[from][1]; result = baseValue / units[to][1]; } if ( !Number.isFinite(result) ) { setHTML( "unitResult", "⚠️ Unable to perform conversion." ); return; } setHTML( "unitResult", ` <strong> ${formatNumber(result)} </strong> ` ); } function convertTemperature( value, from, to ) { let celsius; if ( from === "celsius" ) { celsius = value; } else if ( from === "fahrenheit" ) { celsius = ( value - 32 ) * 5 / 9; } else if ( from === "kelvin" ) { celsius = value - 273.15; } else { return NaN; } if ( to === "celsius" ) { return celsius; } if ( to === "fahrenheit" ) { return ( celsius * 9 / 5 ) + 32; } if ( to === "kelvin" ) { return ( celsius + 273.15 ); } return NaN; } /* ========================================================= SCIENTIFIC CALCULATOR ========================================================= */ function getScientificDisplay() { return $("scientificDisplay"); } function scientificInput(value) { const display = getScientificDisplay(); if (!display) return; if ( display.value === "Error" ) { display.value = ""; } display.value += value; } function scientificClear() { const display = getScientificDisplay(); if (!display) return; display.value = ""; setHTML( "scientificResult", "" ); } function scientificDelete() { const display = getScientificDisplay(); if (!display) return; display.value = display.value.slice( 0, -1 ); } function scientificBackspace() { scientificDelete(); } function scientificAns() { scientificInput( String( scientificAnswer ) ); } function angleToRadians( value ) { if ( scientificAngleMode === "DEG" ) { return ( value * Math.PI / 180 ); } if ( scientificAngleMode === "GRAD" ) { return ( value * Math.PI / 200 ); } return value; } function radiansToAngle( value ) { if ( scientificAngleMode === "DEG" ) { return ( value * 180 / Math.PI ); } if ( scientificAngleMode === "GRAD" ) { return ( value * 200 / Math.PI ); } return value; } function factorial(n) { if ( !Number.isFinite(n) ) { return NaN; } if ( n < 0 || !Number.isInteger(n) ) { return NaN; } if ( n > 170 ) { return Infinity; } let result = 1; for ( let i = 2; i <= n; i++ ) { result *= i; } return result; } function scientificFunction( name ) { const display = getScientificDisplay(); if (!display) return; if ( name === "random" ) { const result = Math.random(); scientificAnswer = result; display.value = formatNumber( result ); setHTML( "scientificResult", ` Answer: <strong> ${formatNumber(result)} </strong> ` ); return; } const value = evaluateScientificExpression( display.value ); if ( !Number.isFinite(value) ) { display.value = "Error"; return; } let result; switch (name) { case "sin": result = Math.sin( angleToRadians( value ) ); break; case "cos": result = Math.cos( angleToRadians( value ) ); break; case "tan": result = Math.tan( angleToRadians( value ) ); break; case "asin": result = radiansToAngle( Math.asin(value) ); break; case "acos": result = radiansToAngle( Math.acos(value) ); break; case "atan": result = radiansToAngle( Math.atan(value) ); break; case "sinh": result = Math.sinh(value); break; case "cosh": result = Math.cosh(value); break; case "tanh": result = Math.tanh(value); break; case "sqrt": result = Math.sqrt(value); break; case "log": result = Math.log10(value); break; case "ln": result = Math.log(value); break; case "exp": result = Math.exp(value); break; case "pow10": result = Math.pow( 10, value ); break; case "square": result = value * value; break; case "power": scientificInput("^"); return; case "factorial": result = factorial(value); break; case "reciprocal": result = 1 / value; break; case "abs": result = Math.abs(value); break; default: return; } if ( !Number.isFinite(result) ) { display.value = "Error"; return; } scientificAnswer = result; display.value = formatNumber( result ); setHTML( "scientificResult", ` Answer: <strong> ${formatNumber(result)} </strong> ` ); } function setAngleMode( mode ) { if ( ![ "DEG", "RAD", "GRAD" ].includes(mode) ) { return; } scientificAngleMode = mode; const buttons = { DEG: $("degreeMode"), RAD: $("radianMode"), GRAD: $("gradianMode") }; Object.values(buttons) .forEach( button => { if (button) { button.classList.remove( "active" ); } } ); if ( buttons[mode] ) { buttons[mode].classList.add( "active" ); } } function evaluateScientificExpression( expression ) { if (!expression) return NaN; let value = String(expression) .trim() .replace( /×/g, "*" ) .replace( /÷/g, "/" ) .replace( /−/g, "-" ) .replace( /π/gi, "Math.PI" ) .replace( /\bAns\b/gi, String( scientificAnswer ) ) .replace( /\bPI\b/g, "Math.PI" ) .replace( /\bE\b/g, "Math.E" ); value = value.replace( /(\d+(?:\.\d+)?)%/g, "($1/100)" ); value = convertPowerOperators( value ); return safeArithmeticEvaluation( value ); } function convertPowerOperators( expression ) { let result = expression; const simplePower = /(\([^()]+\)|Math\.PI|Math\.E|\d+(?:\.\d+)?)\s*\^\s*(\([^()]+\)|Math\.PI|Math\.E|\d+(?:\.\d+)?)/; let safety = 0; while ( simplePower.test(result) && safety < 50 ) { result = result.replace( simplePower, "Math.pow($1,$2)" ); safety++; } return result; } function safeArithmeticEvaluation( expression ) { if (!expression) return NaN; const allowed = /^[0-9+\-*/%().,\sA-Za-z_]+$/; if ( !allowed.test(expression) ) { return NaN; } const blocked = /\b(?:constructor|window|document|globalThis|process|require|import|eval|Function|fetch|localStorage|sessionStorage)\b/i; if ( blocked.test(expression) ) { return NaN; } try { const result = Function( `"use strict"; return (${expression});` )(); return Number(result); } catch (error) { console.error( "Scientific calculation error:", error ); return NaN; } } function scientificCalculate() { const display = getScientificDisplay(); if (!display) return; const expression = display.value.trim(); if (!expression) return; const result = evaluateScientificExpression( expression ); if ( !Number.isFinite(result) ) { display.value = "Error"; setHTML( "scientificResult", "⚠️ Invalid mathematical expression." ); return; } scientificAnswer = result; display.value = formatNumber( result ); setHTML( "scientificResult", ` Answer: <strong> ${formatNumber(result)} </strong> ` ); } function scientificMemoryClear() { scientificMemory = 0; } function scientificMemoryRecall() { scientificInput( String( scientificMemory ) ); } function scientificMemoryAdd() { const display = getScientificDisplay(); if (!display) return; const value = evaluateScientificExpression( display.value ); if ( Number.isFinite(value) ) { scientificMemory += value; } } function scientificMemorySubtract() { const display = getScientificDisplay(); if (!display) return; const value = evaluateScientificExpression( display.value ); if ( Number.isFinite(value) ) { scientificMemory -= value; } } /* ========================================================= FORMATTING ========================================================= */ function formatMoney(value) { if ( !Number.isFinite( Number(value) ) ) { return "0.00"; } return Number(value) .toLocaleString( "en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 } ); } function formatNumber(value) { if ( !Number.isFinite( Number(value) ) ) { return "Error"; } const number = Number(value); if ( Math.abs(number) >= 1e12 || ( Math.abs(number) > 0 && Math.abs(number) < 1e-8 ) ) { return number.toExponential( 8 ); } return number.toLocaleString( "en-US", { maximumFractionDigits: 10 } ); } /* ========================================================= GLOBAL ERROR HANDLING ========================================================= */ window.addEventListener( "error", event => { console.error( "Kenya Campus Hub error:", event.error || event.message ); } ); window.addEventListener( "unhandledrejection", event => { console.error( "Kenya Campus Hub promise error:", event.reason ); } ); /* ========================================================= EXPORT MAIN WEBSITE FUNCTIONS ========================================================= */ Object.assign( window, { /* Articles */ loadCategory, searchContent, performSearch, openArticle, goToSearch, /* Tools */ openTool, closeTool, /* GPA */ addGPARow, addGPACourse, calculateGPA, /* CGPA */ addCGPARow, addCGPASemester, calculateCGPA, /* Grade */ addGradeRow, calculateGrade, /* Target GPA */ calculateTargetGPA, /* Exam */ calculateExamMarks, /* Timetable */ loadTimetable, saveTimetable, addTimetableEntry, deleteTimetableEntry, clearTimetable, renderTimetable, printTimetable, /* Finance */ calculateLoan, calculateBudget, calculateRent, calculateFees, /* Currency */ convertCurrency, /* Countdown */ calculateCountdown, startSemesterCountdown, startDeadlineCountdown, calculateDeadline, /* Unit converter */ updateUnitOptions, convertUnit, /* Scientific calculator */ scientificInput, scientificClear, scientificDelete, scientificBackspace, scientificAns, scientificFunction, scientificCalculate, setAngleMode, scientificMemoryClear, scientificMemoryRecall, scientificMemoryAdd, scientificMemorySubtract } );
+/* =====================================================
+   HigherSpace Connect — app.js
+   Core, site-wide behaviour.
+===================================================== */
+
+/**
+ * Sends the value of #searchInput to category.html as a
+ * free-text query. If the field is empty, it's a no-op.
+ */
+function goToSearch() {
+    const input = document.getElementById('searchInput');
+    if (!input) return;
+
+    const query = input.value.trim();
+    if (!query) {
+        input.focus();
+        return;
+    }
+
+    window.location.href = 'category.html?q=' + encodeURIComponent(query);
+}
+
+/* Let the search box submit on Enter, not just the button click. */
+document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('searchInput');
+    if (!input) return;
+
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            goToSearch();
+        }
+    });
+});
+
+
+/* =====================================================
+   INSTITUTIONS DIRECTORY
+   Search box + type filter chips + county dropdown,
+   all combined into one query string for institutions.html.
+===================================================== */
+
+let currentInstitutionFilter = 'all';
+let currentCountyFilter = '';
+
+/**
+ * Sets the active institution-type filter (all / university /
+ * tvet / college) and updates the chip styling to match.
+ */
+function setInstitutionFilter(filter, buttonEl) {
+    currentInstitutionFilter = filter;
+
+    document.querySelectorAll('.filter-chip').forEach(function (chip) {
+        chip.classList.remove('active');
+    });
+
+    if (buttonEl) {
+        buttonEl.classList.add('active');
+    }
+}
+
+/**
+ * Sets the active county filter from the <select> dropdown.
+ */
+function setCountyFilter(value) {
+    currentCountyFilter = value;
+}
+
+/**
+ * Sends the institution search box value, plus whichever type
+ * and county filters are active, to institutions.html.
+ */
+function goToInstitutionSearch() {
+    const input = document.getElementById('institutionSearchInput');
+    const query = input ? input.value.trim() : '';
+
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    if (currentInstitutionFilter && currentInstitutionFilter !== 'all') {
+        params.set('type', currentInstitutionFilter);
+    }
+    if (currentCountyFilter) params.set('county', currentCountyFilter);
+
+    const qs = params.toString();
+    window.location.href = 'institutions.html' + (qs ? '?' + qs : '');
+}
+
+/* Let the institution search box submit on Enter too. */
+document.addEventListener('DOMContentLoaded', function () {
+    const input = document.getElementById('institutionSearchInput');
+    if (!input) return;
+
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            goToInstitutionSearch();
+        }
+    });
+});
+
+
+/* =====================================================
+   MY CAMPUS
+   Lets a student pick their institution once and see a
+   personalized panel of quick links. The choice is
+   remembered in localStorage between visits.
+===================================================== */
+
+const MY_CAMPUS_STORAGE_KEY = 'higherspace-my-campus';
+
+const MY_CAMPUS_INSTITUTIONS = {
+    uon: 'University of Nairobi',
+    ku: 'Kenyatta University',
+    jkuat: 'JKUAT',
+    moi: 'Moi University',
+    strathmore: 'Strathmore University',
+    egerton: 'Egerton University',
+    mmust: 'Masinde Muliro University'
+};
+
+/**
+ * Builds the row of quick-link pills shown once a campus is
+ * chosen (News, Announcements, Opportunities), each carrying
+ * the institution key so category.html can filter by it.
+ */
+function buildMyCampusLinks(institutionKey) {
+    const container = document.getElementById('myCampusLinks');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const links = [
+        { label: 'News', type: 'news' },
+        { label: 'Announcements', type: 'university-alerts' },
+        { label: 'Opportunities', type: 'scholarships' }
+    ];
+
+    links.forEach(function (link) {
+        const a = document.createElement('a');
+        a.href = 'category.html?type=' + encodeURIComponent(link.type) +
+            '&institution=' + encodeURIComponent(institutionKey);
+        a.textContent = link.label;
+        container.appendChild(a);
+    });
+}
+
+/**
+ * Shows the "My Campus" result panel for the given institution
+ * key and hides the picker. Pass no argument to just re-render
+ * from whatever is already saved.
+ */
+function renderMyCampus(institutionKey) {
+    const picker = document.getElementById('myCampusPicker');
+    const result = document.getElementById('myCampusResult');
+    const nameEl = document.getElementById('myCampusName');
+
+    const name = MY_CAMPUS_INSTITUTIONS[institutionKey];
+    if (!name || !picker || !result || !nameEl) return;
+
+    nameEl.textContent = name;
+    buildMyCampusLinks(institutionKey);
+
+    picker.hidden = true;
+    result.hidden = false;
+}
+
+/**
+ * Reads the selected institution from the dropdown, saves it,
+ * and shows the personalized panel.
+ */
+function setMyCampus() {
+    const select = document.getElementById('myCampusSelect');
+    if (!select || !select.value) {
+        if (select) select.focus();
+        return;
+    }
+
+    try {
+        localStorage.setItem(MY_CAMPUS_STORAGE_KEY, select.value);
+    } catch (err) {
+        /* Private browsing / storage disabled — still show the
+           panel for this visit even if it won't persist. */
+    }
+
+    renderMyCampus(select.value);
+}
+
+/**
+ * Clears the saved institution and shows the picker again.
+ */
+function clearMyCampus() {
+    try {
+        localStorage.removeItem(MY_CAMPUS_STORAGE_KEY);
+    } catch (err) {
+        /* Ignore — nothing to clear if storage isn't available. */
+    }
+
+    const picker = document.getElementById('myCampusPicker');
+    const result = document.getElementById('myCampusResult');
+    const select = document.getElementById('myCampusSelect');
+
+    if (result) result.hidden = true;
+    if (picker) picker.hidden = false;
+    if (select) select.value = '';
+}
+
+/* On load, restore a previously saved campus, if any. */
+document.addEventListener('DOMContentLoaded', function () {
+    let saved = null;
+
+    try {
+        saved = localStorage.getItem(MY_CAMPUS_STORAGE_KEY);
+    } catch (err) {
+        saved = null;
+    }
+
+    if (!saved || !MY_CAMPUS_INSTITUTIONS[saved]) return;
+
+    const select = document.getElementById('myCampusSelect');
+    if (select) select.value = saved;
+
+    renderMyCampus(saved);
+});
+
+/* On institutions.html load: read q/type/county from the URL
+   (set by the homepage search box) and pre-fill + filter. */
+document.addEventListener('DOMContentLoaded', function () {
+    const grid = document.getElementById('institutionsResultsGrid');
+    if (!grid) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q') || '';
+    const type = params.get('type') || 'all';
+    const county = params.get('county') || '';
+
+    const searchInput = document.getElementById('institutionsPageSearchInput');
+    const countySelect = document.getElementById('institutionsPageCounty');
+
+    if (searchInput) searchInput.value = q;
+    if (countySelect) countySelect.value = county;
+
+    institutionsPageFilter = type;
+    document.querySelectorAll('#institutionsPageFilters .filter-chip').forEach(function (chip) {
+        chip.classList.toggle('active', chip.getAttribute('data-filter') === type);
+    });
+
+    filterInstitutionsPage();
+
+    if (searchInput) {
+        searchInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                filterInstitutionsPage();
+            }
+        });
+    }
+});
+
+
+/* =====================================================
+   INSTITUTIONS DIRECTORY PAGE (institutions.html)
+   Placeholder sample data — swap SAMPLE_INSTITUTIONS for
+   a real data source (API/CMS) when one is available.
+===================================================== */
+
+const SAMPLE_INSTITUTIONS = [
+    { name: 'University of Nairobi', type: 'university', county: 'nairobi' },
+    { name: 'Kenyatta University', type: 'university', county: 'kiambu' },
+    { name: 'JKUAT', type: 'university', county: 'kiambu' },
+    { name: 'Moi University', type: 'university', county: 'uasin-gishu' },
+    { name: 'Strathmore University', type: 'university', county: 'nairobi' },
+    { name: 'Egerton University', type: 'university', county: 'nakuru' },
+    { name: 'Maseno University', type: 'university', county: 'kisumu' },
+
+    /* --- Public universities --- */
+    { name: 'Technical University of Kenya', type: 'university', county: 'nairobi' },
+    { name: 'Multimedia University of Kenya', type: 'university', county: 'nairobi' },
+    { name: 'Cooperative University of Kenya', type: 'university', county: 'nairobi' },
+    { name: 'Dedan Kimathi University of Technology', type: 'university', county: 'nyeri' },
+    { name: 'Karatina University', type: 'university', county: 'nyeri' },
+    { name: 'Chuka University', type: 'university', county: 'tharaka-nithi' },
+    { name: 'Kisii University', type: 'university', county: 'kisii' },
+    { name: 'Laikipia University', type: 'university', county: 'laikipia' },
+    { name: 'South Eastern Kenya University', type: 'university', county: 'kitui' },
+    { name: 'Masinde Muliro University of Science and Technology', type: 'university', county: 'kakamega' },
+    { name: 'Pwani University', type: 'university', county: 'kilifi' },
+    { name: 'Kibabii University', type: 'university', county: 'bungoma' },
+    { name: 'Machakos University', type: 'university', county: 'machakos' },
+    { name: 'Meru University of Science and Technology', type: 'university', county: 'meru' },
+    { name: "Murang'a University of Technology", type: 'university', county: 'muranga' },
+    { name: 'Rongo University', type: 'university', county: 'migori' },
+    { name: 'Taita Taveta University', type: 'university', county: 'taita-taveta' },
+    { name: 'University of Eldoret', type: 'university', county: 'uasin-gishu' },
+    { name: 'University of Kabianga', type: 'university', county: 'kericho' },
+    { name: 'Jaramogi Oginga Odinga University of Science and Technology', type: 'university', county: 'siaya' },
+    { name: 'Garissa University', type: 'university', county: 'garissa' },
+    { name: 'Tom Mboya University', type: 'university', county: 'homa-bay' },
+    { name: 'Alupe University', type: 'university', county: 'busia' },
+    { name: 'Turkana University College', type: 'university', county: 'turkana' },
+    { name: 'Koitaleel Samoei University College', type: 'university', county: 'nandi' },
+    { name: 'Bomet University College', type: 'university', county: 'bomet' },
+    { name: 'Kaimosi Friends University', type: 'university', county: 'vihiga' },
+    { name: 'Kirinyaga University', type: 'university', county: 'kirinyaga' },
+    { name: 'University of Embu', type: 'university', county: 'embu' },
+    { name: 'Maasai Mara University', type: 'university', county: 'narok' },
+
+    /* --- Private chartered universities --- */
+    { name: 'Catholic University of Eastern Africa', type: 'university', county: 'nairobi' },
+    { name: 'United States International University Africa', type: 'university', county: 'nairobi' },
+    { name: 'Daystar University', type: 'university', county: 'machakos' },
+    { name: 'Africa Nazarene University', type: 'university', county: 'kajiado' },
+    { name: 'Pan Africa Christian University', type: 'university', county: 'nairobi' },
+    { name: "St. Paul's University", type: 'university', county: 'kiambu' },
+    { name: 'Kenya Highlands Evangelical University', type: 'university', county: 'kericho' },
+    { name: 'University of Eastern Africa, Baraton', type: 'university', county: 'nandi' },
+    { name: 'Kabarak University', type: 'university', county: 'nakuru' },
+    { name: 'Mount Kenya University', type: 'university', county: 'kiambu' },
+    { name: 'Zetech University', type: 'university', county: 'kiambu' },
+    { name: 'KCA University', type: 'university', county: 'nairobi' },
+    { name: 'Riara University', type: 'university', county: 'nairobi' },
+    { name: 'Presbyterian University of East Africa', type: 'university', county: 'kiambu' },
+    { name: 'Africa International University', type: 'university', county: 'nairobi' },
+    { name: 'Gretsa University', type: 'university', county: 'kiambu' },
+    { name: 'Management University of Africa', type: 'university', county: 'nairobi' },
+    { name: 'Great Lakes University of Kisumu', type: 'university', county: 'kisumu' },
+    { name: 'Pioneer International University', type: 'university', county: 'nairobi' },
+    { name: 'Lukenya University', type: 'university', county: 'machakos' },
+    { name: 'Umma University', type: 'university', county: 'kajiado' },
+    { name: 'Amref International University', type: 'university', county: 'nairobi' },
+    { name: 'Uzima University', type: 'university', county: 'kisumu' },
+    { name: 'Kenya Methodist University', type: 'university', county: 'meru' },
+    { name: 'Adventist University of Africa', type: 'university', county: 'nairobi' },
+    { name: 'Scott Christian University', type: 'university', county: 'machakos' },
+
+    { name: 'Technical University of Mombasa', type: 'tvet', county: 'mombasa' },
+    { name: 'Kisumu National Polytechnic', type: 'tvet', county: 'kisumu' },
+    { name: 'Nakuru National Polytechnic', type: 'tvet', county: 'nakuru' },
+    { name: 'Rift Valley Institute of Science and Technology', type: 'tvet', county: 'uasin-gishu' },
+
+    /* --- National Polytechnics --- */
+    { name: 'Kenya Coast National Polytechnic', type: 'tvet', county: 'mombasa' },
+    { name: 'Eldoret National Polytechnic', type: 'tvet', county: 'uasin-gishu' },
+    { name: 'Meru National Polytechnic', type: 'tvet', county: 'meru' },
+    { name: 'North Eastern National Polytechnic', type: 'tvet', county: 'garissa' },
+    { name: 'Sigalagala National Polytechnic', type: 'tvet', county: 'kakamega' },
+    { name: 'Kitale National Polytechnic', type: 'tvet', county: 'trans-nzoia' },
+    { name: 'Kabete National Polytechnic', type: 'tvet', county: 'nairobi' },
+    { name: 'Nyeri National Polytechnic', type: 'tvet', county: 'nyeri' },
+    { name: 'Kisii National Polytechnic', type: 'tvet', county: 'kisii' },
+    { name: 'Kabarnet National Polytechnic', type: 'tvet', county: 'baringo' },
+    { name: 'Nyandarua National Polytechnic', type: 'tvet', county: 'nyandarua' },
+    { name: 'Kericho National Polytechnic', type: 'tvet', county: 'kericho' },
+
+    /* --- Technical Training Institutes --- */
+    { name: 'Thika Technical Training Institute', type: 'tvet', county: 'kiambu' },
+    { name: 'Kaiboi Technical Training Institute', type: 'tvet', county: 'uasin-gishu' },
+    { name: 'Bumbe Technical Training Institute', type: 'tvet', county: 'busia' },
+    { name: 'Baringo Technical College', type: 'tvet', county: 'baringo' },
+    { name: 'Siaya Institute of Technology', type: 'tvet', county: 'siaya' },
+    { name: 'Kilifi Institute of Technology', type: 'tvet', county: 'kilifi' },
+    { name: 'Voi Technical Training Institute', type: 'tvet', county: 'taita-taveta' },
+    { name: 'Garissa Technical Training Institute', type: 'tvet', county: 'garissa' },
+    { name: 'Wote Technical Training Institute', type: 'tvet', county: 'makueni' },
+    { name: 'Kitui Technical Training Institute', type: 'tvet', county: 'kitui' },
+    { name: 'Machakos Technical Training Institute', type: 'tvet', county: 'machakos' },
+    { name: 'Nairobi Technical Training Institute', type: 'tvet', county: 'nairobi' },
+    { name: 'Bureti Technical Training Institute', type: 'tvet', county: 'kericho' },
+    { name: "Murang'a Technical Training Institute", type: 'tvet', county: 'muranga' },
+    { name: 'Kigumo Technical Training Institute', type: 'tvet', county: 'muranga' },
+    { name: 'Kaimosi Friends Technical Training Institute', type: 'tvet', county: 'vihiga' },
+    { name: 'Kabianga Technical Training Institute', type: 'tvet', county: 'kericho' },
+    { name: 'Kandara Technical Training Institute', type: 'tvet', county: 'muranga' },
+    { name: 'Kaigat Technical Training Institute', type: 'tvet', county: 'baringo' },
+    { name: 'Chuka Technical Training Institute', type: 'tvet', county: 'tharaka-nithi' },
+    { name: 'Kigari Teachers Training Institute', type: 'tvet', county: 'embu' },
+    { name: 'Kabete Technical Training Institute for the Deaf', type: 'tvet', county: 'nairobi' },
+    { name: 'Kaimosi Technical Training Institute', type: 'tvet', county: 'vihiga' },
+    { name: 'Ramogi Institute of Advanced Technology', type: 'tvet', county: 'kisumu' },
+    { name: 'Bushiangala Technical Training Institute', type: 'tvet', county: 'kakamega' },
+    { name: 'Kisiwa Technical Training Institute', type: 'tvet', county: 'homa-bay' },
+    { name: 'Kaplong Technical Training Institute', type: 'tvet', county: 'bomet' },
+    { name: 'Litein Technical Training Institute', type: 'tvet', county: 'kericho' },
+    { name: 'Nyandarua Institute of Science and Technology', type: 'tvet', county: 'nyandarua' },
+    { name: 'Rift Valley Technical Training Institute', type: 'tvet', county: 'nakuru' },
+    { name: 'Sotik Technical Training Institute', type: 'tvet', county: 'bomet' },
+    { name: 'Kabarnet Technical Training Institute', type: 'tvet', county: 'baringo' },
+
+    { name: 'Nairobi Institute of Business Studies', type: 'college', county: 'nairobi' },
+    { name: 'Mombasa College of Health Sciences', type: 'college', county: 'mombasa' },
+    { name: 'Kisumu College of Technology', type: 'college', county: 'kisumu' },
+
+    /* --- Kenya Medical Training College (KMTC) campuses --- */
+    { name: 'KMTC Nairobi Campus', type: 'college', county: 'nairobi' },
+    { name: 'KMTC Nakuru Campus', type: 'college', county: 'nakuru' },
+    { name: 'KMTC Eldoret Campus', type: 'college', county: 'uasin-gishu' },
+    { name: 'KMTC Meru Campus', type: 'college', county: 'meru' },
+    { name: 'KMTC Kakamega Campus', type: 'college', county: 'kakamega' },
+    { name: 'KMTC Embu Campus', type: 'college', county: 'embu' },
+    { name: 'KMTC Garissa Campus', type: 'college', county: 'garissa' },
+    { name: 'KMTC Kisii Campus', type: 'college', county: 'kisii' },
+    { name: 'KMTC Machakos Campus', type: 'college', county: 'machakos' },
+    { name: 'KMTC Nyeri Campus', type: 'college', county: 'nyeri' },
+    { name: 'KMTC Kitale Campus', type: 'college', county: 'trans-nzoia' },
+    { name: 'KMTC Kericho Campus', type: 'college', county: 'kericho' },
+    { name: 'KMTC Bungoma Campus', type: 'college', county: 'bungoma' },
+    { name: 'KMTC Kilifi Campus', type: 'college', county: 'kilifi' },
+    { name: 'KMTC Lodwar Campus', type: 'college', county: 'turkana' },
+    { name: 'KMTC Wajir Campus', type: 'college', county: 'wajir' },
+    { name: 'KMTC Nyahururu Campus', type: 'college', county: 'laikipia' },
+    { name: "KMTC Murang'a Campus", type: 'college', county: 'muranga' },
+    { name: 'KMTC Kabarnet Campus', type: 'college', county: 'baringo' },
+    { name: 'KMTC Kitui Campus', type: 'college', county: 'kitui' },
+    { name: 'KMTC Homa Bay Campus', type: 'college', county: 'homa-bay' },
+    { name: 'KMTC Migori Campus', type: 'college', county: 'migori' },
+    { name: 'KMTC Siaya Campus', type: 'college', county: 'siaya' },
+    { name: 'KMTC Busia Campus', type: 'college', county: 'busia' },
+
+    /* --- Teacher Training Colleges --- */
+    { name: 'Kenya Technical Trainers College', type: 'college', county: 'nairobi' },
+    { name: 'Machakos Teachers Training College', type: 'college', county: 'machakos' },
+    { name: 'Kagumo Teachers Training College', type: 'college', county: 'nyeri' },
+    { name: 'Kilimambogo Teachers Training College', type: 'college', county: 'kiambu' },
+    { name: 'Egoji Teachers Training College', type: 'college', county: 'meru' },
+    { name: 'Kigari Teachers Training College', type: 'college', county: 'embu' },
+    { name: 'Migori Teachers Training College', type: 'college', county: 'migori' },
+    { name: 'Shanzu Teachers Training College', type: 'college', county: 'mombasa' },
+    { name: 'Baringo Teachers Training College', type: 'college', county: 'baringo' },
+    { name: 'Garissa Teachers Training College', type: 'college', county: 'garissa' },
+    { name: 'Siriba Teachers Training College', type: 'college', county: 'kisumu' },
+    { name: 'Kaimosi Teachers Training College', type: 'college', county: 'vihiga' },
+    { name: 'Highridge Teachers Training College', type: 'college', county: 'nairobi' },
+    { name: "St Joseph's Teachers Training College", type: 'college', county: 'nyeri' },
+    { name: 'Bondo Teachers Training College', type: 'college', county: 'siaya' },
+    { name: 'Kericho Teachers Training College', type: 'college', county: 'kericho' },
+    { name: 'Narok Teachers Training College', type: 'college', county: 'narok' },
+    { name: 'Asumbi Teachers Training College', type: 'college', county: 'homa-bay' },
+
+    /* --- Business & other colleges --- */
+    { name: 'Kenya Institute of Management', type: 'college', county: 'nairobi' },
+    { name: 'Rift Valley Business College', type: 'college', county: 'nakuru' },
+    { name: 'Mombasa Business College', type: 'college', county: 'mombasa' },
+    { name: 'Eldoret Business and Technical College', type: 'college', county: 'uasin-gishu' },
+    { name: 'Nakuru College of Health Sciences', type: 'college', county: 'nakuru' },
+    { name: 'Kisumu Business College', type: 'college', county: 'kisumu' },
+    { name: 'Thika School of Medical and Health Sciences', type: 'college', county: 'kiambu' }
+];
+
+const INSTITUTION_TYPE_LABELS = {
+    university: 'University',
+    tvet: 'TVET',
+    college: 'College'
+};
+
+const INSTITUTION_COUNTY_LABELS = {
+    mombasa: 'Mombasa',
+    kwale: 'Kwale',
+    kilifi: 'Kilifi',
+    'tana-river': 'Tana River',
+    lamu: 'Lamu',
+    'taita-taveta': 'Taita-Taveta',
+    garissa: 'Garissa',
+    wajir: 'Wajir',
+    mandera: 'Mandera',
+    marsabit: 'Marsabit',
+    isiolo: 'Isiolo',
+    meru: 'Meru',
+    'tharaka-nithi': 'Tharaka-Nithi',
+    embu: 'Embu',
+    kitui: 'Kitui',
+    machakos: 'Machakos',
+    makueni: 'Makueni',
+    nyandarua: 'Nyandarua',
+    nyeri: 'Nyeri',
+    kirinyaga: 'Kirinyaga',
+    muranga: "Murang'a",
+    kiambu: 'Kiambu',
+    turkana: 'Turkana',
+    'west-pokot': 'West Pokot',
+    samburu: 'Samburu',
+    'trans-nzoia': 'Trans Nzoia',
+    'uasin-gishu': 'Uasin Gishu',
+    'elgeyo-marakwet': 'Elgeyo-Marakwet',
+    nandi: 'Nandi',
+    baringo: 'Baringo',
+    laikipia: 'Laikipia',
+    nakuru: 'Nakuru',
+    narok: 'Narok',
+    kajiado: 'Kajiado',
+    kericho: 'Kericho',
+    bomet: 'Bomet',
+    kakamega: 'Kakamega',
+    vihiga: 'Vihiga',
+    bungoma: 'Bungoma',
+    busia: 'Busia',
+    siaya: 'Siaya',
+    kisumu: 'Kisumu',
+    'homa-bay': 'Homa Bay',
+    migori: 'Migori',
+    kisii: 'Kisii',
+    nyamira: 'Nyamira',
+    nairobi: 'Nairobi'
+};
+
+let institutionsPageFilter = 'all';
+
+/**
+ * Sets the active type filter chip on institutions.html and
+ * re-runs the filter.
+ */
+function setInstitutionsPageFilter(filter, buttonEl) {
+    institutionsPageFilter = filter;
+
+    document.querySelectorAll('#institutionsPageFilters .filter-chip').forEach(function (chip) {
+        chip.classList.remove('active');
+    });
+
+    if (buttonEl) {
+        buttonEl.classList.add('active');
+    }
+
+    filterInstitutionsPage();
+}
+
+/**
+ * Filters SAMPLE_INSTITUTIONS by the search box, active type
+ * chip, and county dropdown, then renders the result cards.
+ * No-ops safely if the results grid isn't on the page.
+ */
+function filterInstitutionsPage() {
+    const grid = document.getElementById('institutionsResultsGrid');
+    if (!grid) return;
+
+    const searchInput = document.getElementById('institutionsPageSearchInput');
+    const countySelect = document.getElementById('institutionsPageCounty');
+    const countEl = document.getElementById('institutionsResultCount');
+    const emptyEl = document.getElementById('institutionsEmpty');
+
+    const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    const county = countySelect ? countySelect.value : '';
+
+    const results = SAMPLE_INSTITUTIONS.filter(function (inst) {
+        if (institutionsPageFilter !== 'all' && inst.type !== institutionsPageFilter) return false;
+        if (county && inst.county !== county) return false;
+        if (query && inst.name.toLowerCase().indexOf(query) === -1) return false;
+        return true;
+    });
+
+    grid.innerHTML = '';
+
+    results.forEach(function (inst) {
+        const card = document.createElement('div');
+        card.className = 'institution-result-card cat-' + inst.type;
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', 'Choose news, announcements or opportunities for ' + inst.name);
+        card.addEventListener('click', function () { openInstitutionChooser(inst.name); });
+        card.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openInstitutionChooser(inst.name);
+            }
+        });
+
+        const tag = document.createElement('span');
+        tag.className = 'institution-result-tag';
+        tag.textContent = INSTITUTION_TYPE_LABELS[inst.type] || inst.type;
+
+        const heading = document.createElement('h3');
+        heading.textContent = inst.name;
+
+        const location = document.createElement('p');
+        location.textContent = INSTITUTION_COUNTY_LABELS[inst.county] || inst.county;
+
+        card.appendChild(tag);
+        card.appendChild(heading);
+        card.appendChild(location);
+        grid.appendChild(card);
+    });
+
+    if (countEl) {
+        countEl.textContent = results.length +
+            (results.length === 1 ? ' institution found' : ' institutions found');
+    }
+
+    if (emptyEl) {
+        emptyEl.hidden = results.length !== 0;
+    }
+}
+
+
+/* =====================================================
+   INSTITUTION CHOOSER (popup)
+   Clicking any institution opens a popup asking whether the
+   student wants News, Announcements or Opportunities for
+   THAT institution. Works on any page: give a link/element
+   a data-institution="Full Institution Name" attribute, or
+   call openInstitutionChooser('Name').
+===================================================== */
+
+function getInstitutionKey(inst) {
+    for (const key in MY_CAMPUS_INSTITUTIONS) {
+        if (MY_CAMPUS_INSTITUTIONS[key] === inst.name) return key;
+    }
+
+    return inst.name
+        .toLowerCase()
+        .replace(/&/g, ' and ')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+}
+
+const INSTITUTION_CHOICES = [
+    { label: 'News', icon: '📰', type: 'news', accent: 'cat-news',
+      text: 'Latest stories and happenings.' },
+    { label: 'Announcements', icon: '📢', type: 'university-alerts', accent: 'cat-announcements',
+      text: 'Official notices and alerts.' },
+    { label: 'Opportunities', icon: '💰', type: 'scholarships', accent: 'cat-scholarships',
+      text: 'Scholarships, jobs and more.' }
+];
+
+function closeInstitutionChooser() {
+    const overlay = document.getElementById('institutionChooser');
+    if (overlay) overlay.remove();
+    document.body.classList.remove('chooser-open');
+}
+
+function openInstitutionChooser(name) {
+    closeInstitutionChooser();
+
+    const inst = SAMPLE_INSTITUTIONS.find(function (i) { return i.name === name; }) ||
+        { name: name, type: '', county: '' };
+    const key = getInstitutionKey(inst);
+
+    const overlay = document.createElement('div');
+    overlay.id = 'institutionChooser';
+    overlay.className = 'chooser-overlay';
+    overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) closeInstitutionChooser();
+    });
+
+    const box = document.createElement('div');
+    box.className = 'chooser-box';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'chooser-close';
+    close.setAttribute('aria-label', 'Close');
+    close.textContent = '×';
+    close.addEventListener('click', closeInstitutionChooser);
+
+    const title = document.createElement('h2');
+    title.textContent = inst.name;
+
+    const sub = document.createElement('p');
+    sub.textContent = 'What would you like to see?';
+
+    const grid = document.createElement('div');
+    grid.className = 'chooser-options';
+
+    INSTITUTION_CHOICES.forEach(function (choice) {
+        const a = document.createElement('a');
+        a.className = 'opportunity-card ' + choice.accent;
+        a.href = 'category.html?type=' + encodeURIComponent(choice.type) +
+            '&institution=' + encodeURIComponent(key) +
+            '&name=' + encodeURIComponent(inst.name);
+
+        const icon = document.createElement('span');
+        icon.className = 'opportunity-icon';
+        icon.textContent = choice.icon;
+
+        const h3 = document.createElement('h3');
+        h3.textContent = choice.label;
+
+        const p = document.createElement('p');
+        p.textContent = choice.text;
+
+        a.appendChild(icon);
+        a.appendChild(h3);
+        a.appendChild(p);
+        grid.appendChild(a);
+    });
+
+    box.appendChild(close);
+    box.appendChild(title);
+    box.appendChild(sub);
+    box.appendChild(grid);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    document.body.classList.add('chooser-open');
+}
+
+/* Close on Escape. */
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeInstitutionChooser();
+});
+
+/* Any element with data-institution opens the chooser
+   (used by the homepage "Most Searched Institutions" list). */
+document.addEventListener('click', function (e) {
+    const el = e.target.closest ? e.target.closest('[data-institution]') : null;
+    if (!el) return;
+    e.preventDefault();
+    openInstitutionChooser(el.getAttribute('data-institution'));
+});

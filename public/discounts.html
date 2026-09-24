@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Verified student discounts and deals for Kenyan university students — transport, tech, food and more, from HigherSpace Connect.">
+    <title>Student Discounts — HigherSpace Connect</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0b7d5b">
+</head>
+
+<body>
+
+<header>
+
+    <div class="logo">
+        <a href="index.html" style="color:inherit;text-decoration:none;">🎓 HigherSpace Connect</a>
+    </div>
+
+
+    <div class="nav-more">
+
+        <button class="nav-more-btn" onclick="toggleMoreMenu(event)" aria-label="Menu">
+            ☰
+        </button>
+
+        <div class="nav-more-dropdown" id="navMoreDropdown">
+
+            <a href="index.html">Home</a>
+            <a href="category.html?type=helb">HELB</a>
+            <a href="category.html?type=kuccps">KUCCPS</a>
+            <a href="category.html?type=jobs">Jobs</a>
+            <a href="category.html?type=scholarships">Scholarships</a>
+            <a href="category.html?type=rumours">University Rumours</a>
+            <a href="category.html?type=university-alerts">University Alerts</a>
+            <a href="deadlines.html">Deadlines</a>
+            <a href="discounts.html">Student Discounts</a>
+            <a href="helplines.html">Helplines &amp; Support</a>
+
+            <div class="nav-divider"></div>
+
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
+            <a href="faq.html">FAQ</a>
+
+        </div>
+
+    </div>
+
+</header>
+
+<script>
+function toggleMoreMenu(e) {
+    e.stopPropagation();
+    document.getElementById("navMoreDropdown").classList.toggle("open");
+}
+document.addEventListener("click", function () {
+    var d = document.getElementById("navMoreDropdown");
+    if (d) d.classList.remove("open");
+});
+</script>
+
+
+<section class="static-page">
+
+    <div class="static-page-content">
+
+        <h1>Student Discounts</h1>
+
+        <p>
+            Deals and offers that Kenyan university students can actually
+            use — usually just by showing a valid student ID or signing
+            up with your campus email. Always confirm terms with the
+            provider before relying on an offer.
+        </p>
+
+        <h2>Transport</h2>
+        <div class="discounts-list">
+
+            <div class="discount-card cat-transport">
+                <span class="discount-tag">Transport</span>
+                <h3>SGR Student Fare</h3>
+                <p>Discounted Standard Gauge Railway fares for students travelling with a valid student ID, on selected routes.</p>
+            </div>
+
+            <div class="discount-card cat-transport">
+                <span class="discount-tag">Transport</span>
+                <h3>Campus Shuttle Passes</h3>
+                <p>Many universities run subsidised shuttle or matatu-sacco partnerships for students — check with your student affairs office.</p>
+            </div>
+
+        </div>
+
+        <h2>Tech &amp; Software</h2>
+        <div class="discounts-list">
+
+            <div class="discount-card cat-tech">
+                <span class="discount-tag">Tech</span>
+                <h3>Microsoft 365 Education</h3>
+                <p>Free Office apps and 5GB OneDrive storage for students with a valid .ac.ke or institutional email address.</p>
+            </div>
+
+            <div class="discount-card cat-tech">
+                <span class="discount-tag">Tech</span>
+                <h3>GitHub Student Developer Pack</h3>
+                <p>Free access to developer tools, cloud credits and software licences for verified students.</p>
+            </div>
+
+            <div class="discount-card cat-tech">
+                <span class="discount-tag">Tech</span>
+                <h3>Spotify / Apple Music Student Plans</h3>
+                <p>Discounted music streaming subscriptions with student verification, usually 40–50% off.</p>
+            </div>
+
+        </div>
+
+        <h2>Food</h2>
+        <div class="discounts-list">
+
+            <div class="discount-card cat-food">
+                <span class="discount-tag">Food</span>
+                <h3>Local Campus Eateries</h3>
+                <p>Many cafés and eateries around major campuses offer informal student pricing — ask before you order.</p>
+            </div>
+
+        </div>
+
+        <h2>Entertainment &amp; Fashion</h2>
+        <div class="discounts-list">
+
+            <div class="discount-card cat-entertainment">
+                <span class="discount-tag">Entertainment</span>
+                <h3>Cinema Student Nights</h3>
+                <p>Selected cinema chains run discounted student-night pricing on weekdays — bring your student ID.</p>
+            </div>
+
+        </div>
+
+        <p class="deadlines-note">
+            Know of a discount we should add? <a href="contact.html">Tell us</a>
+            and we'll verify and list it.
+        </p>
+
+    </div>
+
+</section>
+
+<footer>
+
+    <div class="footer-content">
+
+        <div>
+
+            <h3>
+                🎓 HigherSpace Connect
+            </h3>
+
+            <p>
+                Helping Kenyan university students find
+                useful information, opportunities and tools.
+            </p>
+
+        </div>
+
+
+        <div>
+
+            <h4>
+                Quick Links
+            </h4>
+
+            <a href="category.html?type=helb">
+                HELB
+            </a>
+
+            <a href="category.html?type=kuccps">
+                KUCCPS
+            </a>
+
+            <a href="category.html?type=jobs">
+                Jobs
+            </a>
+
+            <a href="category.html?type=scholarships">
+                Scholarships
+            </a>
+
+            <a href="deadlines.html">
+                Deadlines
+            </a>
+
+            <a href="discounts.html">
+                Student Discounts
+            </a>
+
+            <a href="helplines.html">
+                Helplines &amp; Support
+            </a>
+
+        </div>
+
+    </div>
+
+
+    <div class="footer-bottom">
+
+        <p>
+            © 2026 HigherSpace Connect. All rights reserved.
+        </p>
+
+        <p>
+            HigherSpace Connect is an independent student information
+            platform and is not officially affiliated with HELB,
+            KUCCPS, or any university.
+        </p>
+
+    </div>
+
+</footer>
+
+
+<script src="/pwa-register.js"></script>
+
+</body>
+
+</html>

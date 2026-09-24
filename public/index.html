@@ -11,10 +11,10 @@
 
     <meta
         name="description"
-        content="Kenya Campus Hub - Student information, HELB, KUCCPS, scholarships, jobs and student tools."
+        content="HigherSpace Connect - Student information, HELB, KUCCPS, scholarships and jobs."
     >
 
-    <title>Kenya Campus Hub</title>
+    <title>HigherSpace Connect</title>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1573899062811104"
      crossorigin="anonymous"></script>
 
@@ -34,7 +34,7 @@
 <body>
 
 <!-- ==========================================
-     KENYA CAMPUS HUB LOADING PAGE
+     HIGHERSPACE CONNECT LOADING PAGE
 ========================================== -->
 
 <style>
@@ -46,17 +46,55 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
 
-    background: linear-gradient(
-        135deg,
-        #063b8f,
-        #0b5ed7,
-        #087f5b
-    );
+    background-image:
+        radial-gradient(circle, rgba(255,255,255,0.45) 1.4px, transparent 1.4px),
+        linear-gradient(
+            135deg,
+            #063b8f,
+            #0b5ed7 35%,
+            #087f5b 70%,
+            #7c3aed
+        );
+    background-size: 46px 46px, 200% 200%;
+    background-position: 0 0, 0% 50%;
+    animation: kchLoaderBgShift 7s ease-in-out infinite;
 
     opacity: 1;
     visibility: visible;
     transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+
+#kchLoader::before,
+#kchLoader::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(40px);
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+#kchLoader::before {
+    width: 260px;
+    height: 260px;
+    top: -60px;
+    left: -60px;
+    background: #f2a900;
+}
+
+#kchLoader::after {
+    width: 300px;
+    height: 300px;
+    bottom: -80px;
+    right: -80px;
+    background: #0891b2;
+}
+
+@keyframes kchLoaderBgShift {
+    0%, 100% { background-position: 0 0, 0% 50%; }
+    50% { background-position: 46px 46px, 100% 50%; }
 }
 
 #kchLoader.hidden {
@@ -66,6 +104,8 @@
 }
 
 .loader-content {
+    position: relative;
+    z-index: 1;
     width: 90%;
     max-width: 430px;
     text-align: center;
@@ -73,29 +113,64 @@
 }
 
 .loader-logo {
+    position: relative;
     width: 90px;
     height: 90px;
-    margin: 0 auto 22px;
+    margin: 0 auto 24px;
 
     display: flex;
     align-items: center;
     justify-content: center;
 
-    background: rgba(255,255,255,0.12);
-    border: 2px solid rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.16);
+    border: 2px solid rgba(255,255,255,0.4);
     border-radius: 22px;
 
     font-size: 42px;
 
-    box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+    box-shadow:
+        0 15px 40px rgba(0,0,0,0.25),
+        0 0 0 6px rgba(242,169,0,0.18);
 
     animation: loaderLogoPulse 1.5s ease-in-out infinite;
+}
+
+.loader-logo::before {
+    content: "";
+    position: absolute;
+    inset: -9px;
+    z-index: -1;
+    border-radius: 28px;
+
+    background: conic-gradient(from 0deg, #f2a900, #0891b2, #7c3aed, #f2a900);
+    filter: blur(3px);
+    opacity: 0.75;
+
+    animation: loaderRingSpin 3.5s linear infinite;
+}
+
+@keyframes loaderRingSpin {
+    to { transform: rotate(360deg); }
 }
 
 .loader-content h1 {
     margin: 0;
     font-size: 30px;
     font-weight: 800;
+    letter-spacing: 0.01em;
+
+    background: linear-gradient(90deg, #ffffff, #ffe9a8, #ffffff);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+
+    animation: loaderTitleShine 3s ease-in-out infinite;
+}
+
+@keyframes loaderTitleShine {
+    0%, 100% { background-position: 0% center; }
+    50% { background-position: 100% center; }
 }
 
 .loader-content p {
@@ -106,10 +181,11 @@
 
 .loader-progress {
     width: 100%;
-    height: 6px;
+    height: 7px;
     overflow: hidden;
     border-radius: 50px;
     background: rgba(255,255,255,0.2);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
 }
 
 .loader-progress::before {
@@ -120,7 +196,8 @@
     height: 100%;
 
     border-radius: 50px;
-    background: white;
+    background: linear-gradient(90deg, #f2a900, #ffffff, #0891b2);
+    box-shadow: 0 0 12px rgba(255,255,255,0.6);
 
     animation: loaderProgress 1.4s ease-in-out infinite;
 }
@@ -128,7 +205,26 @@
 .loader-status {
     margin-top: 14px;
     font-size: 13px;
-    color: rgba(255,255,255,0.8);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(255,255,255,0.92);
+}
+
+.loader-status::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: #f2a900;
+    box-shadow: 0 0 8px #f2a900;
+    animation: loaderDotPulse 1s ease-in-out infinite;
+}
+
+@keyframes loaderDotPulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.85); }
+    50% { opacity: 1; transform: scale(1.1); }
 }
 
 /* ANIMATIONS */
@@ -191,7 +287,7 @@
             🎓
         </div>
 
-        <h1>Kenya Campus Hub</h1>
+        <h1>HigherSpace Connect</h1>
 
         <p>Preparing your campus experience...</p>
 
@@ -256,39 +352,80 @@
 <header>
 
     <div class="logo">
-        🎓 Kenya Campus Hub
+        🎓 HigherSpace Connect
     </div>
 
 
-    <nav>
+    <div class="nav-more">
 
-        <a href="index.html">
-            Home
-        </a>
+        <button class="nav-more-btn" onclick="toggleMoreMenu(event)" aria-label="Menu">
+            ☰
+        </button>
 
-        <a href="category.html?type=helb">
-            HELB
-        </a>
+        <div class="nav-more-dropdown" id="navMoreDropdown">
 
-        <a href="category.html?type=kuccps">
-            KUCCPS
-        </a>
+            <a href="index.html">Home</a>
+            <a href="index.html#institutionsSection">Institutions</a>
+            <a href="index.html#opportunitiesSection">Opportunities</a>
+            <a href="index.html#myCampusSection">My Campus</a>
+            <a href="category.html?type=helb">HELB</a>
+            <a href="category.html?type=kuccps">KUCCPS</a>
+            <a href="category.html?type=jobs">Jobs</a>
+            <a href="category.html?type=scholarships">Scholarships</a>
+            <a href="category.html?type=rumours">University Rumours</a>
+            <a href="category.html?type=university-alerts">University Alerts</a>
+            <a href="deadlines.html">Deadlines</a>
+            <a href="discounts.html">Student Discounts</a>
+            <a href="helplines.html">Helplines &amp; Support</a>
 
-        <a href="category.html?type=jobs">
-            Jobs
-        </a>
+            <div class="nav-divider"></div>
 
-        <a href="category.html?type=scholarships">
-            Scholarships
-        </a>
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
+            <a href="faq.html">FAQ</a>
 
-        <a href="#tools">
-            Student Tools
-        </a>
+        </div>
 
-    </nav>
+    </div>
 
 </header>
+
+<script>
+function toggleMoreMenu(e) {
+    e.stopPropagation();
+    document.getElementById("navMoreDropdown").classList.toggle("open");
+}
+document.addEventListener("click", function () {
+    var d = document.getElementById("navMoreDropdown");
+    if (d) d.classList.remove("open");
+});
+</script>
+
+<style>
+/* =====================================================
+   FIX: keep the hamburger dropdown from covering the
+   fixed "Chat With Members" and "Ask AI" buttons.
+   The dropdown is given a lower z-index than both
+   buttons so the two floating buttons always stay
+   visible and clickable, even while the menu is open.
+===================================================== */
+.nav-more-dropdown {
+    z-index: 40000 !important;
+
+    /* Keep the menu SHORT so it never reaches the fixed
+       Chat/AI buttons lower on the screen — scrolls instead */
+    max-height: 220px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+.chat-members-button,
+.campus-ai-button {
+    z-index: 99999 !important;
+}
+</style>
 
 
 
@@ -301,12 +438,12 @@
     <div class="hero-content">
 
         <h1>
-            Kenya Campus Hub
+            HigherSpace Connect
         </h1>
 
         <p>
             Your one-stop platform for Kenyan university
-            student information, opportunities and tools.
+            student information, opportunities and resources.
         </p>
 
 
@@ -327,6 +464,18 @@
 
         </div>
 
+        <div class="hero-buttons">
+
+            <a href="#institutionsSection" class="hero-btn hero-btn-primary">
+                Explore Institutions
+            </a>
+
+            <a href="#latestUpdatesSection" class="hero-btn hero-btn-secondary">
+                Latest Updates
+            </a>
+
+        </div>
+
     </div>
 
 </section>
@@ -335,7 +484,7 @@
      LATEST INFORMATION CATEGORIES
 ===================================================== -->
 
-<section class="information-section">
+<section class="information-section" id="latestUpdatesSection">
 
     <div class="information-section-title">
 
@@ -366,7 +515,7 @@
             type="button"
             onclick="location.href='category.html?type=helb'"
         >
-            🎓
+            <span class="cat-icon">🎓</span>
             <span>HELB</span>
         </button>
 
@@ -375,7 +524,7 @@
             type="button"
             onclick="location.href='category.html?type=scholarships'"
         >
-            💰
+            <span class="cat-icon">💰</span>
             <span>Scholarships</span>
         </button>
 
@@ -384,7 +533,7 @@
             type="button"
             onclick="location.href='category.html?type=jobs'"
         >
-            💼
+            <span class="cat-icon">💼</span>
             <span>Jobs</span>
         </button>
 
@@ -393,7 +542,7 @@
             type="button"
             onclick="location.href='category.html?type=kuccps'"
         >
-            🏫
+            <span class="cat-icon">🏫</span>
             <span>KUCCPS</span>
         </button>
 
@@ -403,10 +552,256 @@
             class="rumours-category"
             onclick="location.href='category.html?type=rumours'"
         >
-            🗣️
+            <span class="cat-icon">🗣️</span>
             <span>University Rumours</span>
         </button>
 
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     INSTITUTIONS DIRECTORY
+===================================================== -->
+
+<section class="institutions-section" id="institutionsSection">
+
+    <div class="section-heading">
+        <h2>Find Your Institution</h2>
+        <p>
+            Search by name, or filter by type and county to
+            browse universities, TVETs and colleges.
+        </p>
+    </div>
+
+    <div class="institutions-search">
+
+        <input
+            type="search"
+            id="institutionSearchInput"
+            placeholder="Search university, college, TVET..."
+            autocomplete="off"
+        >
+
+        <button type="button" onclick="goToInstitutionSearch()">
+            Search
+        </button>
+
+    </div>
+
+    <div class="institutions-filters" id="institutionsFilters">
+
+        <button type="button" class="filter-chip active" data-filter="all" onclick="setInstitutionFilter('all', this)">
+            All
+        </button>
+
+        <button type="button" class="filter-chip" data-filter="university" onclick="setInstitutionFilter('university', this)">
+            Universities
+        </button>
+
+        <button type="button" class="filter-chip" data-filter="tvet" onclick="setInstitutionFilter('tvet', this)">
+            TVET
+        </button>
+
+        <button type="button" class="filter-chip" data-filter="college" onclick="setInstitutionFilter('college', this)">
+            Colleges
+        </button>
+
+    </div>
+
+    <div class="institutions-county">
+
+        <label for="countyFilter">Filter by county</label>
+
+        <select id="countyFilter" onchange="setCountyFilter(this.value)">
+            <option value="">All Counties</option>
+            <option value="nairobi">Nairobi</option>
+            <option value="mombasa">Mombasa</option>
+            <option value="kisumu">Kisumu</option>
+            <option value="nakuru">Nakuru</option>
+            <option value="uasin-gishu">Uasin Gishu</option>
+            <option value="kiambu">Kiambu</option>
+        </select>
+
+    </div>
+
+    <a href="institutions.html" class="institutions-view-all">
+        View All Institutions →
+    </a>
+
+</section>
+
+
+<!-- =====================================================
+     STUDENT OPPORTUNITIES
+===================================================== -->
+
+<section class="opportunities-section" id="opportunitiesSection">
+
+    <div class="section-heading">
+        <h2>Student Opportunities</h2>
+        <p>
+            Scholarships, internships, attachments, jobs and
+            competitions — all in one place.
+        </p>
+    </div>
+
+    <div class="opportunities-grid">
+
+        <a href="category.html?type=scholarships" class="opportunity-card cat-scholarships">
+            <span class="opportunity-icon">💰</span>
+            <h3>Scholarships</h3>
+            <p>Funding opportunities for Kenyan students.</p>
+        </a>
+
+        <a href="category.html?type=internships" class="opportunity-card cat-internships">
+            <span class="opportunity-icon">🧑‍💻</span>
+            <h3>Internships</h3>
+            <p>Gain hands-on experience with internship listings.</p>
+        </a>
+
+        <a href="category.html?type=attachments" class="opportunity-card cat-attachments">
+            <span class="opportunity-icon">🛠️</span>
+            <h3>Attachments</h3>
+            <p>Industrial attachment placements for students.</p>
+        </a>
+
+        <a href="category.html?type=jobs" class="opportunity-card cat-jobs">
+            <span class="opportunity-icon">💼</span>
+            <h3>Jobs</h3>
+            <p>Entry-level and graduate job openings.</p>
+        </a>
+
+        <a href="category.html?type=competitions" class="opportunity-card cat-competitions">
+            <span class="opportunity-icon">🏆</span>
+            <h3>Competitions</h3>
+            <p>Hackathons, contests and challenges to enter.</p>
+        </a>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     POPULAR COURSES
+===================================================== -->
+
+<section class="courses-section" id="coursesSection">
+
+    <div class="section-heading">
+        <h2>Popular Courses</h2>
+        <p>Explore what other students are studying.</p>
+    </div>
+
+    <div class="courses-grid">
+
+        <a href="category.html?type=courses&amp;field=computer-science" class="course-chip">Computer Science</a>
+        <a href="category.html?type=courses&amp;field=cybersecurity" class="course-chip">Cybersecurity</a>
+        <a href="category.html?type=courses&amp;field=business" class="course-chip">Business</a>
+        <a href="category.html?type=courses&amp;field=nursing" class="course-chip">Nursing</a>
+        <a href="category.html?type=courses&amp;field=engineering" class="course-chip">Engineering</a>
+        <a href="category.html?type=courses&amp;field=education" class="course-chip">Education</a>
+        <a href="category.html?type=courses&amp;field=law" class="course-chip">Law</a>
+        <a href="category.html?type=courses&amp;field=medicine" class="course-chip">Medicine</a>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     TRENDING / POPULAR
+===================================================== -->
+
+<section class="trending-section" id="trendingSection">
+
+    <div class="section-heading">
+        <h2>Trending Now</h2>
+        <p>Most searched institutions and most viewed updates this week.</p>
+    </div>
+
+    <div class="trending-columns">
+
+        <div class="trending-col">
+
+            <h3>🔥 Most Searched Institutions</h3>
+
+            <ol id="trendingInstitutions">
+                <li><a href="#" data-institution="University of Nairobi">University of Nairobi</a></li>
+                <li><a href="#" data-institution="Kenyatta University">Kenyatta University</a></li>
+                <li><a href="#" data-institution="JKUAT">JKUAT</a></li>
+                <li><a href="#" data-institution="Moi University">Moi University</a></li>
+                <li><a href="#" data-institution="Strathmore University">Strathmore University</a></li>
+            </ol>
+
+        </div>
+
+        <div class="trending-col">
+
+            <h3>📈 Most Viewed Updates</h3>
+
+            <ol id="trendingArticles">
+                <li><a href="category.html?type=kuccps">KUCCPS Second Revision Window</a></li>
+                <li><a href="category.html?type=helb">HELB Loan Disbursement Update</a></li>
+                <li><a href="category.html?type=scholarships">New Scholarship: Mastercard Foundation</a></li>
+                <li><a href="deadlines.html">University Intake Deadlines 2026</a></li>
+                <li><a href="category.html?type=jobs">Government Internship Programme</a></li>
+            </ol>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+<!-- =====================================================
+     MY CAMPUS (personalized area)
+===================================================== -->
+
+<section class="my-campus-section" id="myCampusSection">
+
+    <div class="section-heading">
+        <h2>🎓 My Campus</h2>
+        <p>
+            Choose your institution to see news, announcements
+            and opportunities picked for you.
+        </p>
+    </div>
+
+    <div class="my-campus-picker" id="myCampusPicker">
+
+        <select id="myCampusSelect">
+            <option value="">Select your institution...</option>
+            <option value="uon">University of Nairobi</option>
+            <option value="ku">Kenyatta University</option>
+            <option value="jkuat">JKUAT</option>
+            <option value="moi">Moi University</option>
+            <option value="strathmore">Strathmore University</option>
+            <option value="egerton">Egerton University</option>
+            <option value="mmust">Masinde Muliro University</option>
+        </select>
+
+        <button type="button" onclick="setMyCampus()">
+            Set My Campus
+        </button>
+
+    </div>
+
+    <div class="my-campus-result" id="myCampusResult" hidden>
+
+        <p>
+            Showing updates for <strong id="myCampusName"></strong>.
+        </p>
+
+        <div class="my-campus-links" id="myCampusLinks"></div>
+
+        <a href="#" id="myCampusChangeLink" onclick="clearMyCampus(); return false;">
+            Change institution
+        </a>
 
     </div>
 
@@ -437,1046 +832,6 @@
 
 
 <!-- =====================================================
-     CAMPUS TOOLKIT
-===================================================== -->
-
-<section
-    id="tools"
-    class="toolkit"
->
-
-    <div class="section-heading">
-
-        <div>
-
-            <h2>
-                🎓 Campus Toolkit
-            </h2>
-
-            <p>
-                Useful tools for university students
-            </p>
-
-        </div>
-
-    </div>
-
-
-    <div class="tool-grid">
-
-
-        <!-- GPA -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('gpa')"
-        >
-
-            <span>
-                📊
-            </span>
-
-            <strong>
-                GPA Calculator
-            </strong>
-
-            <small>
-                Calculate your semester GPA
-            </small>
-
-        </button>
-
-
-        <!-- CGPA -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('cgpa')"
-        >
-
-            <span>
-                🎓
-            </span>
-
-            <strong>
-                CGPA Calculator
-            </strong>
-
-            <small>
-                Calculate cumulative GPA
-            </small>
-
-        </button>
-
-
-        <!-- Grade -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('grade')"
-        >
-
-            <span>
-                📝
-            </span>
-
-            <strong>
-                Grade Calculator
-            </strong>
-
-            <small>
-                Find your course grade
-            </small>
-
-        </button>
-
-
-        <!-- Target GPA -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('targetGpa')"
-        >
-
-            <span>
-                🎯
-            </span>
-
-            <strong>
-                Target GPA
-            </strong>
-
-            <small>
-                Calculate marks needed
-            </small>
-
-        </button>
-
-
-        <!-- Exam Marks -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('exam')"
-        >
-
-            <span>
-                📚
-            </span>
-
-            <strong>
-                Exam Marks
-            </strong>
-
-            <small>
-                Calculate final examination marks
-            </small>
-
-        </button>
-
-
-        <!-- Timetable -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('timetable')"
-        >
-
-            <span>
-                🗓️
-            </span>
-
-            <strong>
-                Timetable
-            </strong>
-
-            <small>
-                Manage your class timetable
-            </small>
-
-        </button>
-
-
-        <!-- Loan -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('loan')"
-        >
-
-            <span>
-                💰
-            </span>
-
-            <strong>
-                Loan Calculator
-            </strong>
-
-            <small>
-                Estimate loan payments
-            </small>
-
-        </button>
-
-
-        <!-- Budget -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('budget')"
-        >
-
-            <span>
-                💵
-            </span>
-
-            <strong>
-                Budget Planner
-            </strong>
-
-            <small>
-                Manage your campus budget
-            </small>
-
-        </button>
-
-
-        <!-- Rent -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('rent')"
-        >
-
-            <span>
-                🏠
-            </span>
-
-            <strong>
-                Rent Calculator
-            </strong>
-
-            <small>
-                Calculate your monthly rent
-            </small>
-
-        </button>
-
-
-        <!-- Fees -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('fees')"
-        >
-
-            <span>
-                🧾
-            </span>
-
-            <strong>
-                Fees Planner
-            </strong>
-
-            <small>
-                Plan your school fees
-            </small>
-
-        </button>
-
-
-        <!-- Currency -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('currency')"
-        >
-
-            <span>
-                💱
-            </span>
-
-            <strong>
-                Currency Converter
-            </strong>
-
-            <small>
-                Convert currencies
-            </small>
-
-        </button>
-
-
-        <!-- Countdown -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('countdown')"
-        >
-
-            <span>
-                ⏳
-            </span>
-
-            <strong>
-                Semester Countdown
-            </strong>
-
-            <small>
-                Track important dates
-            </small>
-
-        </button>
-
-
-        <!-- Deadline -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('deadline')"
-        >
-
-            <span>
-                ⏰
-            </span>
-
-            <strong>
-                Deadline Tracker
-            </strong>
-
-            <small>
-                Track application deadlines
-            </small>
-
-        </button>
-
-
-        <!-- Unit Converter -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('converter')"
-        >
-
-            <span>
-                📐
-            </span>
-
-            <strong>
-                Unit Converter
-            </strong>
-
-            <small>
-                Convert common units
-            </small>
-
-        </button>
-
-
-        <!-- Scientific Calculator -->
-
-        <button
-            class="tool-card"
-            onclick="openTool('scientific')"
-        >
-
-            <span>
-                🧮
-            </span>
-
-            <strong>
-                Scientific Calculator
-            </strong>
-
-            <small>
-                Advanced calculations
-            </small>
-
-        </button>
-
-    </div>
-
-</section>
-
-
-
-<!-- =====================================================
-     TOOL MODAL
-===================================================== -->
-
-<div
-    id="toolModal"
-    class="tool-modal"
->
-
-    <div class="tool-modal-content">
-
-        <button
-            class="tool-modal-close"
-            onclick="closeTool()"
-        >
-            ×
-        </button>
-
-
-        <!-- GPA -->
-
-        <div
-            id="gpaTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                📊 GPA Calculator
-            </h2>
-
-            <div id="gpaCourses"></div>
-
-            <button
-                onclick="addGPACourse()"
-            >
-                ＋ Add Course
-            </button>
-
-            <button
-                onclick="calculateGPA()"
-            >
-                Calculate GPA
-            </button>
-
-            <div id="gpaResult"></div>
-
-        </div>
-
-
-        <!-- CGPA -->
-
-        <div
-            id="cgpaTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                🎓 CGPA Calculator
-            </h2>
-
-            <div id="cgpaSemesters"></div>
-
-            <button
-                onclick="addCGPASemester()"
-            >
-                ＋ Add Semester
-            </button>
-
-            <button
-                onclick="calculateCGPA()"
-            >
-                Calculate CGPA
-            </button>
-
-            <div id="cgpaResult"></div>
-
-        </div>
-
-
-        <!-- GRADE -->
-
-        <div
-            id="gradeTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                📝 Grade Calculator
-            </h2>
-
-            <input
-                id="gradeMarks"
-                type="number"
-                placeholder="Enter marks"
-            >
-
-            <button
-                onclick="calculateGrade()"
-            >
-                Calculate Grade
-            </button>
-
-            <div id="gradeResult"></div>
-
-        </div>
-
-
-        <!-- TARGET GPA -->
-
-        <div
-            id="targetGpaTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                🎯 Target GPA
-            </h2>
-
-            <input
-                id="targetCurrentGpa"
-                type="number"
-                step="0.01"
-                placeholder="Current GPA"
-            >
-
-            <input
-                id="targetCompletedCredits"
-                type="number"
-                placeholder="Completed credits"
-            >
-
-            <input
-                id="targetRemainingCredits"
-                type="number"
-                placeholder="Remaining credits"
-            >
-
-            <input
-                id="targetDesiredGpa"
-                type="number"
-                step="0.01"
-                placeholder="Desired GPA"
-            >
-
-            <button
-                onclick="calculateTargetGPA()"
-            >
-                Calculate
-            </button>
-
-            <div id="targetGpaResult"></div>
-
-        </div>
-
-
-        <!-- EXAM -->
-
-        <div
-            id="examTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                📚 Exam Marks Calculator
-            </h2>
-
-            <input
-                id="catMarks"
-                type="number"
-                placeholder="CAT marks"
-            >
-
-            <input
-                id="examMarks"
-                type="number"
-                placeholder="Exam marks"
-            >
-
-            <button
-                onclick="calculateExamMarks()"
-            >
-                Calculate
-            </button>
-
-            <div id="examResult"></div>
-
-        </div>
-
-
-        <!-- TIMETABLE -->
-
-        <div
-            id="timetableTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                🗓️ My Timetable
-            </h2>
-
-            <div id="timetableContainer"></div>
-
-            <button
-                onclick="addTimetableEntry()"
-            >
-                ＋ Add Class
-            </button>
-
-            <button
-                onclick="saveTimetable()"
-            >
-                💾 Save Timetable
-            </button>
-
-        </div>
-
-
-        <!-- LOAN -->
-
-        <div
-            id="loanTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                💰 Loan Calculator
-            </h2>
-
-            <input
-                id="loanAmount"
-                type="number"
-                placeholder="Loan amount"
-            >
-
-            <input
-                id="loanRate"
-                type="number"
-                placeholder="Interest rate %"
-            >
-
-            <input
-                id="loanMonths"
-                type="number"
-                placeholder="Repayment months"
-            >
-
-            <button
-                onclick="calculateLoan()"
-            >
-                Calculate
-            </button>
-
-            <div id="loanResult"></div>
-
-        </div>
-
-
-        <!-- BUDGET -->
-
-        <div
-            id="budgetTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                💵 Campus Budget
-            </h2>
-
-            <input
-                id="budgetIncome"
-                type="number"
-                placeholder="Monthly income"
-            >
-
-            <input
-                id="budgetRent"
-                type="number"
-                placeholder="Rent"
-            >
-
-            <input
-                id="budgetFood"
-                type="number"
-                placeholder="Food"
-            >
-
-            <input
-                id="budgetTransport"
-                type="number"
-                placeholder="Transport"
-            >
-
-            <input
-                id="budgetOther"
-                type="number"
-                placeholder="Other expenses"
-            >
-
-            <button
-                onclick="calculateBudget()"
-            >
-                Calculate
-            </button>
-
-            <div id="budgetResult"></div>
-
-        </div>
-
-
-        <!-- RENT -->
-
-        <div
-            id="rentTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                🏠 Rent Calculator
-            </h2>
-
-            <input
-                id="rentAmount"
-                type="number"
-                placeholder="Monthly rent"
-            >
-
-            <input
-                id="rentMonths"
-                type="number"
-                placeholder="Number of months"
-            >
-
-            <button
-                onclick="calculateRent()"
-            >
-                Calculate
-            </button>
-
-            <div id="rentResult"></div>
-
-        </div>
-
-
-        <!-- FEES -->
-
-        <div
-            id="feesTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                🧾 Fees Planner
-            </h2>
-
-            <input
-                id="feesTotal"
-                type="number"
-                placeholder="Total fees"
-            >
-
-            <input
-                id="feesPaid"
-                type="number"
-                placeholder="Fees already paid"
-            >
-
-            <button
-                onclick="calculateFees()"
-            >
-                Calculate Balance
-            </button>
-
-            <div id="feesResult"></div>
-
-        </div>
-
-
-        <!-- CURRENCY -->
-
-        <div
-            id="currencyTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                💱 Currency Converter
-            </h2>
-
-            <input
-                id="currencyAmount"
-                type="number"
-                placeholder="Amount"
-            >
-
-            <select id="currencyFrom">
-                <option value="KES">KES</option>
-                <option value="USD">USD</option>
-                <option value="GBP">GBP</option>
-                <option value="EUR">EUR</option>
-            </select>
-
-            <select id="currencyTo">
-                <option value="USD">USD</option>
-                <option value="KES">KES</option>
-                <option value="GBP">GBP</option>
-                <option value="EUR">EUR</option>
-            </select>
-
-            <button
-                onclick="convertCurrency()"
-            >
-                Convert
-            </button>
-
-            <div id="currencyResult"></div>
-
-        </div>
-
-
-        <!-- COUNTDOWN -->
-
-        <div
-            id="countdownTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                ⏳ Semester Countdown
-            </h2>
-
-            <input
-                id="semesterDate"
-                type="datetime-local"
-            >
-
-            <button
-                onclick="startSemesterCountdown()"
-            >
-                Start Countdown
-            </button>
-
-            <div id="semesterCountdown"></div>
-
-        </div>
-
-
-        <!-- DEADLINE -->
-
-        <div
-            id="deadlineTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                ⏰ Deadline Tracker
-            </h2>
-
-            <input
-                id="deadlineName"
-                type="text"
-                placeholder="Deadline name"
-            >
-
-            <input
-                id="deadlineDate"
-                type="datetime-local"
-            >
-
-            <button
-                onclick="calculateDeadline()"
-            >
-                Check Deadline
-            </button>
-
-            <div id="deadlineResult"></div>
-
-        </div>
-
-
-        <!-- UNIT CONVERTER -->
-
-        <div
-            id="converterTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                📐 Unit Converter
-            </h2>
-
-            <label for="conversionType">
-                Category
-            </label>
-
-            <select id="conversionType">
-                <option value="length">Length</option>
-                <option value="area">Area</option>
-                <option value="volume">Volume</option>
-                <option value="mass">Mass</option>
-                <option value="temperature">Temperature</option>
-                <option value="time">Time</option>
-                <option value="speed">Speed</option>
-                <option value="acceleration">Acceleration</option>
-                <option value="force">Force</option>
-                <option value="pressure">Pressure</option>
-                <option value="energy">Energy</option>
-                <option value="power">Power</option>
-                <option value="frequency">Frequency</option>
-                <option value="angle">Angle</option>
-                <option value="density">Density</option>
-                <option value="data">Data</option>
-                <option value="voltage">Voltage</option>
-                <option value="current">Current</option>
-                <option value="resistance">Resistance</option>
-                <option value="charge">Charge</option>
-                <option value="capacitance">Capacitance</option>
-                <option value="inductance">Inductance</option>
-                <option value="amount">Amount of substance</option>
-                <option value="viscosity">Viscosity</option>
-                <option value="illuminance">Illuminance</option>
-                <option value="radioactivity">Radioactivity</option>
-            </select>
-
-            <input
-                id="convertValue"
-                type="number"
-                placeholder="Value"
-            >
-
-            <label for="fromUnit">
-                From
-            </label>
-
-            <select id="fromUnit"></select>
-
-            <label for="toUnit">
-                To
-            </label>
-
-            <select id="toUnit"></select>
-
-            <button
-                onclick="convertUnit()"
-            >
-                Convert
-            </button>
-
-            <div id="unitResult"></div>
-
-        </div>
-
-
-        <!-- SCIENTIFIC -->
-
-        <div
-            id="scientificTool"
-            class="tool-panel"
-        >
-
-            <h2>
-                🧮 Scientific Calculator
-            </h2>
-
-            <input
-                id="scientificDisplay"
-                type="text"
-                readonly
-            >
-
-            <div class="scientific-buttons">
-
-                <button
-                    id="degreeMode"
-                    class="active"
-                    onclick="setAngleMode('DEG')"
-                >
-                    DEG
-                </button>
-
-                <button
-                    id="radianMode"
-                    onclick="setAngleMode('RAD')"
-                >
-                    RAD
-                </button>
-
-                <button
-                    id="gradianMode"
-                    onclick="setAngleMode('GRAD')"
-                >
-                    GRAD
-                </button>
-
-                <button onclick="scientificMemoryClear()">MC</button>
-                <button onclick="scientificMemoryRecall()">MR</button>
-
-                <button onclick="scientificMemoryAdd()">M+</button>
-                <button onclick="scientificMemorySubtract()">M−</button>
-                <button onclick="scientificAns()">Ans</button>
-                <button onclick="scientificInput('%')">%</button>
-                <button onclick="scientificFunction('random')">Rand</button>
-
-                <button onclick="scientificFunction('sin')">sin</button>
-                <button onclick="scientificFunction('cos')">cos</button>
-                <button onclick="scientificFunction('tan')">tan</button>
-                <button onclick="scientificFunction('asin')">sin⁻¹</button>
-                <button onclick="scientificFunction('acos')">cos⁻¹</button>
-
-                <button onclick="scientificFunction('atan')">tan⁻¹</button>
-                <button onclick="scientificFunction('sinh')">sinh</button>
-                <button onclick="scientificFunction('cosh')">cosh</button>
-                <button onclick="scientificFunction('tanh')">tanh</button>
-                <button onclick="scientificFunction('log')">log</button>
-
-                <button onclick="scientificFunction('ln')">ln</button>
-                <button onclick="scientificFunction('exp')">eˣ</button>
-                <button onclick="scientificFunction('pow10')">10ˣ</button>
-                <button onclick="scientificFunction('square')">x²</button>
-                <button onclick="scientificFunction('factorial')">x!</button>
-
-                <button onclick="scientificFunction('reciprocal')">1/x</button>
-                <button onclick="scientificFunction('abs')">|x|</button>
-                <button onclick="scientificInput('(')">(</button>
-                <button onclick="scientificInput(')')">)</button>
-                <button onclick="scientificInput('π')">π</button>
-
-                <button onclick="scientificInput('E')">e</button>
-
-                <button onclick="scientificInput('Math.sqrt(')">
-                    √
-                </button>
-
-                <button onclick="scientificInput('Math.pow(')">
-                    xʸ
-                </button>
-
-                <button onclick="scientificClear()">
-                    C
-                </button>
-
-                <button onclick="scientificBackspace()">
-                    ⌫
-                </button>
-
-                <button onclick="scientificInput('7')">7</button>
-                <button onclick="scientificInput('8')">8</button>
-                <button onclick="scientificInput('9')">9</button>
-                <button onclick="scientificInput('/')">÷</button>
-
-                <button onclick="scientificInput('4')">4</button>
-                <button onclick="scientificInput('5')">5</button>
-                <button onclick="scientificInput('6')">6</button>
-                <button onclick="scientificInput('*')">×</button>
-
-                <button onclick="scientificInput('1')">1</button>
-                <button onclick="scientificInput('2')">2</button>
-                <button onclick="scientificInput('3')">3</button>
-                <button onclick="scientificInput('-')">−</button>
-
-                <button onclick="scientificInput('0')">0</button>
-                <button onclick="scientificInput('.')">.</button>
-                <button onclick="scientificCalculate()">=</button>
-                <button onclick="scientificInput('+')">+</button>
-
-            </div>
-
-            <div id="scientificResult"></div>
-
-        </div>
-
-    </div>
-
-</div>
-
-
-
-<!-- =====================================================
      FOOTER
 ===================================================== -->
 
@@ -1487,12 +842,12 @@
         <div>
 
             <h3>
-                🎓 Kenya Campus Hub
+                🎓 HigherSpace Connect
             </h3>
 
             <p>
                 Helping Kenyan university students find
-                useful information, opportunities and tools.
+                useful information and opportunities.
             </p>
 
         </div>
@@ -1520,37 +875,32 @@
                 Scholarships
             </a>
 
-        </div>
-
-
-        <div>
-
-            <h4>
-                Student Tools
-            </h4>
-
-            <a href="#tools">
-                GPA Calculator
+            <a href="deadlines.html">
+                Deadlines
             </a>
 
-            <a href="#tools">
-                Budget Planner
+            <a href="discounts.html">
+                Student Discounts
             </a>
 
-            <a href="#tools">
-                Timetable
+            <a href="helplines.html">
+                Helplines &amp; Support
             </a>
-
 
         </div>
 
     </div>
 
-
     <div class="footer-bottom">
 
         <p>
-            © 2026 Kenya Campus Hub. All rights reserved.
+            © 2026 HigherSpace Connect. All rights reserved.
+        </p>
+
+        <p>
+            HigherSpace Connect is an independent student information
+            platform and is not officially affiliated with HELB,
+            KUCCPS, or any university.
         </p>
 
     </div>
@@ -1704,8 +1054,8 @@
     href="ai.html"
     id="campusAiButton"
     class="campus-ai-button"
-    title="Open Kenyan Campus AI"
-    aria-label="Open Kenyan Campus AI"
+    title="Open HigherSpace Connect AI"
+    aria-label="Open HigherSpace Connect AI"
 >
     <span class="campus-ai-icon">
         <svg
@@ -1728,7 +1078,7 @@
     </span>
 
     <span class="campus-ai-label">
-       Ask Kenyan Campus AI Anything
+       Ask HigherSpace Connect AI Anything
     </span>
 </a>
 

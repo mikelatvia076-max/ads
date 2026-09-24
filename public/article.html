@@ -11,19 +11,23 @@
 
     <meta
         name="description"
-        content="Kenya Campus Hub - Article."
+        content="HigherSpace Connect - Article."
     >
 
-    <title id="pageTitle">Kenya Campus Hub</title>
+    <title id="pageTitle">HigherSpace Connect</title>
 
     <link
         rel="stylesheet"
         href="style.css"
     >
+    <link
+        rel="stylesheet"
+        href="decorate.css"
+    >
 </head>
 
 
-<body>
+<body class="page-article">
 
 <!-- =====================================================
      HEADER
@@ -32,23 +36,56 @@
 <header>
 
     <div class="logo">
-        🎓 Kenya Campus Hub
+        <a href="index.html" style="color:inherit;text-decoration:none;">🎓 HigherSpace Connect</a>
     </div>
 
 
-    <nav>
+    <div class="nav-more">
 
-        <a href="index.html">
-            Home
-        </a>
+        <button class="nav-more-btn" onclick="toggleMoreMenu(event)" aria-label="Menu">
+            ☰
+        </button>
 
-        <a href="index.html#tools">
-            Student Tools
-        </a>
+        <div class="nav-more-dropdown" id="navMoreDropdown">
 
-    </nav>
+            <a href="index.html">Home</a>
+            <a href="category.html?type=helb">HELB</a>
+            <a href="category.html?type=kuccps">KUCCPS</a>
+            <a href="category.html?type=jobs">Jobs</a>
+            <a href="category.html?type=internships">Internships</a>
+            <a href="category.html?type=attachments">Attachments</a>
+            <a href="category.html?type=competitions">Competitions</a>
+            <a href="category.html?type=scholarships">Scholarships</a>
+            <a href="category.html?type=rumours">University Rumours</a>
+            <a href="category.html?type=university-alerts">University Alerts</a>
+            <a href="deadlines.html">Deadlines</a>
+            <a href="discounts.html">Student Discounts</a>
+            <a href="helplines.html">Helplines &amp; Support</a>
+
+            <div class="nav-divider"></div>
+
+            <a href="about.html">About Us</a>
+            <a href="contact.html">Contact</a>
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
+            <a href="faq.html">FAQ</a>
+
+        </div>
+
+    </div>
 
 </header>
+
+<script>
+function toggleMoreMenu(e) {
+    e.stopPropagation();
+    document.getElementById("navMoreDropdown").classList.toggle("open");
+}
+document.addEventListener("click", function () {
+    var d = document.getElementById("navMoreDropdown");
+    if (d) d.classList.remove("open");
+});
+</script>
 
 
 <!-- =====================================================
@@ -75,6 +112,7 @@
      JAVASCRIPT
 ===================================================== -->
 
+<script src="decorate.js"></script>
 <script src="article.js"></script>
 
 </body>

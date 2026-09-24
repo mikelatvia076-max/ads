@@ -26,8 +26,37 @@ const CATEGORY_TITLES = {
     kuccps: "KUCCPS Information",
     jobs: "Jobs & Internships",
     scholarships: "Scholarships",
-    rumours: "University Rumours"
+    rumours: "University Rumours",
+    "university-alerts": "University Alerts",
+    internships: "Internships",
+    attachments: "Attachments",
+    competitions: "Competitions"
 };
+
+/*
+Internships, Attachments and Competitions are loaded live from
+/api/opportunities/:type (Serper.dev search, no AI). The server
+already returns card-shaped items with an externalLink.
+*/
+const OPPORTUNITY_TYPES = ["internships", "attachments", "competitions"];
+
+async function fetchOpportunityArticles(type) {
+    const response = await fetch(
+        `/api/opportunities/${encodeURIComponent(type)}?t=${Date.now()}`,
+        { method: "GET", cache: "no-store", headers: { "Accept": "application/json" } }
+    );
+
+    let data = null;
+    try { data = await response.json(); } catch { /* handled below */ }
+
+    if (!response.ok) {
+        throw new Error((data && data.error) || `Opportunities API returned HTTP ${response.status}`);
+    }
+    if (!data || !Array.isArray(data.articles)) {
+        throw new Error("Opportunities API returned invalid data.");
+    }
+    return data.articles;
+}
 
 function getQueryParams() {
     return new URLSearchParams(window.location.search);
@@ -132,7 +161,7 @@ async function loadCategoryPage() {
         titleElement.textContent = pageTitle;
     }
 
-    document.title = `${pageTitle} - Kenya Campus Hub`;
+    document.title = `${pageTitle} - HigherSpace Connect`;
 
     const container = $("articlesList");
 
@@ -173,6 +202,10 @@ async function loadCategoryPage() {
         } else if (category === "rumours") {
 
             articles = await fetchRumourArticles();
+
+        } else if (OPPORTUNITY_TYPES.includes(category)) {
+
+            articles = await fetchOpportunityArticles(category);
 
         } else {
 
@@ -216,6 +249,9 @@ async function loadCategoryPage() {
                         We could not load the latest information.
                         Please check that the server is running.
                     </p>
+                    ${OPPORTUNITY_TYPES.includes(category)
+                        ? `<p><small>${escapeHTML(error.message)}</small></p>`
+                        : ""}
                     <button
                         type="button"
                         onclick="loadCategoryPage()"
@@ -264,6 +300,11 @@ function renderArticles(articles) {
         return dateB - dateA;
     });
 
+    const count = $("resultCount");
+    if (count) {
+        count.textContent = `${sorted.length} ${sorted.length === 1 ? "item" : "items"}`;
+    }
+
     container.innerHTML = sorted.map(article => {
 
         const id = encodeURIComponent(article.id || "");
@@ -273,87 +314,55 @@ function renderArticles(articles) {
             article.description || article.summary || "Read the latest student information."
         );
         const category = escapeHTML(article.category || "General");
+        const catKey = escapeHTML(HS_catKey(article.category || "general"));
         const organization = escapeHTML(article.organization || article.source || "");
-        const status = escapeHTML(article.status || "Active");
+        const status = article.status ? escapeHTML(article.status) : "";
 
-        const publishedDate = article.publishedDate || article.date || "";
-        const updatedDate = article.updatedAt || article.updated || "";
-        const dateToShow = updatedDate || publishedDate;
-
+        const dateToShow = article.updatedAt || article.publishedDate || article.updated || article.date || "";
         let formattedDate = "";
         if (dateToShow) {
             const parsedDate = new Date(dateToShow);
             if (!Number.isNaN(parsedDate.getTime())) {
                 formattedDate = parsedDate.toLocaleDateString("en-KE", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric"
+                    year: "numeric", month: "short", day: "numeric"
                 });
             }
         }
 
-        let formattedDeadline = "";
-        const deadline = article.deadline;
-        if (deadline && deadline !== "null") {
-            const deadlineDate = new Date(deadline);
-            if (!Number.isNaN(deadlineDate.getTime())) {
-                formattedDeadline = deadlineDate.toLocaleDateString("en-KE", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric"
-                });
-            }
-        }
+        const dl = HS_deadlineInfo(article.deadline);
+        const deadlineDate = dl
+            ? dl.date.toLocaleDateString("en-KE", { year: "numeric", month: "short", day: "numeric" })
+            : "";
 
         return `
-            <article class="article">
+            <article class="article" data-cat="${catKey}">
                 <a
+                    class="card-link"
                     href="${externalLink
                         ? escapeHTML(externalLink)
                         : `article.html?id=${id}`}"
                     ${externalLink ? 'target="_blank" rel="noopener noreferrer"' : ""}
-                    style="text-decoration:none; color:inherit; display:block;"
                 >
                     <div class="article-content">
 
-                        <span class="article-category">
-                            ${category}
-                        </span>
+                        <div class="card-top">
+                            <span class="article-category">${category}</span>
+                            ${dl ? `<span class="deadline-chip is-${dl.level}">⏰ ${dl.label}</span>` : ""}
+                        </div>
 
-                        <h3>
-                            ${title}
-                        </h3>
+                        <h3>${title}</h3>
 
-                        <p>
-                            ${summary}
-                        </p>
+                        <p class="card-summary">${summary}</p>
 
-                        ${organization ? `
-                            <small>
-                                🏢 ${organization}
-                            </small>
-                        ` : ""}
+                        <div class="card-meta">
+                            ${organization ? `<span>🏢 ${organization}</span>` : ""}
+                            ${formattedDate ? `<span>🔄 ${formattedDate}</span>` : ""}
+                            ${deadlineDate ? `<span>📅 Deadline ${deadlineDate}</span>` : ""}
+                        </div>
 
-                        ${formattedDate ? `
-                            <small style="display:block; margin-top:6px;">
-                                🔄 Updated: ${formattedDate}
-                            </small>
-                        ` : ""}
-
-                        ${formattedDeadline ? `
-                            <small style="display:block; margin-top:6px;">
-                                ⏰ Deadline: <strong>${formattedDeadline}</strong>
-                            </small>
-                        ` : ""}
-
-                        ${status ? `
-                            <small style="display:block; margin-top:6px;">
-                                📌 ${status}
-                            </small>
-                        ` : ""}
-
-                        <div style="margin-top:12px; font-weight:600;">
-                            Read more →
+                        <div class="card-foot">
+                            ${status ? `<span class="status-pill">${status}</span>` : "<span></span>"}
+                            <span class="card-cta">${externalLink ? "Open source ↗" : "Read more →"}</span>
                         </div>
 
                     </div>
