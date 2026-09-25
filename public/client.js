@@ -8693,9 +8693,36 @@ function sendSticker(emoji) {
 
 // ---- GIF tab: search GIPHY via our own server proxy ----
 
+const GIF_PAGE_SIZE = 24;
+
 let gifsLoadedOnce = false;
 let gifSearchDebounce = null;
 let gifRequestToken = 0;
+
+let gifCurrentQuery = "";
+let gifOffset = 0;
+let gifHasMore = true;
+let gifIsLoadingMore = false;
+
+function appendGifItems(gifs) {
+
+    gifs.forEach((gif) => {
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "gif-item";
+        btn.title = "Send GIF";
+
+        const img = document.createElement("img");
+        img.src = gif.preview || gif.url;
+        img.alt = "GIF";
+
+        btn.appendChild(img);
+        btn.addEventListener("click", () => sendGif(gif.url));
+
+        gifGrid.appendChild(btn);
+    });
+}
 
 async function loadGifs(query) {
 
@@ -8703,11 +8730,18 @@ async function loadGifs(query) {
 
     const myToken = ++gifRequestToken;
 
+    gifCurrentQuery = query || "";
+    gifOffset = 0;
+    gifHasMore = true;
+    gifIsLoadingMore = false;
+
     gifGrid.innerHTML = '<div class="emoji-empty-hint">Loading GIFs…</div>';
 
     try {
 
-        const res = await fetch(`/api/gifs?q=${encodeURIComponent(query || "")}&limit=24`);
+        const res = await fetch(
+            `/api/gifs?q=${encodeURIComponent(gifCurrentQuery)}&limit=${GIF_PAGE_SIZE}&offset=0`
+        );
         const data = await res.json();
 
         if (myToken !== gifRequestToken) return; // a newer search superseded this one
@@ -8721,26 +8755,14 @@ async function loadGifs(query) {
             empty.className = "emoji-empty-hint";
             empty.textContent = "No GIFs found.";
             gifGrid.appendChild(empty);
+            gifHasMore = false;
             return;
         }
 
-        gifs.forEach((gif) => {
+        appendGifItems(gifs);
 
-            const btn = document.createElement("button");
-            btn.type = "button";
-            btn.className = "gif-item";
-            btn.title = "Send GIF";
-
-            const img = document.createElement("img");
-            img.src = gif.preview || gif.url;
-            img.alt = "GIF";
-            img.loading = "lazy";
-
-            btn.appendChild(img);
-            btn.addEventListener("click", () => sendGif(gif.url));
-
-            gifGrid.appendChild(btn);
-        });
+        gifOffset = gifs.length;
+        gifHasMore = gifs.length >= GIF_PAGE_SIZE;
 
     } catch (err) {
 
@@ -8750,7 +8772,62 @@ async function loadGifs(query) {
 
         gifGrid.innerHTML =
             '<div class="emoji-empty-hint">Couldn\'t load GIFs. Check your connection.</div>';
+
+        gifHasMore = false;
     }
+}
+
+async function loadMoreGifs() {
+
+    if (!gifGrid || gifIsLoadingMore || !gifHasMore) return;
+
+    const myToken = gifRequestToken;
+
+    gifIsLoadingMore = true;
+
+    const loadingRow = document.createElement("div");
+    loadingRow.className = "gif-grid-loading-more";
+    loadingRow.textContent = "Loading more…";
+    gifGrid.appendChild(loadingRow);
+
+    try {
+
+        const res = await fetch(
+            `/api/gifs?q=${encodeURIComponent(gifCurrentQuery)}&limit=${GIF_PAGE_SIZE}&offset=${gifOffset}`
+        );
+        const data = await res.json();
+
+        if (myToken !== gifRequestToken) return; // search changed while this was in flight
+
+        loadingRow.remove();
+
+        const gifs = data.gifs || [];
+
+        appendGifItems(gifs);
+
+        gifOffset += gifs.length;
+        gifHasMore = gifs.length >= GIF_PAGE_SIZE;
+
+    } catch (err) {
+
+        console.error("GIF pagination failed:", err);
+        loadingRow.remove();
+
+    } finally {
+
+        gifIsLoadingMore = false;
+    }
+}
+
+if (gifGrid) {
+
+    gifGrid.addEventListener("scroll", () => {
+
+        const nearBottom =
+            gifGrid.scrollTop + gifGrid.clientHeight >= gifGrid.scrollHeight - 120;
+
+        if (nearBottom) loadMoreGifs();
+    });
 }
 
 if (gifSearch) {
