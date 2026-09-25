@@ -922,7 +922,10 @@ button {
 
     left: 10px;
     right: 10px;
-    bottom: 65px;
+
+    /* Opens downward, directly below the account button (100% of the
+       button's own height + an 8px gap), instead of upward. */
+    top: calc(100% + 8px);
 
     padding: 7px;
 
@@ -935,6 +938,8 @@ button {
 
     z-index: 50;
 
+    /* Caps its own height and scrolls internally rather than
+       growing without limit. */
     max-height: min(420px, calc(100vh - 100px));
     overflow-y: auto;
 }
@@ -6441,4 +6446,983 @@ img.twemoji {
 
 .status-viewers-empty.hidden {
     display: none;
+}
+
+
+
+/* =========================================================
+   NODI THEME — visual polish layer
+   Loaded AFTER nodi.css. Same classes/ids, bolder look:
+   emerald/teal + violet + amber palette, glassy surfaces,
+   soft motion, colorful bubbles/buttons/avatars.
+========================================================= */
+
+:root {
+    --accent-1: #10b981;   /* emerald  — primary */
+    --accent-2: #06b6d4;   /* cyan     — primary partner */
+    --accent-3: #8b5cf6;   /* violet   — secondary accent */
+    --accent-4: #f59e0b;   /* amber    — highlights/badges */
+    --accent-5: #f43f5e;   /* rose     — alerts */
+    --accent-online: #22c55e;
+
+    --surface-0: #060b10;
+    --surface-1: #0a1310;
+    --surface-2: #0f1a17;
+    --surface-glass: rgba(15, 26, 23, 0.72);
+
+    --border-soft: rgba(148, 163, 184, 0.14);
+    --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --shadow-lift: 0 18px 45px rgba(0, 0, 0, 0.45);
+
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html, body {
+    font-family: "Inter", "Segoe UI", system-ui, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background: var(--surface-0);
+}
+
+::selection {
+    background: rgba(16, 185, 129, 0.35);
+    color: #fff;
+}
+
+:focus-visible {
+    outline: 2px solid var(--accent-1);
+    outline-offset: 2px;
+}
+
+/* ---------- scrollbars everywhere ---------- */
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
+}
+
+.friends-list::-webkit-scrollbar,
+.all-users-list::-webkit-scrollbar,
+.messages::-webkit-scrollbar,
+.sidebar-view::-webkit-scrollbar,
+.modal-card::-webkit-scrollbar,
+.modal-picker-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.friends-list::-webkit-scrollbar-thumb,
+.all-users-list::-webkit-scrollbar-thumb,
+.messages::-webkit-scrollbar-thumb,
+.sidebar-view::-webkit-scrollbar-thumb,
+.modal-card::-webkit-scrollbar-thumb,
+.modal-picker-list::-webkit-scrollbar-thumb {
+    background: rgba(16, 185, 129, 0.3);
+    border-radius: 10px;
+}
+
+.friends-list::-webkit-scrollbar-thumb:hover,
+.messages::-webkit-scrollbar-thumb:hover {
+    background: rgba(16, 185, 129, 0.5);
+}
+
+
+/* =========================================================
+   MOTION
+========================================================= */
+
+@keyframes nodiFadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes nodiPopIn {
+    from { opacity: 0; transform: scale(0.96) translateY(6px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes nodiPulseRing {
+    0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55); }
+    70%  { box-shadow: 0 0 0 7px rgba(34, 197, 94, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+@keyframes nodiDrift {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    50%  { transform: translate3d(-2%, 1.5%, 0) scale(1.06); }
+    100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+
+/* =========================================================
+   JOIN SCREEN — teal/violet/amber glow
+========================================================= */
+
+.join-screen {
+    background:
+        radial-gradient(circle at 15% 15%, rgba(16, 185, 129, 0.22) 0%, transparent 45%),
+        radial-gradient(circle at 85% 25%, rgba(139, 92, 246, 0.18) 0%, transparent 45%),
+        radial-gradient(circle at 50% 100%, rgba(245, 158, 11, 0.12) 0%, transparent 50%),
+        var(--surface-0);
+}
+
+.join-screen::before {
+    content: "";
+    position: fixed;
+    inset: -10%;
+    z-index: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 25% 30%, rgba(16, 185, 129, 0.14), transparent 40%),
+        radial-gradient(circle at 75% 70%, rgba(139, 92, 246, 0.14), transparent 40%);
+    animation: nodiDrift 18s ease-in-out infinite;
+}
+
+.join-card {
+    position: relative;
+    z-index: 1;
+
+    background: linear-gradient(180deg, rgba(15, 26, 23, 0.94), rgba(10, 15, 20, 0.96));
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    box-shadow:
+        var(--shadow-lift),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+    animation: nodiPopIn 0.45s var(--ease);
+}
+
+.join-logo,
+.logo-icon {
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2)) !important;
+    box-shadow: 0 10px 32px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(255,255,255,0.25);
+}
+
+.join-card h1 {
+    background: linear-gradient(135deg, #f0fdf4, #a7f3d0);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+#emailInput,
+#nameInput,
+#forgotEmailInput,
+#createAccountNameInput,
+#createAccountEmailInput {
+    transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), background 0.2s var(--ease);
+}
+
+#emailInput:focus,
+#nameInput:focus,
+#forgotEmailInput:focus,
+#createAccountNameInput:focus,
+#createAccountEmailInput:focus {
+    border-color: var(--accent-1) !important;
+    background: #0d1a16 !important;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.16) !important;
+}
+
+#joinBtn,
+.forgot-modal-submit,
+.modal-primary-btn {
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2)) !important;
+    box-shadow: 0 10px 26px rgba(16, 185, 129, 0.35);
+    transition: transform 0.18s var(--ease), box-shadow 0.18s var(--ease), filter 0.18s var(--ease);
+}
+
+#joinBtn:hover,
+.forgot-modal-submit:hover,
+.modal-primary-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+    box-shadow: 0 14px 32px rgba(16, 185, 129, 0.45);
+}
+
+#createAccountBtn,
+.modal-secondary-btn {
+    transition: background 0.2s var(--ease), transform 0.18s var(--ease);
+}
+
+#createAccountBtn:hover,
+.modal-secondary-btn:hover {
+    transform: translateY(-1px);
+    background: #1b2e28;
+}
+
+.forgot-name-btn {
+    color: var(--accent-2) !important;
+}
+
+.modal-danger-btn {
+    background: rgba(244, 63, 94, 0.14) !important;
+    color: var(--accent-5) !important;
+    transition: background 0.2s var(--ease), transform 0.18s var(--ease);
+}
+
+.modal-danger-btn:hover {
+    background: rgba(244, 63, 94, 0.22) !important;
+    transform: translateY(-1px);
+}
+
+
+/* =========================================================
+   MODALS — glass + gentle pop
+========================================================= */
+
+.modal-overlay,
+.forgot-modal-overlay,
+.nice-alert-overlay,
+.status-viewers-overlay {
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+.modal-card,
+.forgot-modal,
+.nice-alert {
+    animation: nodiPopIn 0.25s var(--ease);
+    background: linear-gradient(180deg, #0e1a17, #0a0f14) !important;
+    border: 1px solid var(--border-soft) !important;
+}
+
+.forgot-modal-icon,
+.nice-alert-icon {
+    background: linear-gradient(135deg, var(--accent-4), var(--accent-5)) !important;
+    color: #fff !important;
+}
+
+#createAccountModal .forgot-modal-icon {
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2)) !important;
+}
+
+.nice-confirm-icon {
+    background: linear-gradient(135deg, var(--accent-4), var(--accent-5)) !important;
+}
+
+
+/* =========================================================
+   SIDEBAR
+========================================================= */
+
+.sidebar {
+    background: linear-gradient(180deg, #0a0f0d, #080c0b);
+    border-right: 1px solid var(--border-soft);
+}
+
+.sidebar-head {
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.08), transparent);
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.logo-icon {
+    border-radius: 14px;
+}
+
+.my-online-dot {
+    animation: nodiPulseRing 2.2s infinite;
+}
+
+.home-icon-btn {
+    background: linear-gradient(135deg, var(--accent-3), var(--accent-5)) !important;
+    box-shadow: 0 3px 10px rgba(139, 92, 246, 0.4) !important;
+}
+
+.sidebar-nav-tabs {
+    padding: 6px 8px 0;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.sidebar-nav-tab {
+    border-radius: 10px 10px 0 0;
+    border-bottom: 2px solid transparent;
+}
+
+.sidebar-nav-tab.active {
+    color: #fff !important;
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.03));
+    border-bottom-color: var(--accent-1) !important;
+}
+
+.sidebar-search {
+    border-radius: 24px;
+    background: var(--surface-2);
+    border-color: var(--border-soft);
+    transition: box-shadow 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.sidebar-search:focus-within {
+    border-color: var(--accent-1);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.14);
+}
+
+.find-friend-btn {
+    border-radius: 14px;
+    transition: background 0.2s var(--ease), transform 0.18s var(--ease);
+}
+
+.find-friend-btn:hover {
+    background: #10201b;
+    transform: translateX(2px);
+}
+
+.find-friend-btn .find-icon {
+    transition: transform 0.2s var(--ease);
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2)) !important;
+    color: #fff !important;
+}
+
+.new-group-btn .find-icon {
+    background: linear-gradient(135deg, var(--accent-3), #a78bfa) !important;
+}
+
+.new-community-btn .find-icon {
+    background: linear-gradient(135deg, var(--accent-4), #fbbf24) !important;
+    color: #1c1300 !important;
+}
+
+.new-channel-btn .find-icon {
+    background: linear-gradient(135deg, var(--accent-5), #fb7185) !important;
+}
+
+.add-status-btn .find-icon {
+    background: transparent !important;
+}
+
+.find-friend-btn:hover .find-icon {
+    transform: scale(1.08);
+}
+
+.find-friend-btn .find-arrow {
+    transition: transform 0.2s var(--ease), opacity 0.2s var(--ease);
+    opacity: 0.6;
+    color: var(--accent-2);
+}
+
+.find-friend-btn:hover .find-arrow {
+    transform: translateX(3px);
+    opacity: 1;
+}
+
+.friends-heading span:first-child {
+    color: var(--accent-2);
+    letter-spacing: 0.08em;
+}
+
+.friends-count {
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2)) !important;
+    color: #fff !important;
+}
+
+.friend-item,
+.discover-user {
+    border-radius: 14px;
+    transition: background 0.18s var(--ease), transform 0.18s var(--ease);
+}
+
+.friend-item:hover,
+.discover-user:hover {
+    background: #10201b;
+}
+
+.friend-item.active {
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.16), rgba(16, 185, 129, 0.02)) !important;
+    box-shadow: inset 3px 0 0 var(--accent-1);
+}
+
+.friend-avatar,
+.chat-avatar,
+.account-avatar,
+.panel-avatar,
+.modal-picker-avatar,
+.call-avatar-circle,
+.call-tile-avatar-circle,
+.forward-friend-avatar {
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2)) !important;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+
+/* rotate avatar colors so a chat list doesn't look monochrome */
+.friend-item:nth-of-type(3n+1) .friend-avatar,
+.friend-item:nth-of-type(3n+1) .chat-avatar {
+    background: linear-gradient(135deg, var(--accent-3), #a78bfa) !important;
+    box-shadow: 0 4px 14px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+
+.friend-item:nth-of-type(3n+2) .friend-avatar,
+.friend-item:nth-of-type(3n+2) .chat-avatar {
+    background: linear-gradient(135deg, var(--accent-4), var(--accent-5)) !important;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+
+.friend-online-dot,
+.chat-online-dot {
+    background: var(--accent-online) !important;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+}
+
+.request-count,
+.status-unread-dot {
+    background: var(--accent-5) !important;
+}
+
+
+/* =========================================================
+   CHAT AREA
+========================================================= */
+
+.chat-area {
+    background:
+        radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.06), transparent 45%),
+        var(--surface-1);
+}
+
+.chat-header {
+    background: linear-gradient(180deg, rgba(15, 26, 23, 0.94), rgba(10, 18, 15, 0.94));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.messages {
+    background:
+        radial-gradient(circle at 15% 10%, rgba(16, 185, 129, 0.06), transparent 30%),
+        radial-gradient(circle at 85% 90%, rgba(139, 92, 246, 0.06), transparent 35%),
+        var(--surface-1);
+}
+
+.msg-row {
+    animation: nodiFadeUp 0.28s var(--ease);
+}
+
+.bubble {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+    transition: transform 0.15s var(--ease);
+}
+
+.msg-row.mine .bubble {
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2)) !important;
+    box-shadow: 0 8px 22px rgba(16, 185, 129, 0.32);
+    color: #04140f !important;
+}
+
+.msg-row.mine .msg-meta {
+    color: rgba(4, 20, 15, 0.55);
+}
+
+.msg-row.theirs .bubble {
+    background: #14201d !important;
+    border: 1px solid var(--border-soft);
+}
+
+.empty-chat-icon {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(139, 92, 246, 0.12));
+    border: 1px solid var(--border-soft);
+    color: var(--accent-1);
+}
+
+
+/* =========================================================
+   COMPOSER
+========================================================= */
+
+.composer {
+    background: linear-gradient(180deg, rgba(15, 26, 23, 0.96), rgba(10, 18, 15, 0.98));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-top: 1px solid var(--border-soft);
+}
+
+.composer-icon {
+    transition: background 0.18s var(--ease), color 0.18s var(--ease), transform 0.18s var(--ease);
+}
+
+.composer-icon:hover {
+    background: #1a2e28;
+    color: var(--accent-2);
+    transform: translateY(-1px);
+}
+
+.send-btn {
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2)) !important;
+    box-shadow: 0 8px 22px rgba(16, 185, 129, 0.35);
+}
+
+.send-btn:hover {
+    box-shadow: 0 10px 28px rgba(16, 185, 129, 0.5);
+}
+
+.emoji-tab.active {
+    color: var(--accent-1) !important;
+    box-shadow: inset 0 -2px 0 var(--accent-1) !important;
+}
+
+
+/* =========================================================
+   MISC NICETIES
+========================================================= */
+
+.unread-badge {
+    background: linear-gradient(135deg, var(--accent-1), var(--accent-2)) !important;
+}
+
+.status-item-ring,
+.avatar-edit-badge {
+    background: linear-gradient(135deg, var(--accent-4), var(--accent-5)) !important;
+}
+
+.friend-status.online {
+    color: var(--accent-1) !important;
+}
+
+a, .link-color {
+    color: var(--accent-2);
+}
+
+button {
+    transition: filter 0.15s var(--ease), transform 0.15s var(--ease);
+}
+
+/* =========================================================================
+   ============  WHATSAPP LAYOUT / VISUAL RESTRUCTURE (FINAL)  =============
+   Appended last so it wins the cascade. Pure re-skin: no HTML/JS was
+   touched, no features added or removed — every existing element is kept,
+   just repositioned and recolored to match WhatsApp's own placement.
+========================================================================= */
+
+:root {
+    --wa-panel-header: #f0f2f5;
+    --wa-panel-bg: #ffffff;
+    --wa-chat-bg: #efeae2;
+    --wa-green: #00a884;
+    --wa-green-dark: #008069;
+    --wa-teal-text: #008069;
+    --wa-bubble-out: #d9fdd3;
+    --wa-bubble-in: #ffffff;
+    --wa-text-primary: #111b21;
+    --wa-text-secondary: #667781;
+    --wa-border: #e9edef;
+    --wa-hover: #f5f6f6;
+    --wa-selected: #f0f2f5;
+    --wa-icon: #54656f;
+    --wa-blue-tick: #53bdeb;
+}
+
+html, body {
+    background: var(--wa-chat-bg) !important;
+    font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, "Inter", sans-serif !important;
+    color: var(--wa-text-primary);
+}
+
+/* ---------- app shell ---------- */
+
+.app {
+    background: var(--wa-chat-bg) !important;
+}
+
+.sidebar {
+    width: 400px !important;
+    background: var(--wa-panel-bg) !important;
+    border-right: 1px solid var(--wa-border) !important;
+}
+
+/* ---------- sidebar header: avatar (left) + icon tabs (right),
+   merged with the nav tabs row onto one WhatsApp-style top bar ---------- */
+
+.sidebar-head {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    grid-row: 1;
+    min-height: 60px !important;
+    padding: 10px 16px !important;
+    background: var(--wa-panel-header) !important;
+    border-bottom: none !important;
+}
+
+#sidebarNavTabs {
+    grid-row: 1;
+}
+
+.sidebar > .sidebar-head,
+.sidebar > #sidebarNavTabs {
+    grid-column: 1;
+}
+
+.sidebar {
+    display: grid !important;
+    grid-template-rows: 60px auto 1fr;
+    grid-template-columns: 1fr;
+}
+
+.sidebar-head { grid-row: 1; grid-column: 1; align-self: stretch; }
+#sidebarNavTabs { grid-row: 1; grid-column: 1; justify-self: end; align-self: center; margin-right: 12px; }
+#chatsView, .sidebar-view { grid-row: 3; grid-column: 1; overflow-y: auto; }
+
+.head-left { gap: 8px; }
+.site-logo { gap: 8px; }
+
+.logo-icon {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 50% !important;
+    background: #6b7c85 !important;
+    color: #fff !important;
+    font-size: 17px !important;
+}
+
+.brand-small { display: none !important; }
+.online-label { display: none !important; }
+.me-name { display: none !important; }
+.home-icon-btn { display: none !important; }
+
+/* icon-only nav tabs, sitting top-right like WhatsApp's Status/Channels/Menu icons */
+
+#sidebarNavTabs {
+    display: flex !important;
+    gap: 4px;
+    border-bottom: none !important;
+    background: transparent !important;
+}
+
+.sidebar-nav-tab {
+    flex: none !important;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent !important;
+    color: var(--wa-icon) !important;
+    font-size: 19px;
+}
+
+.sidebar-nav-tab span { display: none !important; }
+
+.sidebar-nav-tab:hover { background: rgba(11,20,26,0.06) !important; }
+
+.sidebar-nav-tab.active {
+    background: transparent !important;
+    color: var(--wa-green-dark) !important;
+}
+
+.sidebar-nav-tab.active::after { display: none !important; }
+
+/* ---------- search bar ---------- */
+
+.sidebar-search {
+    margin: 8px 12px !important;
+    padding: 8px 12px !important;
+    background: var(--wa-panel-header) !important;
+    border-radius: 8px !important;
+    border: none !important;
+}
+
+.sidebar-search i { color: var(--wa-icon) !important; }
+
+.sidebar-search input {
+    background: transparent !important;
+    color: var(--wa-text-primary) !important;
+}
+
+.sidebar-search input::placeholder { color: var(--wa-text-secondary) !important; }
+
+/* ---------- quick-action rows (Find Friend / New Group / New Community / New Channel) ---------- */
+
+.find-friend-btn {
+    background: transparent !important;
+    border-bottom: 1px solid var(--wa-border) !important;
+    border-radius: 0 !important;
+    padding: 10px 16px !important;
+}
+
+.find-friend-btn:hover { background: var(--wa-hover) !important; }
+
+.find-icon {
+    background: var(--wa-panel-header) !important;
+    color: var(--wa-green-dark) !important;
+}
+
+.find-text strong { color: var(--wa-text-primary) !important; }
+.find-text small { color: var(--wa-text-secondary) !important; }
+.find-arrow { color: var(--wa-icon) !important; }
+
+.friends-heading {
+    background: var(--wa-panel-bg) !important;
+    color: var(--wa-green-dark) !important;
+}
+
+/* ---------- chat list rows ---------- */
+
+.friend-item, .group-item, .community-item, .channel-item {
+    background: transparent !important;
+    border-bottom: 1px solid var(--wa-border) !important;
+    padding: 10px 16px !important;
+    border-radius: 0 !important;
+}
+
+.friend-item:hover, .group-item:hover, .community-item:hover, .channel-item:hover {
+    background: var(--wa-hover) !important;
+}
+
+.friend-item.active, .group-item.active, .community-item.active, .channel-item.active {
+    background: var(--wa-selected) !important;
+}
+
+.friend-avatar, .chat-avatar {
+    width: 49px !important;
+    height: 49px !important;
+    border-radius: 50% !important;
+    background: #8696a0 !important;
+    color: #fff !important;
+}
+
+.friend-item:nth-of-type(3n+1) .friend-avatar,
+.friend-item:nth-of-type(3n+1) .chat-avatar { background: #8696a0 !important; }
+.friend-item:nth-of-type(3n+2) .friend-avatar,
+.friend-item:nth-of-type(3n+2) .chat-avatar { background: #6b7c85 !important; }
+.friend-item:nth-of-type(3n) .friend-avatar,
+.friend-item:nth-of-type(3n) .chat-avatar { background: #7a8b94 !important; }
+
+.friend-name, .group-name { color: var(--wa-text-primary) !important; font-weight: 500 !important; }
+.friend-status { color: var(--wa-text-secondary) !important; }
+.friend-status.online { color: var(--wa-text-secondary) !important; }
+
+.unread-badge {
+    background: var(--wa-green) !important;
+    color: #fff !important;
+    border-radius: 50% !important;
+    align-self: flex-end !important;
+}
+
+/* ---------- conversation header ---------- */
+
+.chat-header {
+    background: var(--wa-panel-header) !important;
+    border-bottom: 1px solid var(--wa-border) !important;
+    color: var(--wa-text-primary) !important;
+}
+
+.chat-header .chat-name, .chat-header strong { color: var(--wa-text-primary) !important; }
+.chat-header .chat-status, .chat-header small { color: var(--wa-text-secondary) !important; }
+
+.call-btn {
+    background: transparent !important;
+    color: var(--wa-icon) !important;
+}
+
+.call-btn:hover { background: rgba(11,20,26,0.06) !important; }
+
+/* ---------- message area / wallpaper ---------- */
+
+.messages {
+    background-color: var(--wa-chat-bg) !important;
+    background-image:
+        radial-gradient(rgba(0,0,0,0.035) 1px, transparent 1px) !important;
+    background-size: 22px 22px !important;
+}
+
+.empty-chat h2, .empty-chat p { color: var(--wa-text-secondary) !important; }
+
+/* ---------- bubbles ---------- */
+
+.msg-row.mine { justify-content: flex-end !important; }
+.msg-row.theirs { justify-content: flex-start !important; }
+
+.msg-row.mine .bubble {
+    background: var(--wa-bubble-out) !important;
+    color: var(--wa-text-primary) !important;
+    border-radius: 8px 0 8px 8px !important;
+}
+
+.msg-row.theirs .bubble {
+    background: var(--wa-bubble-in) !important;
+    color: var(--wa-text-primary) !important;
+    border-radius: 0 8px 8px 8px !important;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.08) !important;
+}
+
+.msg-meta {
+    color: var(--wa-text-secondary) !important;
+    font-size: 11px !important;
+}
+
+/* ---------- composer ---------- */
+
+.composer {
+    background: var(--wa-panel-header) !important;
+    border-top: none !important;
+    padding: 8px 16px !important;
+}
+
+.composer-icon {
+    background: transparent !important;
+    color: var(--wa-icon) !important;
+}
+
+.composer input, .composer textarea, #messageInput {
+    background: var(--wa-panel-bg) !important;
+    border-radius: 20px !important;
+    color: var(--wa-text-primary) !important;
+}
+
+#sendBtn, .send-btn {
+    background: var(--wa-green) !important;
+    color: #fff !important;
+    border-radius: 50% !important;
+}
+
+/* ---------- generic modals/panels (covers status compose, export,
+   clear chat, create account, forgot name, group info, etc.) ---------- */
+
+.modal-overlay, .forgot-modal-overlay, .nice-alert-overlay, .status-viewers-overlay {
+    background: rgba(11,20,26,0.55) !important;
+}
+
+.modal-card, .forgot-modal, .nice-alert, .status-viewers-sheet {
+    background: var(--wa-panel-bg) !important;
+    color: var(--wa-text-primary) !important;
+    border-radius: 8px !important;
+    border: none !important;
+}
+
+.modal-head { border-bottom: 1px solid var(--wa-border) !important; color: var(--wa-text-primary) !important; }
+.modal-hint, .forgot-modal p, .nice-alert p { color: var(--wa-text-secondary) !important; }
+
+.modal-text-input, #forgotEmailInput, #createAccountNameInput, #createAccountEmailInput {
+    background: var(--wa-panel-header) !important;
+    color: var(--wa-text-primary) !important;
+    border: 1px solid var(--wa-border) !important;
+}
+
+.modal-primary-btn, .forgot-modal-submit, .nice-alert-ok {
+    background: var(--wa-green) !important;
+    color: #fff !important;
+    border-radius: 8px !important;
+}
+
+.modal-secondary-btn { background: var(--wa-panel-header) !important; color: var(--wa-text-primary) !important; }
+.panel-close { color: var(--wa-icon) !important; }
+
+/* ---------- join / login screen ---------- */
+
+.join-screen { background: var(--wa-chat-bg) !important; }
+
+.join-card {
+    background: var(--wa-panel-bg) !important;
+    color: var(--wa-text-primary) !important;
+    border-radius: 8px !important;
+}
+
+.join-card h1 { color: var(--wa-text-primary) !important; }
+.join-card p { color: var(--wa-text-secondary) !important; }
+
+.join-logo {
+    background: var(--wa-green-dark) !important;
+    color: #fff !important;
+    border-radius: 50% !important;
+}
+
+#joinFormFields input {
+    background: var(--wa-panel-header) !important;
+    color: var(--wa-text-primary) !important;
+    border: 1px solid var(--wa-border) !important;
+}
+
+#joinBtn { background: var(--wa-green) !important; color: #fff !important; }
+.create-account-btn { background: transparent !important; color: var(--wa-green-dark) !important; border: 1px solid var(--wa-green-dark) !important; }
+.forgot-name-btn { color: var(--wa-green-dark) !important; }
+
+/* ---------- scrollbars ---------- */
+
+* { scrollbar-color: rgba(0,0,0,0.18) transparent !important; }
+
+.friends-list::-webkit-scrollbar-thumb,
+.messages::-webkit-scrollbar-thumb,
+.sidebar-view::-webkit-scrollbar-thumb,
+.modal-card::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.18) !important;
+}
+
+/* =========================================================
+   NEW FEATURE SCAFFOLDING: Starred messages / Privacy &
+   security / Linked devices / message star badge
+   (added to back the existing account-menu buttons)
+========================================================= */
+
+.msg-star-badge {
+    color: #f0b429;
+    font-size: 10px;
+    margin-right: 4px;
+}
+
+.starred-message-row {
+    cursor: pointer;
+}
+
+.starred-message-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.starred-message-time {
+    color: #64748b;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.starred-unstar-btn {
+    color: #f0b429;
+}
+
+.privacy-option-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.privacy-option-label {
+    color: #cbd5e1;
+    font-size: 13px;
+}
+
+.privacy-option-select {
+    background: #0f172a;
+    color: #f1f5f9;
+    border: 1px solid #1a2333;
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 12px;
+}
+
+.privacy-toggle-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #22c55e;
+}
+
+.blocked-contacts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.link-device-code-wrap {
+    margin-top: 14px;
+    text-align: center;
+}
+
+.link-device-code {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    color: #f1f5f9;
+    background: #0f172a;
+    border: 1px solid #1a2333;
+    border-radius: 10px;
+    padding: 12px 10px;
+    margin: 8px 0;
 }

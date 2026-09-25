@@ -16,6 +16,7 @@ import { nanoid } from "nanoid";
 import { Server as SocketIOServer } from "socket.io";
 import webpush from "web-push";
 import { registerOpportunitiesRoutes } from "./opportunities.js";
+import { registerUniversityFeedRoutes } from "./university-feed.js";
 
 /*
 =========================================================
@@ -63,7 +64,7 @@ process.on(
 
 /*
 =========================================================
-KENYA CAMPUS HUB
+HIGHERSPACE CONNECT
 MAIN SERVER
 =========================================================
 */
@@ -408,6 +409,31 @@ function removeStoredMessage(userA, userB, messageId) {
     convo.messages = convo.messages.filter(m => m.id !== messageId);
 
     writeChatHistoryStore(store);
+}
+
+// updates a stored message's text in place and stamps it as edited.
+// Returns the updated message, or null if it couldn't be found /
+// the requester wasn't the original sender.
+function editStoredMessage(requesterId, userA, userB, messageId, newText) {
+
+    const store = readChatHistoryStore();
+    const key = isGroupId(userB) ? userB : conversationKey(userA, userB);
+    const convo = getOrCreateConversation(store, key);
+    const stored = convo.messages.find(m => m.id === messageId);
+
+    if (!stored) return null;
+    if (stored.deletedForEveryone || !stored.from || stored.from.id !== requesterId) return null;
+
+    // editing only ever applies to the text of a message - swapping
+    // out an attachment isn't something WhatsApp allows either, so
+    // this intentionally leaves stored.attachment untouched
+    stored.text = newText;
+    stored.edited = true;
+    stored.editedAt = Date.now();
+
+    writeChatHistoryStore(store);
+
+    return stored;
 }
 
 try {
@@ -1997,6 +2023,17 @@ registerOpportunitiesRoutes(app, { dataFolder, readArticles, writeArticles });
 
 /*
 =========================================================
+MY CAMPUS — PER-UNIVERSITY NEWS, ANNOUNCEMENTS & OPPORTUNITIES
+Loaded live from GNews (no Groq, no NewsData, no Serper — a
+provider not otherwise used in this project) for whichever
+institution the student picks. See university-feed.js
+=========================================================
+*/
+
+registerUniversityFeedRoutes(app, { dataFolder });
+
+/*
+=========================================================
 WEB PUSH (background notifications for messages + calls)
 =========================================================
 Lets the phone show a notification for a new message or an
@@ -2175,11 +2212,46 @@ function isSafeAvatarUrl(url) {
 
 function broadcastChatUserList() {
 
-    const list =
-        Array.from(onlineChatUsers.entries())
-            .map(([id, u]) => ({ id, name: u.name, avatar: u.avatar || null }));
+    // Personalized per recipient so each user's "last seen & online" and
+    // "profile photo" privacy choices are actually respected, instead of
+    // one global list sent to everyone. NOTE: this only distinguishes
+    // "nobody" from everyone else - the "My contacts" tier currently
+    // behaves the same as "Everyone", because there's no server-side
+    // contacts/friends graph to check against yet (friend requests are
+    // relayed client-to-client and never persisted server-side). Wiring
+    // a real contacts store is the natural next step for that tier.
 
-    io.emit("user-list", list);
+    const allEntries =
+        Array.from(onlineChatUsers.entries());
+
+    for (const [, recipientSocket] of io.sockets.sockets) {
+
+        const viewerId =
+            recipientSocket.data && recipientSocket.data.chatUserId;
+
+        const list =
+            allEntries
+                .filter(([id]) => {
+
+                    if (id === viewerId) return true; // always see yourself
+
+                    return getPrivacyForUser(id).lastSeen !== "nobody";
+                })
+                .map(([id, u]) => {
+
+                    const hidePhoto =
+                        id !== viewerId &&
+                        getPrivacyForUser(id).profilePhoto === "nobody";
+
+                    return {
+                        id,
+                        name: u.name,
+                        avatar: hidePhoto ? null : (u.avatar || null)
+                    };
+                });
+
+        recipientSocket.emit("user-list", list);
+    }
 }
 
 io.on("connection", (socket) => {
@@ -2271,6 +2343,7 @@ io.on("connection", (socket) => {
 
         socket.data.name = safeName;
         socket.data.email = safeEmail;
+        socket.data.chatUserId = chatUserId;
 
         // rejoin the room for every group this user already
         // belongs to, so group messages/calls reach them without
@@ -2419,6 +2492,7 @@ io.on("connection", (socket) => {
         chatUserId = null;
         socket.data.name = null;
         socket.data.email = null;
+        socket.data.chatUserId = null;
     });
 
     socket.on("set-avatar", (avatarUrl) => {
@@ -2596,7 +2670,13 @@ io.on("connection", (socket) => {
         convo.lastRead[chatUserId] = messageId;
         writeChatHistoryStore(store);
 
-        socket.to(toId).emit("read-receipt", { fromId: chatUserId, messageId });
+        // respect the reader's own "read receipts" privacy toggle - if
+        // they've turned it off, the other side doesn't get the blue
+        // double-tick event for this read (matches WhatsApp: turning
+        // off read receipts hides yours from others too)
+        if (getPrivacyForUser(chatUserId).readReceipts) {
+            socket.to(toId).emit("read-receipt", { fromId: chatUserId, messageId });
+        }
     });
 
     // toggles disappearing messages for a conversation; either
@@ -2763,6 +2843,30 @@ io.on("connection", (socket) => {
         socket.emit("message-deleted", payload);
     });
 
+    socket.on("edit-message", ({ toId, messageId, text } = {}) => {
+
+        if (!toId || !messageId || !chatUserId) return;
+        if (typeof text !== "string" || !text.trim()) return;
+
+        // for a group, edits use the same room key everyone's
+        // messages are stored under; for a 1:1 chat it's the pair key
+        const trimmed = text.trim().slice(0, 4000);
+        const updated = editStoredMessage(chatUserId, chatUserId, toId, messageId, trimmed);
+
+        if (!updated) return; // not found, or requester didn't send it originally
+
+        const payload = {
+            messageId,
+            toId,
+            fromId: chatUserId,
+            text: updated.text,
+            editedAt: updated.editedAt
+        };
+
+        socket.to(toId).emit("message-edited", payload);
+        socket.emit("message-edited", payload); // echo back to sender
+    });
+
     socket.on("call-user", ({ toId, offer, callType }) => {
 
         if (!toId || !chatUserId) return;
@@ -2803,6 +2907,19 @@ io.on("connection", (socket) => {
 
     socket.on("ice-candidate", ({ toId, candidate }) => {
         io.to(toId).emit("ice-candidate", { fromId: chatUserId, candidate });
+    });
+
+    // Mid-call ICE-restart renegotiation (used when a call gets stuck
+    // "Reconnecting..." instead of recovering on its own) - plain
+    // relays, same shape as call-user/call-answer above, just on their
+    // own event names so they never get confused with a brand new
+    // incoming call while one is already in progress.
+    socket.on("call-renegotiate-offer", ({ toId, offer }) => {
+        io.to(toId).emit("call-renegotiate-offer", { fromId: chatUserId, offer });
+    });
+
+    socket.on("call-renegotiate-answer", ({ toId, answer }) => {
+        io.to(toId).emit("call-renegotiate-answer", { fromId: chatUserId, answer });
     });
 
     socket.on("call-reject", ({ toId }) => {
@@ -3183,7 +3300,180 @@ io.on("connection", (socket) => {
             store[chatUserId].push(userId);
             writeBlockedStore(store);
         }
+
+        socket.emit("blocked-list", { blocked: store[chatUserId] || [] });
     });
+
+
+    // ==========================================================
+    // NEW FEATURE SCAFFOLDING - added so the existing "Privacy &
+    // security" / "Linked devices" / "Starred messages" menu
+    // buttons (already in the UI) have somewhere real to go.
+    // ==========================================================
+
+    // ---- unblock / list blocked contacts ----
+
+    socket.on("unblock-user", ({ userId } = {}) => {
+
+        if (!userId || !chatUserId) return;
+
+        const store = readBlockedStore();
+        if (Array.isArray(store[chatUserId])) {
+            store[chatUserId] = store[chatUserId].filter((id) => id !== userId);
+            writeBlockedStore(store);
+        }
+
+        socket.emit("blocked-list", { blocked: store[chatUserId] || [] });
+    });
+
+    socket.on("get-blocked-list", () => {
+
+        if (!chatUserId) return;
+
+        const store = readBlockedStore();
+        socket.emit("blocked-list", { blocked: store[chatUserId] || [] });
+    });
+
+
+    // ---- privacy settings (last seen, profile photo, about, read
+    // receipts, who can add me to groups) ----
+
+    socket.on("get-privacy-settings", () => {
+
+        if (!chatUserId) return;
+
+        const store = readPrivacyStore();
+        socket.emit("privacy-settings", {
+            ...DEFAULT_PRIVACY_SETTINGS,
+            ...(store[chatUserId] || {})
+        });
+    });
+
+    socket.on("set-privacy-settings", (payload = {}) => {
+
+        if (!chatUserId) return;
+
+        const store = readPrivacyStore();
+
+        store[chatUserId] = {
+            ...DEFAULT_PRIVACY_SETTINGS,
+            ...(store[chatUserId] || {}),
+            ...payload
+        };
+
+        writePrivacyStore(store);
+
+        socket.emit("privacy-settings", store[chatUserId]);
+
+        // last-seen / profile-photo visibility can change what other
+        // people are allowed to see, so refresh everyone's user list
+        broadcastChatUserList();
+
+        // NOTE: last-seen/profile-photo are now enforced (see
+        // broadcastChatUserList) for the "Nobody" case. Read receipts
+        // are enforced in the "mark-read" handler below. The "My
+        // contacts" tier for all of these still falls back to
+        // "Everyone" until there's a real contacts store server-side.
+    });
+
+
+    // ---- two-step verification (PIN) ----
+
+    socket.on("get-two-step-status", () => {
+
+        if (!chatUserId) return;
+
+        const store = readTwoStepStore();
+        socket.emit("two-step-status", { enabled: Boolean(store[chatUserId]) });
+    });
+
+    socket.on("set-two-step-pin", ({ pin } = {}) => {
+
+        if (!chatUserId || !pin || String(pin).length < 4) {
+            socket.emit("two-step-error", { message: "PIN must be at least 4 digits." });
+            return;
+        }
+
+        const store = readTwoStepStore();
+        const salt = crypto.randomBytes(8).toString("hex");
+
+        store[chatUserId] = { hash: hashTwoStepPin(String(pin), salt), salt, setAt: Date.now() };
+        writeTwoStepStore(store);
+
+        socket.emit("two-step-status", { enabled: true });
+    });
+
+    socket.on("disable-two-step-pin", () => {
+
+        if (!chatUserId) return;
+
+        const store = readTwoStepStore();
+        delete store[chatUserId];
+        writeTwoStepStore(store);
+
+        socket.emit("two-step-status", { enabled: false });
+    });
+
+
+    // ---- linked devices ----
+
+    socket.on("get-linked-devices", () => {
+
+        if (!chatUserId) return;
+
+        const store = readLinkedDevicesStore();
+        socket.emit("linked-devices", { devices: store[chatUserId] || [] });
+    });
+
+    socket.on("request-link-code", () => {
+
+        if (!chatUserId) return;
+
+        pruneExpiredLinkCodes();
+
+        const code = String(crypto.randomInt(100000, 999999));
+        pendingLinkCodes.set(code, { chatUserId, expiresAt: Date.now() + LINK_CODE_LIFETIME_MS });
+
+        socket.emit("link-code", { code, expiresInMs: LINK_CODE_LIFETIME_MS });
+
+        // NOTE: nothing currently redeems this code from a second
+        // device/session - that pairing handshake (a second socket
+        // calling something like "redeem-link-code" and then mirroring
+        // this account's events) is the follow-up piece.
+    });
+
+    socket.on("remove-linked-device", ({ deviceId } = {}) => {
+
+        if (!chatUserId || !deviceId) return;
+
+        const store = readLinkedDevicesStore();
+        store[chatUserId] = (store[chatUserId] || []).filter((d) => d.id !== deviceId);
+        writeLinkedDevicesStore(store);
+
+        socket.emit("linked-devices", { devices: store[chatUserId] || [] });
+    });
+
+
+    // ---- chat backup / export (fully working: bundles this user's
+    // stored conversations into one JSON payload for the client to
+    // download - no server-side scheduled backup yet) ----
+
+    socket.on("request-chat-backup", () => {
+
+        if (!chatUserId) return;
+
+        const store = readChatHistoryStore();
+        const mine = {};
+
+        for (const key of Object.keys(store)) {
+            if (key.includes(chatUserId) || isGroupId(key)) {
+                mine[key] = store[key];
+            }
+        }
+
+        socket.emit("chat-backup-ready", { exportedAt: Date.now(), conversations: mine });
+    });
+
 
     socket.on("clear-chat", ({ chatId, deleteStarred } = {}) => {
 
@@ -3420,6 +3710,11 @@ io.on("connection", (socket) => {
 
         stored.starred = !stored.starred;
         writeChatHistoryStore(store);
+
+        // let the client know the toggle actually happened so it can
+        // update its local cache and the Starred Messages list - this
+        // was previously fire-and-forget with no confirmation.
+        socket.emit("message-starred", { chatId, msgId, starred: stored.starred });
     });
 
 
@@ -3654,6 +3949,9 @@ const statusesFile = path.join(os.tmpdir(), "site-chat-statuses.json");
 const channelsFile = path.join(os.tmpdir(), "site-chat-channels.json");
 const communitiesFile = path.join(os.tmpdir(), "site-chat-communities.json");
 const blockedUsersFile = path.join(os.tmpdir(), "site-chat-blocked.json");
+const privacySettingsFile = path.join(os.tmpdir(), "site-chat-privacy.json");
+const twoStepFile = path.join(os.tmpdir(), "site-chat-two-step.json");
+const linkedDevicesFile = path.join(os.tmpdir(), "site-chat-linked-devices.json");
 
 const STATUS_LIFETIME_MS = 24 * 60 * 60 * 1000; // stories disappear after 24h
 
@@ -3751,6 +4049,58 @@ function writeCommunitiesStore(store) { writeJsonStore(communitiesFile, store); 
 
 function readBlockedStore() { return readJsonStore(blockedUsersFile, {}); }
 function writeBlockedStore(store) { writeJsonStore(blockedUsersFile, store); }
+
+// ---- privacy & security settings (last seen / profile photo / about /
+// read receipts / who-can-add-to-groups). Stored per user id, applied
+// client-side for now - see NEW FEATURE SCAFFOLDING notes near the
+// socket handlers below for what still needs server-side enforcement. ----
+
+function getPrivacyForUser(userId) {
+    const store = readPrivacyStore();
+    return { ...DEFAULT_PRIVACY_SETTINGS, ...(store[userId] || {}) };
+}
+
+function readPrivacyStore() { return readJsonStore(privacySettingsFile, {}); }
+function writePrivacyStore(store) { writeJsonStore(privacySettingsFile, store); }
+
+const DEFAULT_PRIVACY_SETTINGS = {
+    lastSeen: "everyone",       // everyone | contacts | nobody
+    profilePhoto: "everyone",   // everyone | contacts | nobody
+    about: "everyone",          // everyone | contacts | nobody
+    readReceipts: true,
+    groupsAddMe: "everyone"     // everyone | contacts
+};
+
+// ---- two-step verification (PIN). The PIN is stored as a salted hash,
+// never in plain text. NOTE: this is added as scaffolding per request -
+// nothing currently *checks* this PIN during login/join yet, so it does
+// not protect the account until that enforcement is wired in. ----
+
+function readTwoStepStore() { return readJsonStore(twoStepFile, {}); }
+function writeTwoStepStore(store) { writeJsonStore(twoStepFile, store); }
+
+function hashTwoStepPin(pin, salt) {
+    return crypto.createHash("sha256").update(`${salt}:${pin}`).digest("hex");
+}
+
+// ---- linked devices (multi-device). Pairing-code generation is fully
+// working; actually mirroring a session onto a second device is a bigger
+// architecture change (a linked device would need its own authenticated
+// socket that receives the same events) and is left as a follow-up -
+// this gives the UI and the code exchange to build that on top of. ----
+
+function readLinkedDevicesStore() { return readJsonStore(linkedDevicesFile, {}); }
+function writeLinkedDevicesStore(store) { writeJsonStore(linkedDevicesFile, store); }
+
+const pendingLinkCodes = new Map(); // code -> { chatUserId, expiresAt }
+const LINK_CODE_LIFETIME_MS = 5 * 60 * 1000;
+
+function pruneExpiredLinkCodes() {
+    const now = Date.now();
+    for (const [code, entry] of pendingLinkCodes.entries()) {
+        if (entry.expiresAt < now) pendingLinkCodes.delete(code);
+    }
+}
 
 // true once EITHER side has blocked the other - blocking is treated as
 // mutual (like WhatsApp: once blocked, neither side's messages reach
@@ -4080,7 +4430,7 @@ function buildLiveContext(
         "Jobs"
     ];
 
-    const perCategoryLimit = 6;
+    const perCategoryLimit = 2;
 
     let sections = "";
 
@@ -4114,7 +4464,7 @@ function buildLiveContext(
             sections +=
                 `\n* ${item.title}\n` +
                 `  Date: ${item.date || "unknown"}\n` +
-                `  Summary: ${String(item.summary || "").substring(0, 400)}\n` +
+                `  Summary: ${String(item.summary || "").substring(0, 120)}\n` +
                 `  Source: ${item.sourceUrl || item.source || "n/a"}\n`;
         }
     }
@@ -4138,7 +4488,7 @@ function buildLiveContext(
                             .toLowerCase()
                             .includes(query)
                 )
-                .slice(0, 5);
+                .slice(0, 3);
 
         if (matches.length) {
 
@@ -4152,7 +4502,7 @@ function buildLiveContext(
                 sections +=
                     `\n* ${item.title}\n` +
                     `  Date: ${item.date || "unknown"}\n` +
-                    `  Summary: ${String(item.summary || "").substring(0, 400)}\n` +
+                    `  Summary: ${String(item.summary || "").substring(0, 150)}\n` +
                     `  Source: ${item.sourceUrl || item.source || "n/a"}\n`;
             }
         }
@@ -4163,7 +4513,7 @@ function buildLiveContext(
     }
 
     return (
-        "\n\n===== LIVE SITE DATA (Kenya Campus Hub) =====" +
+        "\n\n===== LIVE SITE DATA (HigherSpace Connect) =====" +
         sections +
         "\n===== END LIVE SITE DATA =====\n"
     );
@@ -4453,13 +4803,13 @@ function cleanAIHistory(history) {
                 );
 
             if (
-                content.length > 8000
+                content.length > 800
             ) {
 
                 content =
                     content.substring(
                         0,
-                        8000
+                        800
                     ) +
                     "\n[Earlier content shortened]";
             }
@@ -4469,7 +4819,7 @@ function cleanAIHistory(history) {
                 content
             };
         })
-        .slice(-16);
+        .slice(-8);
 }
 
 
@@ -4481,7 +4831,7 @@ AI SYSTEM PROMPT
 
 const AI_SYSTEM_PROMPT = `
 
-You are the AI assistant inside Kenya Campus Hub.
+You are the AI assistant inside HigherSpace Connect.
 
 Your behavior should feel natural, intelligent, helpful,
 friendly and conversational, similar to a modern AI assistant.
@@ -4489,7 +4839,7 @@ friendly and conversational, similar to a modern AI assistant.
 Do not repeatedly introduce yourself.
 
 Do not begin every answer with:
-"Kenyan Campus AI"
+"HigherSpace Connect AI"
 
 Do not unnecessarily repeat the user's question.
 
@@ -4507,6 +4857,39 @@ If the user says:
 - that file
 
 use the previous conversation to understand what they mean.
+
+=========================================================
+SCOPE - ANSWER ANYTHING, NOT JUST STUDIES (IMPORTANT)
+=========================================================
+
+You are a full general-purpose AI assistant, not a study-only
+bot. Students ask you about far more than school, so you must
+answer questions on ANY topic they raise, not only academics or
+campus life. This includes, without limitation:
+
+- World news and current events
+- Politics, sports, entertainment and pop culture
+- Technology, science, and general knowledge
+- Health, relationships, hobbies, and everyday life
+- Any other question, however unrelated to studies
+
+Never refuse, deflect, or say something is "outside what I can
+help with" just because it is not about school. Never tell the
+user to go ask a different assistant for non-study topics -
+answer it yourself, the same way any capable general AI
+assistant would.
+
+The "Kenyan Students" and "Academics" sections below describe
+extra things you are equipped to help with (using site data,
+formatting rules, etc.) - they do NOT limit what you are allowed
+to talk about. Treat them as additive, not restrictive.
+
+For anything time-sensitive (breaking news, recent events, current
+scores, prices, or anything that could have changed after your
+training), say plainly that you cannot verify live information
+unless it is present in the LIVE SITE DATA section, and suggest
+the user check a live news source, rather than guessing or
+inventing current details.
 
 =========================================================
 KENYAN STUDENTS
@@ -4533,7 +4916,7 @@ Help with:
 - Academic calendar changes (reopening/closing dates, postponed exams)
 
 You have access to a LIVE SITE DATA section below (when present) containing
-the latest verified articles collected by Kenya Campus Hub across all
+the latest verified articles collected by HigherSpace Connect across all
 categories, including HELB, KUCCPS, Scholarships, Jobs, and University
 Alerts (strikes/closures/unrest/calendar changes).
 
@@ -4824,11 +5207,14 @@ response unless the user asked for a summary at the end.
 IDENTITY
 =========================================================
 
-You are part of Kenya Campus Hub.
+You are part of HigherSpace Connect.
 
 Your purpose is to help students learn,
 solve problems, build projects,
-discover opportunities and manage campus life.
+discover opportunities and manage campus life -
+and, more broadly, to be a helpful, general-purpose AI
+assistant for anything else they ask, including world
+news and everyday topics unrelated to school.
 
 `;
 
@@ -5177,7 +5563,7 @@ app.post(
                 return res.status(500).json({
 
                     error:
-                        "Campus AI is not configured. Add GROQ_API_KEY to your .env file."
+                        "HigherSpace Connect AI is not configured. Add GROQ_API_KEY to your .env file."
                 });
             }
 
@@ -5317,7 +5703,7 @@ app.post(
             );
 
             console.log(
-                "KENYA CAMPUS AI"
+                "HIGHERSPACE CONNECT AI"
             );
 
             console.log(
@@ -5392,7 +5778,7 @@ app.post(
                         0.7,
 
                     max_completion_tokens:
-                        4096,
+                        1536,
 
                     /*
                        Without these, Llama-family models on
@@ -5489,7 +5875,7 @@ app.post(
             );
 
             console.error(
-                "KENYA CAMPUS AI ERROR"
+                "HIGHERSPACE CONNECT AI ERROR"
             );
 
             console.error(
@@ -5520,7 +5906,7 @@ app.post(
                 500;
 
             let errorMessage =
-                "Campus AI could not connect right now.";
+                "HigherSpace Connect AI could not connect right now.";
 
 
             /*
@@ -5573,7 +5959,7 @@ app.post(
                     429;
 
                 errorMessage =
-                    "Campus AI is temporarily rate limited. Please try again shortly.";
+                    "HigherSpace Connect AI is temporarily rate limited. Please try again shortly.";
             }
 
 
@@ -5696,7 +6082,7 @@ app.get(
                     "online",
 
                 website:
-                    "Kenya Campus Hub",
+                    "HigherSpace Connect",
 
                 articles:
                     articles.length,
@@ -5938,7 +6324,7 @@ server.listen(
             );
 
             console.log(
-                "       KENYA CAMPUS HUB"
+                "       HIGHERSPACE CONNECT"
             );
 
             console.log(

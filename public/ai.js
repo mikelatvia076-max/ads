@@ -50,7 +50,7 @@ const CAMPUS_AI_CURRENT_ACCOUNT_KEY = "kenyaCampusHubAICurrentAccount";
 const CAMPUS_AI_VOICE_SETTINGS_KEY = "kenyaCampusHubAIVoiceSettings";
 
 const CAMPUS_AI_IDENTITY = {
-    name: "Kenyan Campus AI",
+    name: "HigherSpace Connect AI",
     email: "campusai@kenyacampushub.com"
 };
 
@@ -188,7 +188,7 @@ function campusAIInjectDynamicStyles() {
             font-weight: 600;
             font-size: 0.8rem;
             letter-spacing: 0.5px;
-            background: linear-gradient(135deg,#2f6df6,#7c4dff);
+            background: linear-gradient(135deg, var(--ai-primary), var(--ai-accent-dark));
             color: #fff;
             border: none;
             cursor: pointer;
@@ -234,9 +234,9 @@ function campusAIInjectDynamicStyles() {
             justify-content: center;
             border: none;
             cursor: pointer;
-            background: linear-gradient(135deg,#2f6df6,#7c4dff);
+            background: linear-gradient(135deg, var(--ai-primary), var(--ai-accent-dark));
             color: #fff;
-            box-shadow: 0 8px 30px rgba(60,90,255,0.35);
+            box-shadow: 0 8px 30px rgba(15,143,128,0.35);
         }
 
         .campus-ai-talk-mic.listening {
@@ -244,9 +244,9 @@ function campusAIInjectDynamicStyles() {
         }
 
         @keyframes campusAiTalkPulse {
-            0% { box-shadow: 0 0 0 0 rgba(60,90,255,0.45); }
-            70% { box-shadow: 0 0 0 22px rgba(60,90,255,0); }
-            100% { box-shadow: 0 0 0 0 rgba(60,90,255,0); }
+            0% { box-shadow: 0 0 0 0 rgba(15,143,128,0.45); }
+            70% { box-shadow: 0 0 0 22px rgba(15,143,128,0); }
+            100% { box-shadow: 0 0 0 0 rgba(15,143,128,0); }
         }
 
         .campus-ai-talk-status {
@@ -257,7 +257,7 @@ function campusAIInjectDynamicStyles() {
         .campus-ai-link-button {
             background: none;
             border: none;
-            color: #2f6df6;
+            color: var(--ai-primary);
             font-size: 0.85rem;
             cursor: pointer;
             padding: 6px 0;
@@ -266,7 +266,7 @@ function campusAIInjectDynamicStyles() {
         }
 
         .campus-ai-account-note-success {
-            color: #1a9c53 !important;
+            color: var(--ai-accent-dark) !important;
         }
     `;
 
@@ -745,7 +745,7 @@ function campusAIRenderWelcome() {
         <h1>${heading}</h1>
 
         <p>
-            I am Kenyan Campus AI. Ask me about
+            I am HigherSpace Connect AI. Ask me about
             campus life, academics, coding,
             mathematics, business and more.
         </p>
@@ -2291,14 +2291,14 @@ async function sendCampusAI() {
         }
 
         console.error(
-            "Campus AI error:",
+            "HigherSpace Connect AI error:",
             error
         );
 
         const errorMessage =
             campusAITimedOut
                 ? "The AI server is taking too long to respond. It may be overloaded or slow right now - please try again."
-                : "I could not connect to Kenyan Campus AI right now. Please make sure your AI server is running and try again.";
+                : "I could not connect to HigherSpace Connect AI right now. Please make sure your AI server is running and try again.";
 
         campusAIAddMessageElement(
             "assistant",
@@ -3926,7 +3926,7 @@ function campusAIUpdateVoiceLabels() {
 function testCampusAIVoice() {
 
     const text =
-        "Hello. I am Kenyan Campus AI. Your voice settings are working correctly.";
+        "Hello. I am HigherSpace Connect AI. Your voice settings are working correctly.";
 
     speakCampusAIText(text);
 }
@@ -4252,7 +4252,7 @@ function campusAIRenderAccountBody() {
         </div>
 
         <div class="campus-ai-account-note">
-            You can use Kenyan Campus AI as a guest.
+            You can use HigherSpace Connect AI as a guest.
             Accounts are stored locally on this browser.
         </div>
     `;
@@ -5348,7 +5348,7 @@ function campusAIEnsureTalkPage() {
             </button>
 
             <div class="campus-ai-talk-name">
-                Kenyan Campus AI
+                HigherSpace Connect AI
             </div>
 
         </div>
@@ -6254,7 +6254,7 @@ async function sendCampusAITalkMessage() {
         const errorMessage =
             campusAITalkTimedOut
                 ? "The AI server is taking too long to respond right now. Please try again."
-                : "I could not connect to Kenyan Campus AI right now. Please check that your AI server is running.";
+                : "I could not connect to HigherSpace Connect AI right now. Please check that your AI server is running.";
 
         campusAIAddTalkMessage(
             "assistant",
@@ -6444,10 +6444,10 @@ window.stopCampusAI =
 window.stopGeneratingCampusAI =
     stopCampusAI;
 
-window.openKenyanCampusAI =
+window.openHigherSpaceConnectAI =
     openCampusAI;
 
-window.closeKenyanCampusAI =
+window.closeHigherSpaceConnectAI =
     closeCampusAI;
 
 window.handleCampusAIKey =

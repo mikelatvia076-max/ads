@@ -5,6 +5,36 @@
    This stylesheet does NOT require changes to index.html.
 ========================================================= */
 
+/* ---------------------------------------------------------
+   COLOUR PALETTE
+   Primary  : Deep Teal    — brand, buttons, links, focus
+   Accent   : Warm Coral   — energy, secondary highlights
+   Highlight: Amber        — sparing use, tiny accents
+--------------------------------------------------------- */
+:root {
+    /* Primary (teal) */
+    --ai-primary-25:  #f2fbfa;
+    --ai-primary-50:  #e3f7f4;
+    --ai-primary-100: #c3ece6;
+    --ai-primary-200: #8fd9cf;
+    --ai-primary-300: #56c0b1;
+    --ai-primary:      #0f8f80;
+    --ai-primary-dark: #0c7568;
+    --ai-primary-darker:#095a51;
+
+    /* Accent (warm coral) */
+    --ai-accent-50:  #fff1ec;
+    --ai-accent-100: #ffdccd;
+    --ai-accent:      #ee6c4d;
+    --ai-accent-dark: #d5502f;
+
+    /* Highlight (amber, used sparingly) */
+    --ai-highlight: #f0a93c;
+
+    /* Brand gradient */
+    --ai-gradient: linear-gradient(135deg, var(--ai-primary), var(--ai-accent));
+}
+
 .campus-ai-button {
     position: fixed;
     right: 24px;
@@ -16,7 +46,7 @@
     padding: 0;
     border: 0;
     border-radius: 50%;
-    background: linear-gradient(135deg, #0757c9, #087f5b);
+    background: linear-gradient(135deg, var(--ai-primary), var(--ai-accent));
     color: #fff;
     display: flex;
     align-items: center;
@@ -24,7 +54,7 @@
     cursor: pointer;
     box-shadow:
         0 12px 30px rgba(0,0,0,.20),
-        0 5px 15px rgba(7,87,201,.25);
+        0 5px 15px rgba(15,143,128,.25);
     transition:
         transform .2s ease,
         box-shadow .2s ease,
@@ -35,7 +65,7 @@
     transform: translateY(-3px) scale(1.04);
     box-shadow:
         0 16px 38px rgba(0,0,0,.24),
-        0 7px 20px rgba(7,87,201,.30);
+        0 7px 20px rgba(15,143,128,.30);
 }
 
 .campus-ai-button:active {
@@ -111,19 +141,20 @@
 .campus-ai-new-chat {
     width: 100%;
     min-height: 44px;
-    border: 1px solid #d6e2f3;
+    border: 0;
     border-radius: 12px;
-    background: #fff;
-    color: #0757c9;
+    background: var(--ai-gradient);
+    color: #fff;
     font-size: 14px;
     font-weight: 800;
     cursor: pointer;
+    box-shadow: 0 6px 16px rgba(15,143,128,.28);
     transition: .2s ease;
 }
 
 .campus-ai-new-chat:hover {
-    background: #eef5ff;
-    border-color: #bcd2ef;
+    filter: brightness(1.06);
+    box-shadow: 0 10px 22px rgba(15,143,128,.36);
     transform: translateY(-1px);
 }
 
@@ -156,8 +187,8 @@
 
 .campus-ai-search input:focus {
     background: #fff;
-    border-color: #0b5ed7;
-    box-shadow: 0 0 0 3px rgba(11,94,215,.1);
+    border-color: var(--ai-primary-dark);
+    box-shadow: 0 0 0 3px rgba(15,143,128,.1);
 }
 
 .campus-ai-history-heading {
@@ -180,7 +211,7 @@
 }
 
 .campus-ai-history::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: var(--ai-primary-200);
     border-radius: 20px;
 }
 
@@ -207,14 +238,16 @@
 }
 
 .campus-ai-history-item:hover {
-    background: #eaf2ff;
-    color: #0757c9;
+    background: var(--ai-primary-50);
+    color: var(--ai-primary);
 }
 
 .campus-ai-history-item.active {
-    background: #e4efff;
-    color: #0757c9;
+    background: var(--ai-primary-100);
+    color: var(--ai-primary-darker);
     font-weight: 700;
+    border-left: 3px solid var(--ai-primary);
+    padding-left: 9px;
 }
 
 .campus-ai-history-summary {
@@ -274,7 +307,19 @@
     justify-content: space-between;
     background: #fff;
     border-bottom: 1px solid #e8edf3;
+    position: relative;
     z-index: 20;
+}
+
+.campus-ai-header::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 2px;
+    background: var(--ai-gradient);
+    opacity: .55;
 }
 
 .campus-ai-title {
@@ -291,8 +336,9 @@
     align-items: center;
     justify-content: center;
     border-radius: 13px;
-    background: linear-gradient(135deg,#e9f2ff,#e8f8f2);
-    font-size: 23px;
+    background: var(--ai-gradient);
+    box-shadow: 0 6px 14px rgba(15,143,128,.25);
+    font-size: 22px;
 }
 
 .campus-ai-title h2 {
@@ -396,7 +442,7 @@
 
 .campus-ai-more-item:hover {
     background: #f2f6fb;
-    color: #0757c9;
+    color: var(--ai-primary);
 }
 
 .campus-ai-more-item-icon {
@@ -420,8 +466,13 @@
     background:
         radial-gradient(
             circle at top right,
-            rgba(11,94,215,.035),
-            transparent 30%
+            rgba(15,143,128,.06),
+            transparent 32%
+        ),
+        radial-gradient(
+            circle at bottom left,
+            rgba(238,108,77,.05),
+            transparent 34%
         ),
         #fff;
 }
@@ -441,7 +492,7 @@
 }
 
 .campus-ai-messages::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
+    background: var(--ai-primary-200);
     border-radius: 20px;
 }
 
@@ -457,16 +508,18 @@
 }
 
 .campus-ai-big-logo {
-    width: 78px;
-    height: 78px;
+    width: 82px;
+    height: 82px;
     margin: 0 auto 18px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 22px;
-    background: linear-gradient(135deg,#eaf3ff,#e9f8f2);
+    border-radius: 24px;
+    background: var(--ai-gradient);
     font-size: 38px;
-    box-shadow: 0 12px 30px rgba(7,87,201,.08);
+    box-shadow:
+        0 14px 32px rgba(15,143,128,.28),
+        0 0 0 6px var(--ai-primary-50);
 }
 
 .campus-ai-welcome h1 {
@@ -495,13 +548,24 @@
 .campus-ai-feature {
     display: inline-flex;
     align-items: center;
-    padding: 8px 12px;
-    border: 1px solid #e0e7f0;
+    padding: 8px 14px;
+    border: 1px solid transparent;
     border-radius: 50px;
-    background: #fff;
-    color: #475467;
+    background: var(--ai-primary-50);
+    color: var(--ai-primary-darker);
     font-size: 12px;
     font-weight: 700;
+    transition: .2s ease;
+}
+
+.campus-ai-feature:nth-child(2n) {
+    background: var(--ai-accent-50);
+    color: var(--ai-accent-dark);
+}
+
+.campus-ai-feature:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(15,143,128,.15);
 }
 
 .campus-ai-suggestions {
@@ -516,6 +580,7 @@
     min-height: 52px;
     padding: 12px 15px;
     border: 1px solid #e0e7f0;
+    border-left: 3px solid var(--ai-primary-200);
     border-radius: 12px;
     background: #fff;
     color: #344054;
@@ -526,11 +591,17 @@
     transition: .2s ease;
 }
 
+.campus-ai-suggestions button:nth-child(2n) {
+    border-left-color: var(--ai-accent-100);
+}
+
 .campus-ai-suggestions button:hover {
-    background: #f7faff;
-    border-color: #bcd2ef;
-    color: #0757c9;
+    background: var(--ai-primary-25);
+    border-color: var(--ai-primary-300);
+    border-left-color: var(--ai-primary);
+    color: var(--ai-primary-dark);
     transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(15,143,128,.1);
 }
 
 
@@ -569,10 +640,10 @@
 
 .campus-ai-message.user .campus-ai-message-content {
     color: #fff;
-    background: linear-gradient(135deg,#0757c9,#0b5ed7);
+    background: linear-gradient(135deg,var(--ai-primary),var(--ai-primary-dark));
     border: 0;
     border-radius: 17px 17px 4px 17px;
-    box-shadow: 0 5px 15px rgba(7,87,201,.12);
+    box-shadow: 0 5px 15px rgba(15,143,128,.12);
 }
 
 .campus-ai-message:not(.user) .campus-ai-message-content {
@@ -680,8 +751,8 @@
 }
 
 .campus-ai-copy-code.copied {
-    background: #087f5b;
-    border-color: #087f5b;
+    background: var(--ai-accent);
+    border-color: var(--ai-accent);
 }
 
 
@@ -729,11 +800,11 @@
     width: auto;
     min-width: 38px;
     padding: 0 9px;
-    border-color: #d7e3f4;
-    background: #f1f6fd;
-    color: #0757c9;
+    border-color: var(--ai-primary-200);
+    background: var(--ai-primary-50);
+    color: var(--ai-primary);
     font-weight: 800;
-    box-shadow: 0 2px 7px rgba(7,87,201,.08);
+    box-shadow: 0 2px 7px rgba(15,143,128,.08);
 }
 
 .campus-ai-message-actions button:first-child::after {
@@ -744,16 +815,16 @@
 }
 
 .campus-ai-message-actions button:hover {
-    background: #eef5ff;
-    border-color: #d1e0f5;
-    color: #0757c9;
+    background: var(--ai-primary-100);
+    border-color: var(--ai-primary-200);
+    color: var(--ai-primary);
     transform: translateY(-1px);
 }
 
 .campus-ai-message-actions button.active {
-    background: #eaf2ff;
-    border-color: #cbdcff;
-    color: #0757c9;
+    background: var(--ai-primary-50);
+    border-color: var(--ai-primary-200);
+    color: var(--ai-primary);
 }
 
 .campus-ai-message.user .campus-ai-message-actions {
@@ -861,8 +932,8 @@
 }
 
 .campus-ai-input-box:focus-within {
-    border-color: #0b5ed7;
-    box-shadow: 0 0 0 3px rgba(11,94,215,.08);
+    border-color: var(--ai-primary-dark);
+    box-shadow: 0 0 0 3px rgba(15,143,128,.08);
 }
 
 #campusAiInput {
@@ -929,8 +1000,8 @@
 }
 
 .campus-ai-tool-button:hover {
-    background: #eaf2ff;
-    color: #0757c9;
+    background: var(--ai-primary-50);
+    color: var(--ai-primary);
 }
 
 
@@ -953,8 +1024,8 @@
 }
 
 .campus-ai-talk-button:hover {
-    background: #eaf2ff;
-    color: #0757c9;
+    background: var(--ai-primary-50);
+    color: var(--ai-primary);
 }
 
 .campus-ai-talk-button svg {
@@ -977,10 +1048,10 @@
     padding: 0;
     border: 0;
     border-radius: 11px;
-    background: linear-gradient(135deg,#0757c9,#0b5ed7);
+    background: linear-gradient(135deg,var(--ai-primary),var(--ai-primary-dark));
     color: #fff;
     cursor: pointer;
-    box-shadow: 0 6px 16px rgba(7,87,201,.22);
+    box-shadow: 0 6px 16px rgba(15,143,128,.22);
     transition: .18s ease;
 }
 
@@ -1130,8 +1201,8 @@
 
 .campus-ai-form-group input:focus,
 .campus-ai-form-group select:focus {
-    border-color: #0b5ed7;
-    box-shadow: 0 0 0 3px rgba(11,94,215,.08);
+    border-color: var(--ai-primary-dark);
+    box-shadow: 0 0 0 3px rgba(15,143,128,.08);
 }
 
 .campus-ai-primary-button {
@@ -1139,7 +1210,7 @@
     min-height: 44px;
     border: 0;
     border-radius: 10px;
-    background: linear-gradient(135deg,#0757c9,#0b5ed7);
+    background: linear-gradient(135deg,var(--ai-primary),var(--ai-primary-dark));
     color: #fff;
     font-weight: 800;
     cursor: pointer;
@@ -1173,9 +1244,9 @@
 }
 
 .campus-ai-account-tab.active {
-    background: #eaf2ff;
-    border-color: #bfd4f1;
-    color: #0757c9;
+    background: var(--ai-primary-50);
+    border-color: var(--ai-primary-300);
+    color: var(--ai-primary);
 }
 
 .campus-ai-account-profile {
@@ -1193,7 +1264,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg,#0757c9,#087f5b);
+    background: linear-gradient(135deg,var(--ai-primary),var(--ai-accent));
     color: #fff;
     font-size: 22px;
     font-weight: 800;
@@ -1300,7 +1371,7 @@
     align-items: center;
     justify-content: center;
     border-radius: 13px;
-    background: linear-gradient(135deg,#eaf3ff,#e9f8f2);
+    background: linear-gradient(135deg,var(--ai-primary-50),var(--ai-accent-50));
     font-size: 22px;
 }
 
@@ -1341,7 +1412,7 @@
 .campus-ai-talk-message.user {
     margin-left: auto;
     color: #fff;
-    background: #0757c9;
+    background: var(--ai-primary);
     border-radius: 15px 15px 4px 15px;
 }
 
@@ -1365,13 +1436,13 @@
     height: 76px;
     border: 0;
     border-radius: 50%;
-    background: linear-gradient(135deg,#0757c9,#087f5b);
+    background: linear-gradient(135deg,var(--ai-primary),var(--ai-accent));
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 12px 30px rgba(7,87,201,.22);
+    box-shadow: 0 12px 30px rgba(15,143,128,.22);
     transition: .2s ease;
 }
 
@@ -1386,10 +1457,10 @@
 
 @keyframes campusAiMicPulse {
     0%,100% {
-        box-shadow: 0 0 0 0 rgba(7,87,201,.22);
+        box-shadow: 0 0 0 0 rgba(15,143,128,.22);
     }
     50% {
-        box-shadow: 0 0 0 14px rgba(7,87,201,.08);
+        box-shadow: 0 0 0 14px rgba(15,143,128,.08);
     }
 }
 
@@ -1412,7 +1483,7 @@
     padding: 0 17px;
     border: 0;
     border-radius: 9px;
-    background: #0757c9;
+    background: var(--ai-primary);
     color: #fff;
     font-weight: 750;
     cursor: pointer;
@@ -1621,7 +1692,7 @@
 .campus-ai-page input:focus-visible,
 .campus-ai-page textarea:focus-visible,
 .campus-ai-talk-page button:focus-visible {
-    outline: 3px solid rgba(11,94,215,.25);
+    outline: 3px solid rgba(15,143,128,.25);
     outline-offset: 2px;
 }
 
