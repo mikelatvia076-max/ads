@@ -12,6 +12,21 @@ const socket = io({
 });
 
 // ============================================================
+// THEME (light / dark) - WhatsApp Settings > Chats > Theme
+// ============================================================
+
+function setAppTheme(theme) {
+    document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
+    try { localStorage.setItem("nodi-theme", document.documentElement.dataset.theme); } catch (e) {}
+}
+
+(function initAppTheme() {
+    let saved = null;
+    try { saved = localStorage.getItem("nodi-theme"); } catch (e) {}
+    setAppTheme(saved || "light");
+})();
+
+// ============================================================
 // SERVICE WORKER + PUSH NOTIFICATIONS
 // Lets the phone show a notification (new message, incoming
 // call) even when this tab isn't open/focused. Registering the
@@ -168,6 +183,10 @@ const DISAPPEARING_OPTIONS = [
 // message being replied to right now (or null)
 let replyingTo = null;
 let editingMessage = null;
+const EDIT_MESSAGE_WINDOW_MS = 15 * 60 * 1000;
+let currentAccountView = null;
+let myPrivacySettings = { lastSeen: "everyone", readReceipts: true };
+let myBlockedContactIds = [];
 
 // one pinned message id per conversation: { [convoKey]: messageId }
 const pinnedMessages = {};
@@ -4116,6 +4135,7 @@ function renderAccountPanel(
 
     if (!accountPanel) return;
 
+    currentAccountView = view;
 
     accountPanel.classList.remove(
         "hidden"
@@ -4152,17 +4172,17 @@ function renderAccountPanel(
 
         starred: [
             "Starred messages",
-            "Messages you've starred, across all your chats"
+            "Messages you've starred across all your chats"
         ],
 
         privacy: [
             "Privacy & security",
-            "Control who can see your info and how your chats are protected"
+            "Control who can see your activity"
         ],
 
         "linked-devices": [
             "Linked devices",
-            "Use this account on other devices at the same time"
+            "Manage where you're logged in"
         ]
 
     };
@@ -4390,9 +4410,7 @@ function renderAccountPanel(
     // --------------------------------------------------------
 
     if (view === "starred") {
-
         renderStarredPanel();
-
     }
 
 
@@ -4401,9 +4419,7 @@ function renderAccountPanel(
     // --------------------------------------------------------
 
     if (view === "privacy") {
-
         renderPrivacyPanel();
-
     }
 
 
@@ -4412,9 +4428,7 @@ function renderAccountPanel(
     // --------------------------------------------------------
 
     if (view === "linked-devices") {
-
         renderLinkedDevicesPanel();
-
     }
 
 }
@@ -4422,464 +4436,227 @@ function renderAccountPanel(
 
 // ============================================================
 // STARRED MESSAGES PANEL
-// ------------------------------------------------------------
-// Pulls every message with msg.starred === true out of whatever
-// conversations are currently cached client-side (conversations{}
-// only holds chats that have been opened this session - there's no
-// "give me every starred message across every chat" server call
-// yet, so this is scoped to what's already loaded. Wiring a real
-// server-side query is the natural next step).
 // ============================================================
 
 function renderStarredPanel() {
 
     if (!accountPanelBody) return;
 
-    const rows = [];
+    accountPanelBody.innerHTML = `<div class="empty-panel">Loading starred messages…</div>`;
 
-    Object.keys(conversations).forEach((chatId) => {
+    socket.emit("get-starred-messages");
+}
 
-        (conversations[chatId] || []).forEach((msg) => {
+function renderStarredList(list) {
 
-            if (msg.starred && !msg.deletedForEveryone) {
-                rows.push({ chatId, msg });
-            }
+    if (!accountPanelBody || currentAccountView !== "starred") return;
 
-        });
+    accountPanelBody.innerHTML = "";
 
-    });
-
-    if (!rows.length) {
-
-        emptyPanel(
-            "No starred messages yet. Long-press (or right-click) any message and choose \u2605 Star."
-        );
-
-        return;
-
+    if (!list || !list.length) {
+        return emptyPanel("No starred messages yet. Star a message from its options menu to find it here later.");
     }
 
-    rows.sort((a, b) => (b.msg.at || 0) - (a.msg.at || 0));
-
-    rows.forEach(({ chatId, msg }) => {
-
-        const chatName =
-            (activeChat && activeChat.id === chatId && activeChat.name) ||
-            (usersOnline[chatId] && usersOnline[chatId].name) ||
-            (friendProfiles[chatId] && friendProfiles[chatId].name) ||
-            (myGroups.get(chatId) && myGroups.get(chatId).name) ||
-            "Chat";
+    list.forEach((msg) => {
 
         const row = document.createElement("div");
         row.className = "panel-person starred-message-row";
 
+        const who = msg.from && me && msg.from.id === me.id ? "You" : (msg.from ? msg.from.name : "");
+
         row.innerHTML = `
             <div class="panel-avatar">
-                ${avatarMarkup(chatName, null)}
+                ${avatarMarkup(msg.from ? msg.from.name : "?", msg.from ? msg.from.avatar : null)}
             </div>
             <div class="panel-person-info">
-                <div class="panel-person-name">${escapeHtml(chatName)}</div>
+                <div class="panel-person-name">${escapeHtml(who)}</div>
                 <div class="panel-person-status">${escapeHtml(messagePreviewText(msg))}</div>
             </div>
             <div class="panel-actions">
-                <span class="starred-message-time">${formatTime(msg.at)}</span>
-                <button type="button" class="panel-action starred-unstar-btn" title="Unstar">
-                    <i class="fa-solid fa-star"></i>
-                </button>
+                <button class="panel-action" data-jump>Jump to</button>
+                <button class="panel-action danger" data-unstar>Unstar</button>
             </div>
         `;
 
-        row.querySelector(".starred-unstar-btn").addEventListener("click", (e) => {
-            e.stopPropagation();
-            socket.emit("message-context-action", { action: "star", msgId: msg.id, chatId });
-            msg.starred = false;
-            renderStarredPanel();
-            if (activeChat && activeChat.id === chatId) renderMessages();
+        row.querySelector("[data-jump]").addEventListener("click", () => {
+            openChat(msg.chatId, (usersOnline[msg.chatId] && usersOnline[msg.chatId].name) || msg.chatId);
+            if (closeAccountPanel) closeAccountPanel.click();
+            setTimeout(() => jumpToMessage(msg.id), 300);
         });
 
-        row.addEventListener("click", () => {
-
-            const person = usersOnline[chatId] || friendProfiles[chatId];
-            const groupInfo = myGroups.get(chatId);
-
-            if (groupInfo) {
-                openChat(chatId, chatName, groupInfo);
-            } else {
-                openChat(chatId, person ? person.name : chatName);
-            }
-
-            closeAccountPanelIfOpen();
-
-            setTimeout(() => jumpToMessage(msg.id), 150);
-
+        row.querySelector("[data-unstar]").addEventListener("click", () => {
+            socket.emit("star-message", { toId: msg.chatId, messageId: msg.id, starred: false });
+            const found = findMessageInConversation(msg.chatId, msg.id);
+            if (found) found.starred = false;
+            renderStarredList(list.filter(m => m.id !== msg.id));
         });
 
         accountPanelBody.appendChild(row);
-
     });
-
 }
 
-function closeAccountPanelIfOpen() {
-
-    if (!accountPanel) return;
-
-    accountPanel.classList.add("hidden");
-    accountPanel.setAttribute("aria-hidden", "true");
-
-}
+socket.on("starred-messages", (list) => {
+    renderStarredList(list);
+});
 
 
 // ============================================================
 // PRIVACY & SECURITY PANEL
-// ------------------------------------------------------------
-// Last seen / profile photo / about / read receipts / who-can-add-me
-// are persisted server-side (see "set-privacy-settings" in server.js)
-// and echoed back here. NOTE: the server does not yet *enforce* these
-// (e.g. hiding last-seen from a blocked viewer) - see the comment
-// next to that handler for what's left to wire up.
-//
-// Blocked contacts and Two-step verification are functionally live:
-// blocking/unblocking and PIN set/clear both round-trip to the
-// server and persist. Two-step verification is not yet *checked*
-// anywhere at login.
 // ============================================================
-
-let privacySettingsCache = null;
-let twoStepEnabledCache = false;
 
 function renderPrivacyPanel() {
 
     if (!accountPanelBody) return;
 
-    accountPanelBody.innerHTML = `
-        <div class="settings-block" id="privacyVisibilityBlock">
-            <h4 class="settings-heading">Who can see my info</h4>
-            <p class="settings-hint">Loading your current privacy settings\u2026</p>
-        </div>
-
-        <div class="settings-block">
-            <h4 class="settings-heading">Blocked contacts</h4>
-            <p class="settings-hint">People you've blocked can't call you or send you messages.</p>
-            <div id="blockedContactsList" class="blocked-contacts-list">
-                <p class="settings-hint">Loading\u2026</p>
-            </div>
-        </div>
-
-        <div class="settings-block" id="twoStepBlock">
-            <h4 class="settings-heading">Two-step verification</h4>
-            <p class="settings-hint">Add a PIN that's asked for from time to time, for extra account security.</p>
-            <div id="twoStepStatus"></div>
-        </div>
-    `;
+    accountPanelBody.innerHTML = `<div class="empty-panel">Loading…</div>`;
 
     socket.emit("get-privacy-settings");
-    socket.emit("get-blocked-list");
-    socket.emit("get-two-step-status");
-
+    socket.emit("get-blocked-contacts");
 }
 
-function privacyOptionRow(label, key, value, options) {
+function drawPrivacyPanel() {
 
-    const row = document.createElement("div");
-    row.className = "privacy-option-row";
+    if (!accountPanelBody || currentAccountView !== "privacy") return;
 
-    const optionsHtml = options.map(
-        ([val, text]) =>
-            `<option value="${val}" ${val === value ? "selected" : ""}>${escapeHtml(text)}</option>`
-    ).join("");
+    accountPanelBody.innerHTML = "";
 
-    row.innerHTML = `
-        <span class="privacy-option-label">${escapeHtml(label)}</span>
-        <select class="privacy-option-select" data-privacy-key="${key}">
-            ${optionsHtml}
-        </select>
+    // ---- last seen ----
+    const lastSeenBlock = document.createElement("div");
+    lastSeenBlock.className = "settings-block";
+    lastSeenBlock.innerHTML = `
+        <h4 class="settings-heading">Last seen</h4>
+        <p class="settings-hint">If you don't share your last seen, you won't see other people's either.</p>
     `;
 
-    row.querySelector("select").addEventListener("change", (e) => {
-
-        privacySettingsCache = privacySettingsCache || {};
-        privacySettingsCache[key] = e.target.value;
-
-        socket.emit("set-privacy-settings", { [key]: e.target.value });
-
-    });
-
-    return row;
-
-}
-
-socket.on("privacy-settings", (settings) => {
-
-    privacySettingsCache = settings;
-
-    const block = document.getElementById("privacyVisibilityBlock");
-    if (!block) return; // panel isn't open right now
-
-    block.innerHTML = "";
-
-    const heading = document.createElement("h4");
-    heading.className = "settings-heading";
-    heading.textContent = "Who can see my info";
-    block.appendChild(heading);
-
-    const visOptions = [
-        ["everyone", "Everyone"],
-        ["contacts", "My contacts"],
-        ["nobody", "Nobody"]
-    ];
-
-    block.appendChild(privacyOptionRow("Last seen & online", "lastSeen", settings.lastSeen, visOptions));
-    block.appendChild(privacyOptionRow("Profile photo", "profilePhoto", settings.profilePhoto, visOptions));
-    block.appendChild(privacyOptionRow("About", "about", settings.about, visOptions));
-
-    block.appendChild(privacyOptionRow(
-        "Groups - who can add me",
-        "groupsAddMe",
-        settings.groupsAddMe,
-        [["everyone", "Everyone"], ["contacts", "My contacts"]]
-    ));
-
-    const receiptsRow = document.createElement("label");
-    receiptsRow.className = "privacy-option-row privacy-toggle-row";
-    receiptsRow.innerHTML = `
-        <span class="privacy-option-label">Read receipts</span>
-        <input type="checkbox" id="readReceiptsToggle" ${settings.readReceipts ? "checked" : ""}>
+    const lastSeenToggle = document.createElement("label");
+    lastSeenToggle.className = "group-info-toggle-row";
+    lastSeenToggle.innerHTML = `
+        <span>
+            <strong>Share my last seen</strong>
+            <small>Let people you message see when you were last online</small>
+        </span>
+        <input type="checkbox" ${myPrivacySettings.lastSeen === "everyone" ? "checked" : ""}>
     `;
 
-    receiptsRow.querySelector("input").addEventListener("change", (e) => {
-        socket.emit("set-privacy-settings", { readReceipts: e.target.checked });
+    lastSeenToggle.querySelector("input").addEventListener("change", (e) => {
+        myPrivacySettings.lastSeen = e.target.checked ? "everyone" : "nobody";
+        socket.emit("set-privacy-settings", myPrivacySettings);
     });
 
-    block.appendChild(receiptsRow);
+    lastSeenBlock.appendChild(lastSeenToggle);
+    accountPanelBody.appendChild(lastSeenBlock);
 
-});
+    // ---- read receipts ----
+    const readReceiptsBlock = document.createElement("div");
+    readReceiptsBlock.className = "settings-block";
+    readReceiptsBlock.innerHTML = `<h4 class="settings-heading">Read receipts</h4>`;
 
-socket.on("blocked-list", ({ blocked } = {}) => {
+    const readReceiptsToggle = document.createElement("label");
+    readReceiptsToggle.className = "group-info-toggle-row";
+    readReceiptsToggle.innerHTML = `
+        <span>
+            <strong>Send read receipts</strong>
+            <small>If turned off, you won't be able to see read receipts from other people</small>
+        </span>
+        <input type="checkbox" ${myPrivacySettings.readReceipts ? "checked" : ""}>
+    `;
 
-    const list = document.getElementById("blockedContactsList");
-    if (!list) return;
-
-    list.innerHTML = "";
-
-    if (!blocked || !blocked.length) {
-        list.innerHTML = `<p class="settings-hint">You haven't blocked anyone.</p>`;
-        return;
-    }
-
-    blocked.forEach((userId) => {
-
-        const person = usersOnline[userId] || friendProfiles[userId];
-        const name = person ? person.name : "Unknown user";
-
-        const row = document.createElement("div");
-        row.className = "panel-person";
-
-        row.innerHTML = `
-            <div class="panel-avatar">${avatarMarkup(name, person && person.avatar)}</div>
-            <div class="panel-person-info">
-                <div class="panel-person-name">${escapeHtml(name)}</div>
-            </div>
-            <div class="panel-actions">
-                <button type="button" class="panel-action blocked-unblock-btn">Unblock</button>
-            </div>
-        `;
-
-        row.querySelector(".blocked-unblock-btn").addEventListener("click", () => {
-            socket.emit("unblock-user", { userId });
-        });
-
-        list.appendChild(row);
-
+    readReceiptsToggle.querySelector("input").addEventListener("change", (e) => {
+        myPrivacySettings.readReceipts = e.target.checked;
+        socket.emit("set-privacy-settings", myPrivacySettings);
     });
 
-});
+    readReceiptsBlock.appendChild(readReceiptsToggle);
+    accountPanelBody.appendChild(readReceiptsBlock);
 
-socket.on("two-step-status", ({ enabled } = {}) => {
+    // ---- blocked contacts ----
+    const blockedBlock = document.createElement("div");
+    blockedBlock.className = "settings-block";
+    blockedBlock.innerHTML = `<h4 class="settings-heading">Blocked contacts</h4>`;
+    accountPanelBody.appendChild(blockedBlock);
 
-    twoStepEnabledCache = Boolean(enabled);
+    if (!myBlockedContactIds.length) {
 
-    const wrap = document.getElementById("twoStepStatus");
-    if (!wrap) return;
-
-    if (enabled) {
-
-        wrap.innerHTML = `
-            <p class="settings-hint"><i class="fa-solid fa-check" style="color:#22c55e"></i> Two-step verification is on.</p>
-            <button type="button" class="modal-secondary-btn" id="twoStepDisableBtn">Turn off</button>
-        `;
-
-        wrap.querySelector("#twoStepDisableBtn").addEventListener("click", () => {
-            socket.emit("disable-two-step-pin");
-        });
+        const p = document.createElement("p");
+        p.className = "settings-hint";
+        p.textContent = "No blocked contacts.";
+        blockedBlock.appendChild(p);
 
     } else {
 
-        wrap.innerHTML = `
-            <div class="privacy-option-row">
-                <input type="password" id="twoStepPinInput" class="modal-text-input" placeholder="Choose a PIN (4+ digits)" inputmode="numeric" maxlength="8">
-            </div>
-            <button type="button" class="modal-primary-btn" id="twoStepEnableBtn">Turn on</button>
-        `;
+        myBlockedContactIds.forEach((id) => {
 
-        wrap.querySelector("#twoStepEnableBtn").addEventListener("click", () => {
+            const u = usersOnline[id] || (friendProfiles && friendProfiles[id]) || { id, name: id };
 
-            const pin = wrap.querySelector("#twoStepPinInput").value.trim();
-            socket.emit("set-two-step-pin", { pin });
+            const row = document.createElement("div");
+            row.className = "panel-person";
+            row.innerHTML = `
+                <div class="panel-avatar">${avatarMarkup(u.name, u.avatar)}</div>
+                <div class="panel-person-info">
+                    <div class="panel-person-name">${escapeHtml(u.name)}</div>
+                </div>
+                <div class="panel-actions">
+                    <button class="panel-action" data-unblock="${id}">Unblock</button>
+                </div>
+            `;
 
+            row.querySelector("[data-unblock]").addEventListener("click", () => {
+                socket.emit("unblock-user", { userId: id });
+            });
+
+            blockedBlock.appendChild(row);
         });
-
     }
+}
 
+socket.on("privacy-settings", (prefs) => {
+    myPrivacySettings = prefs || myPrivacySettings;
+    drawPrivacyPanel();
 });
 
-socket.on("two-step-error", ({ message } = {}) => {
+socket.on("blocked-contacts", (ids) => {
+    myBlockedContactIds = Array.isArray(ids) ? ids : [];
+    drawPrivacyPanel();
+});
 
-    showNiceAlert(message || "Couldn't update two-step verification.", { title: "Two-step verification", icon: "fa-lock" });
-
+// fetch once at startup so "share my last seen" is known before the
+// panel is ever opened, and so the chat header can use it immediately
+socket.on("joined", () => {
+    socket.emit("get-privacy-settings");
 });
 
 
 // ============================================================
 // LINKED DEVICES PANEL
-// ------------------------------------------------------------
-// Generating and displaying a pairing code is fully working.
-// Actually mirroring this session onto a second browser/device is
-// not implemented yet - that needs the second device to open a
-// "redeem this code" flow which isn't built. This gives the UI and
-// the server-side code exchange to build that on top of.
 // ============================================================
 
+// this app has no real multi-device session architecture (one
+// account = one live socket connection), so rather than fake a
+// device list, this honestly shows the one session that's actually
+// active right now
 function renderLinkedDevicesPanel() {
 
     if (!accountPanelBody) return;
 
-    accountPanelBody.innerHTML = `
-        <div class="settings-block">
-            <h4 class="settings-heading">This device</h4>
-            <div class="panel-person">
-                <div class="panel-avatar">${avatarMarkup(me ? me.name : "Me", me && me.avatar)}</div>
-                <div class="panel-person-info">
-                    <div class="panel-person-name">This browser</div>
-                    <div class="panel-person-status online">Active now</div>
-                </div>
-            </div>
-        </div>
+    accountPanelBody.innerHTML = "";
 
-        <div class="settings-block">
-            <h4 class="settings-heading">Other linked devices</h4>
-            <div id="linkedDevicesList"><p class="settings-hint">Loading\u2026</p></div>
-        </div>
-
-        <div class="settings-block">
-            <button type="button" class="modal-primary-btn" id="linkDeviceBtn">
-                <i class="fa-solid fa-qrcode"></i> Link a device
-            </button>
-            <div id="linkDeviceCodeWrap" class="link-device-code-wrap hidden"></div>
+    const row = document.createElement("div");
+    row.className = "panel-person";
+    row.innerHTML = `
+        <div class="panel-avatar"><i class="fa-solid fa-display"></i></div>
+        <div class="panel-person-info">
+            <div class="panel-person-name">This browser</div>
+            <div class="panel-person-status online">Active now</div>
         </div>
     `;
+    accountPanelBody.appendChild(row);
 
-    document.getElementById("linkDeviceBtn").addEventListener("click", () => {
-        socket.emit("request-link-code");
-    });
-
-    socket.emit("get-linked-devices");
-
+    const note = document.createElement("p");
+    note.className = "settings-hint";
+    note.style.padding = "0 4px";
+    note.textContent = "Signing in elsewhere will use this same account, but only one session can be active at a time.";
+    accountPanelBody.appendChild(note);
 }
-
-socket.on("linked-devices", ({ devices } = {}) => {
-
-    const list = document.getElementById("linkedDevicesList");
-    if (!list) return;
-
-    if (!devices || !devices.length) {
-        list.innerHTML = `<p class="settings-hint">No other devices linked yet.</p>`;
-        return;
-    }
-
-    list.innerHTML = "";
-
-    devices.forEach((device) => {
-
-        const row = document.createElement("div");
-        row.className = "panel-person";
-
-        row.innerHTML = `
-            <div class="panel-avatar"><i class="fa-solid fa-display"></i></div>
-            <div class="panel-person-info">
-                <div class="panel-person-name">${escapeHtml(device.name || "Linked device")}</div>
-                <div class="panel-person-status">Linked ${formatTime(device.linkedAt)}</div>
-            </div>
-            <div class="panel-actions">
-                <button type="button" class="panel-action linked-device-remove-btn">Remove</button>
-            </div>
-        `;
-
-        row.querySelector(".linked-device-remove-btn").addEventListener("click", () => {
-            socket.emit("remove-linked-device", { deviceId: device.id });
-        });
-
-        list.appendChild(row);
-
-    });
-
-});
-
-socket.on("link-code", ({ code, expiresInMs } = {}) => {
-
-    const wrap = document.getElementById("linkDeviceCodeWrap");
-    if (!wrap) return;
-
-    wrap.classList.remove("hidden");
-
-    const minutes = Math.round((expiresInMs || 0) / 60000);
-
-    wrap.innerHTML = `
-        <p class="settings-hint">Enter this code on the new device:</p>
-        <div class="link-device-code">${escapeHtml(code)}</div>
-        <p class="settings-hint">Expires in ${minutes} minute${minutes === 1 ? "" : "s"}.</p>
-    `;
-
-});
-
-
-// ============================================================
-// CHAT BACKUP & EXPORT (Settings > Chats > Chat backup)
-// Fully working: bundles the server's copy of this user's
-// conversations and downloads it as a JSON file.
-// ============================================================
-
-function requestChatBackup() {
-    socket.emit("request-chat-backup");
-}
-
-socket.on("chat-backup-ready", ({ exportedAt, conversations: backupData } = {}) => {
-
-    try {
-
-        const blob = new Blob(
-            [JSON.stringify({ exportedAt, conversations: backupData }, null, 2)],
-            { type: "application/json" }
-        );
-
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-
-        a.href = url;
-        a.download = `chat-backup-${new Date(exportedAt || Date.now()).toISOString().slice(0, 10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        URL.revokeObjectURL(url);
-
-    } catch (err) {
-
-        showNiceAlert("Couldn't prepare the backup file.", { title: "Chat backup", icon: "fa-box-archive" });
-
-    }
-
-});
 
 
 // ============================================================
@@ -5204,6 +4981,27 @@ function renderSettingsPanel() {
     };
 
 
+    const themeBlock = document.createElement("div");
+    themeBlock.className = "settings-block";
+    themeBlock.innerHTML = `<h4 class="settings-heading">Theme</h4>`;
+
+    const themeToggle = document.createElement("label");
+    themeToggle.className = "group-info-toggle-row";
+    themeToggle.innerHTML = `
+        <span>
+            <strong>Dark theme</strong>
+            <small>Switch between light and dark</small>
+        </span>
+        <input type="checkbox" ${document.documentElement.dataset.theme === "dark" ? "checked" : ""}>
+    `;
+
+    themeToggle.querySelector("input").addEventListener("change", (e) => {
+        setAppTheme(e.target.checked ? "dark" : "light");
+    });
+
+    themeBlock.appendChild(themeToggle);
+    accountPanelBody.appendChild(themeBlock);
+
     accountPanelBody.appendChild(
         section(
             "Notification",
@@ -5223,25 +5021,6 @@ function renderSettingsPanel() {
     accountPanelBody.appendChild(
         renderDisappearingDefaultSection()
     );
-
-
-    // ---- chat backup & export ----
-
-    const backupBlock = document.createElement("div");
-    backupBlock.className = "settings-block";
-    backupBlock.innerHTML = `
-        <h4 class="settings-heading">Chat backup</h4>
-        <p class="settings-hint">Download a copy of your chats as a file.</p>
-    `;
-
-    const backupBtn = document.createElement("button");
-    backupBtn.type = "button";
-    backupBtn.className = "modal-secondary-btn";
-    backupBtn.innerHTML = '<i class="fa-solid fa-box-archive"></i> Export chats';
-    backupBtn.addEventListener("click", requestChatBackup);
-
-    backupBlock.appendChild(backupBtn);
-    accountPanelBody.appendChild(backupBlock);
 
 }
 
@@ -5904,6 +5683,12 @@ function openChat(
                 ? `${activeChat.memberIds.length} members`
                 : (usersOnline[id] ? "Online" : "Offline");
 
+        // ask the server for a proper "last seen ..." line - it may
+        // come back empty if the other person has hidden theirs
+        if (!activeChat.isGroup && !usersOnline[id]) {
+            socket.emit("get-last-seen", { userId: id });
+        }
+
     }
 
 
@@ -5952,7 +5737,6 @@ function openChat(
 
 
     clearReplyPreview();
-    cancelEditMessage();
     hideTypingBubble();
     closeMentionDropdown();
     currentMentionIds.clear();
@@ -6354,29 +6138,30 @@ function sendText() {
         return;
     }
 
-    // editing an already-sent message takes priority over everything
-    // else the composer could be doing - it never has an attachment
-    // to worry about, just new text for an existing message id
+    // editing an already-sent message takes over the composer entirely -
+    // the text box holds the edited draft rather than a new message
     if (editingMessage) {
 
         if (!text) return;
 
+        const msg = editingMessage;
+
         socket.emit("edit-message", {
             toId: activeChat.id,
-            messageId: editingMessage.id,
-            text
+            messageId: msg.id,
+            newText: text
         });
 
         applyMessageEdited({
-            messageId: editingMessage.id,
-            fromId: editingMessage.from.id,
+            messageId: msg.id,
+            fromId: msg.from.id,
             toId: activeChat.id,
             text,
             editedAt: Date.now()
         });
 
         textInput.value = "";
-        cancelEditMessage();
+        clearEditingMessage();
 
         return;
     }
@@ -6479,6 +6264,8 @@ function messagePreviewText(msg) {
 
 function startReply(msg) {
 
+    if (editingMessage) clearEditingMessage();
+
     replyingTo = msg;
 
     if (!replyPreviewBar) return;
@@ -6504,59 +6291,76 @@ function clearReplyPreview() {
     if (replyPreviewBar) replyPreviewBar.classList.add("hidden");
 }
 
-if (replyPreviewClose) {
-    replyPreviewClose.addEventListener("click", () => {
-        // the close (x) on the composer bar has to clear whichever
-        // of reply/edit put it up, or it'll stay stuck open
-        if (editingMessage) cancelEditMessage();
-        else clearReplyPreview();
-    });
-}
-
 
 // ============================================================
-// EDIT MESSAGE (composer) - reuses the reply-preview bar's UI
-// since only one of "replying" / "editing" is ever active at once
+// EDIT MESSAGE (composer) - same "edited" pencil/label behaviour
+// as WhatsApp, within a 15-minute window of the original send
 // ============================================================
 
 function startEditMessage(msg) {
 
-    if (!msg.text) return; // only text messages can be edited
+    if (replyingTo) clearReplyPreview();
 
-    clearReplyPreview();
     editingMessage = msg;
 
-    if (replyPreviewBar) replyPreviewBar.classList.remove("hidden");
-    if (replyPreviewName) replyPreviewName.textContent = "Editing message";
-    if (replyPreviewText) replyPreviewText.textContent = msg.text;
+    if (!replyPreviewBar) return;
+
+    replyPreviewBar.classList.remove("hidden");
+    replyPreviewBar.classList.add("editing");
+
+    if (replyPreviewName) {
+        replyPreviewName.innerHTML = '<i class="fa-solid fa-pen"></i> Edit message';
+    }
+
+    if (replyPreviewText) {
+        replyPreviewText.textContent = "";
+    }
 
     if (textInput) {
-        textInput.value = msg.text;
+        textInput.value = msg.text || "";
         textInput.focus();
-        // put the caret at the end rather than the start
-        textInput.setSelectionRange(msg.text.length, msg.text.length);
     }
 }
 
-function cancelEditMessage() {
+function clearEditingMessage() {
 
     editingMessage = null;
 
-    if (replyPreviewBar) replyPreviewBar.classList.add("hidden");
+    if (replyPreviewBar) {
+        replyPreviewBar.classList.add("hidden");
+        replyPreviewBar.classList.remove("editing");
+    }
+
+    if (replyPreviewName) {
+        replyPreviewName.innerHTML = "";
+    }
+
     if (textInput) textInput.value = "";
+}
+
+function canEditMessage(msg) {
+
+    return !!(
+        msg &&
+        me &&
+        msg.from.id === me.id &&
+        msg.text &&
+        !msg.deletedForEveryone &&
+        (Date.now() - msg.at) <= EDIT_MESSAGE_WINDOW_MS
+    );
 }
 
 function applyMessageEdited({ messageId, fromId, toId, text, editedAt }) {
 
     if (!me) return;
 
-    const convoKey = fromId === me.id ? toId : fromId;
+    const convoKey = isGroupChatId(toId) ? toId : (fromId === me.id ? toId : fromId);
     const found = findMessageInConversation(convoKey, messageId);
 
     if (found) {
         found.text = text;
         found.edited = true;
-        found.editedAt = editedAt || Date.now();
+        found.editedAt = editedAt;
     }
 
     if (activeChat && activeChat.id === convoKey) {
@@ -6567,6 +6371,13 @@ function applyMessageEdited({ messageId, fromId, toId, text, editedAt }) {
 socket.on("message-edited", (payload) => {
     applyMessageEdited(payload);
 });
+
+if (replyPreviewClose) {
+    replyPreviewClose.addEventListener("click", () => {
+        if (editingMessage) clearEditingMessage();
+        else clearReplyPreview();
+    });
+}
 
 
 // ============================================================
@@ -7060,6 +6871,16 @@ function appendMessage(
         }
     }
 
+    if (msg.starred) {
+
+        const starBadge = document.createElement("span");
+        starBadge.className = "bubble-star-badge";
+        starBadge.title = "Starred";
+        starBadge.innerHTML = '<i class="fa-solid fa-star"></i>';
+        bubble.appendChild(starBadge);
+
+    }
+
 
     const meta =
         document.createElement(
@@ -7076,32 +6897,11 @@ function appendMessage(
             mine
                 ? "You"
                 : msg.from.name
+        }${
+            msg.edited ? " · Edited" : ""
         } · ${
             formatTime(msg.at)
-        }${
-            msg.edited
-                ? " · edited"
-                : ""
         }`;
-
-
-    if (msg.starred) {
-
-        const starIcon =
-            document.createElement("i");
-
-        starIcon.className =
-            "fa-solid fa-star msg-star-badge";
-
-        starIcon.title =
-            "Starred";
-
-        meta.insertBefore(
-            starIcon,
-            meta.firstChild
-        );
-
-    }
 
 
     if (!msg.deletedForEveryone) {
@@ -7366,25 +7166,25 @@ function openMessageActionSheet(msg, row) {
     if (!msg.deletedForEveryone) {
 
         addAction("fa-reply", "Reply", () => startReply(msg));
-        addAction("fa-share", "Forward", () => openForwardPicker(msg));
 
-        // WhatsApp only lets the original sender edit their own text
-        // messages (no attachments, no other person's messages)
-        if (mine && msg.text && !msg.attachment) {
+        if (canEditMessage(msg)) {
             addAction("fa-pen", "Edit", () => startEditMessage(msg));
         }
+
+        addAction("fa-share", "Forward", () => openForwardPicker(msg));
+
+        const alreadyStarred = !!msg.starred;
+        addAction(
+            "fa-star",
+            alreadyStarred ? "Unstar" : "Star",
+            () => toggleStarMessage(msg)
+        );
 
         const isPinned = convoKey && pinnedMessages[convoKey] === msg.id;
         addAction(
             "fa-thumbtack",
             isPinned ? "Unpin" : "Pin",
             () => setPinnedMessage(msg, !isPinned)
-        );
-
-        addAction(
-            "fa-star",
-            msg.starred ? "Unstar" : "Star",
-            () => toggleStarMessage(msg, convoKey)
         );
 
         if (msg.text) {
@@ -7468,50 +7268,35 @@ socket.on("message-deleted", (payload) => {
 });
 
 
-// ---- starred messages: keep the local cache + any open bubble/
-// Starred Messages panel in sync with the server's confirmation ----
+// ============================================================
+// STARRED MESSAGES
+// ============================================================
 
-function toggleStarMessage(msg, chatId) {
+function toggleStarMessage(msg) {
 
-    const targetChatId = chatId || (activeChat && activeChat.id);
-    if (!targetChatId) return;
+    if (!activeChat) return;
 
-    msg.starred = !msg.starred;
+    const nextStarred = !msg.starred;
 
-    socket.emit("message-context-action", {
-        action: "star",
-        msgId: msg.id,
-        chatId: targetChatId
+    socket.emit("star-message", {
+        toId: activeChat.id,
+        messageId: msg.id,
+        starred: nextStarred
     });
 
-    if (activeChat && activeChat.id === targetChatId) {
-        renderMessages();
-    }
-
+    msg.starred = nextStarred;
+    renderMessages();
 }
 
-socket.on("message-starred", ({ chatId, msgId, starred } = {}) => {
+socket.on("message-starred", ({ toId, messageId, starred }) => {
 
-    const found = findMessageInConversation(chatId, msgId);
+    if (!activeChat || activeChat.id !== toId) return;
 
+    const found = findMessageInConversation(activeChat.id, messageId);
     if (found) {
         found.starred = starred;
-    }
-
-    if (activeChat && activeChat.id === chatId) {
         renderMessages();
     }
-
-    // if the Starred Messages panel happens to be open, refresh it
-    if (
-        accountPanel &&
-        !accountPanel.classList.contains("hidden") &&
-        accountPanelTitle &&
-        accountPanelTitle.textContent === "Starred messages"
-    ) {
-        renderStarredPanel();
-    }
-
 });
 
 
@@ -8693,36 +8478,9 @@ function sendSticker(emoji) {
 
 // ---- GIF tab: search GIPHY via our own server proxy ----
 
-const GIF_PAGE_SIZE = 24;
-
 let gifsLoadedOnce = false;
 let gifSearchDebounce = null;
 let gifRequestToken = 0;
-
-let gifCurrentQuery = "";
-let gifOffset = 0;
-let gifHasMore = true;
-let gifIsLoadingMore = false;
-
-function appendGifItems(gifs) {
-
-    gifs.forEach((gif) => {
-
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "gif-item";
-        btn.title = "Send GIF";
-
-        const img = document.createElement("img");
-        img.src = gif.preview || gif.url;
-        img.alt = "GIF";
-
-        btn.appendChild(img);
-        btn.addEventListener("click", () => sendGif(gif.url));
-
-        gifGrid.appendChild(btn);
-    });
-}
 
 async function loadGifs(query) {
 
@@ -8730,18 +8488,11 @@ async function loadGifs(query) {
 
     const myToken = ++gifRequestToken;
 
-    gifCurrentQuery = query || "";
-    gifOffset = 0;
-    gifHasMore = true;
-    gifIsLoadingMore = false;
-
     gifGrid.innerHTML = '<div class="emoji-empty-hint">Loading GIFs…</div>';
 
     try {
 
-        const res = await fetch(
-            `/api/gifs?q=${encodeURIComponent(gifCurrentQuery)}&limit=${GIF_PAGE_SIZE}&offset=0`
-        );
+        const res = await fetch(`/api/gifs?q=${encodeURIComponent(query || "")}&limit=24`);
         const data = await res.json();
 
         if (myToken !== gifRequestToken) return; // a newer search superseded this one
@@ -8755,14 +8506,26 @@ async function loadGifs(query) {
             empty.className = "emoji-empty-hint";
             empty.textContent = "No GIFs found.";
             gifGrid.appendChild(empty);
-            gifHasMore = false;
             return;
         }
 
-        appendGifItems(gifs);
+        gifs.forEach((gif) => {
 
-        gifOffset = gifs.length;
-        gifHasMore = gifs.length >= GIF_PAGE_SIZE;
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "gif-item";
+            btn.title = "Send GIF";
+
+            const img = document.createElement("img");
+            img.src = gif.preview || gif.url;
+            img.alt = "GIF";
+            img.loading = "lazy";
+
+            btn.appendChild(img);
+            btn.addEventListener("click", () => sendGif(gif.url));
+
+            gifGrid.appendChild(btn);
+        });
 
     } catch (err) {
 
@@ -8772,62 +8535,7 @@ async function loadGifs(query) {
 
         gifGrid.innerHTML =
             '<div class="emoji-empty-hint">Couldn\'t load GIFs. Check your connection.</div>';
-
-        gifHasMore = false;
     }
-}
-
-async function loadMoreGifs() {
-
-    if (!gifGrid || gifIsLoadingMore || !gifHasMore) return;
-
-    const myToken = gifRequestToken;
-
-    gifIsLoadingMore = true;
-
-    const loadingRow = document.createElement("div");
-    loadingRow.className = "gif-grid-loading-more";
-    loadingRow.textContent = "Loading more…";
-    gifGrid.appendChild(loadingRow);
-
-    try {
-
-        const res = await fetch(
-            `/api/gifs?q=${encodeURIComponent(gifCurrentQuery)}&limit=${GIF_PAGE_SIZE}&offset=${gifOffset}`
-        );
-        const data = await res.json();
-
-        if (myToken !== gifRequestToken) return; // search changed while this was in flight
-
-        loadingRow.remove();
-
-        const gifs = data.gifs || [];
-
-        appendGifItems(gifs);
-
-        gifOffset += gifs.length;
-        gifHasMore = gifs.length >= GIF_PAGE_SIZE;
-
-    } catch (err) {
-
-        console.error("GIF pagination failed:", err);
-        loadingRow.remove();
-
-    } finally {
-
-        gifIsLoadingMore = false;
-    }
-}
-
-if (gifGrid) {
-
-    gifGrid.addEventListener("scroll", () => {
-
-        const nearBottom =
-            gifGrid.scrollTop + gifGrid.clientHeight >= gifGrid.scrollHeight - 120;
-
-        if (nearBottom) loadMoreGifs();
-    });
 }
 
 if (gifSearch) {
@@ -12287,6 +11995,39 @@ function formatTime(
 
 }
 
+// WhatsApp-style "last seen today/yesterday/DD/MM/YYYY at H:MM" line
+function formatLastSeen(ts) {
+
+    if (!ts) return null;
+
+    const d = new Date(ts);
+    const now = new Date();
+
+    const isSameDay = (a, b) =>
+        a.getFullYear() === b.getFullYear() &&
+        a.getMonth() === b.getMonth() &&
+        a.getDate() === b.getDate();
+
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+
+    const time = formatTime(ts);
+
+    if (isSameDay(d, now)) return `last seen today at ${time}`;
+    if (isSameDay(d, yesterday)) return `last seen yesterday at ${time}`;
+
+    return `last seen ${d.toLocaleDateString()} at ${time}`;
+}
+
+socket.on("last-seen", ({ userId, lastSeen }) => {
+
+    if (!activeChat || activeChat.isGroup || activeChat.id !== userId) return;
+    if (usersOnline[userId]) return; // came back online in the meantime
+
+    const text = formatLastSeen(lastSeen);
+    if (chatStatus && text) chatStatus.textContent = text;
+});
+
 
 // ============================================================
 // SAFETY: FIND FRIEND STARTS COMPLETELY CLOSED
@@ -13073,19 +12814,32 @@ if ($id("chatSearchPrevBtn")) $id("chatSearchPrevBtn").addEventListener("click",
     const menu = $id("msgContextMenu");
     if (!menu) return;
 
-    function itemsFor(msgEl) {
+    function itemsFor(msgEl, msg) {
 
-        const msgId = findMsgId(msgEl);
-        const found = activeChat && msgId && findMessageInConversation(activeChat.id, msgId);
+        const mine = !!(msg && me && msg.from.id === me.id);
+        const isPinned = !!(msg && activeChat && pinnedMessages[activeChat.id] === msg.id);
 
         const items = [
-            { icon: "fa-reply", label: "Reply", action: "reply" },
-            { icon: "fa-share", label: "Forward", action: "forward" },
-            { icon: "fa-star", label: (found && found.starred) ? "Unstar" : "Star", action: "star" },
-            { icon: "fa-copy", label: "Copy", action: "copy" },
-            { icon: "fa-thumbtack", label: "Pin", action: "pin" },
-            { icon: "fa-trash", label: "Delete", action: "delete", danger: true }
+            { icon: "fa-reply", label: "Reply", action: "reply" }
         ];
+
+        if (msg && canEditMessage(msg)) {
+            items.push({ icon: "fa-pen", label: "Edit", action: "edit" });
+        }
+
+        items.push({ icon: "fa-share", label: "Forward", action: "forward" });
+        items.push({ icon: "fa-star", label: msg && msg.starred ? "Unstar" : "Star", action: "star" });
+        items.push({ icon: "fa-thumbtack", label: isPinned ? "Unpin" : "Pin", action: "pin" });
+
+        if (msg && msg.text) {
+            items.push({ icon: "fa-copy", label: "Copy", action: "copy" });
+        }
+
+        items.push({ icon: "fa-trash", label: "Delete for me", action: "delete", danger: true });
+
+        if (mine && msg && !msg.deletedForEveryone) {
+            items.push({ icon: "fa-trash", label: "Delete for everyone", action: "delete-everyone", danger: true });
+        }
 
         return items.map(it =>
             `<button class="msg-context-menu-item${it.danger ? " danger" : ""}" data-action="${it.action}">
@@ -13101,10 +12855,12 @@ if ($id("chatSearchPrevBtn")) $id("chatSearchPrevBtn").addEventListener("click",
     }
 
     function showMenuAt(x, y, msgEl) {
-        menu.innerHTML = itemsFor(msgEl);
+        const msgId = findMsgId(msgEl);
+        const msg = msgId && activeChat ? findMessageInConversation(activeChat.id, msgId) : null;
+        menu.innerHTML = itemsFor(msgEl, msg);
         menu.style.left = `${x}px`;
         menu.style.top = `${y}px`;
-        menu.dataset.forMsg = findMsgId(msgEl) || "";
+        menu.dataset.forMsg = msgId || "";
         menu.classList.remove("hidden");
     }
 
@@ -13137,28 +12893,22 @@ if ($id("chatSearchPrevBtn")) $id("chatSearchPrevBtn").addEventListener("click",
 
         const msgId = menu.dataset.forMsg;
         const action = btn.dataset.action;
-
-        if (action === "star") {
-
-            const found = activeChat && findMessageInConversation(activeChat.id, msgId);
-
-            if (found) {
-                toggleStarMessage(found, activeChat.id);
-            }
-
-            menu.classList.add("hidden");
-            return;
-
-        }
-
-        socket.emit("message-context-action", { action, msgId, chatId: activeChat && activeChat.id });
-
-        if (action === "copy") {
-            const el = document.querySelector(`[data-msg-id="${msgId}"]`) || document.getElementById(msgId);
-            if (el) navigator.clipboard && navigator.clipboard.writeText(el.textContent.trim());
-        }
+        const msg = msgId && activeChat ? findMessageInConversation(activeChat.id, msgId) : null;
 
         menu.classList.add("hidden");
+
+        if (!msg) return;
+
+        const row = document.querySelector(`[data-message-id="${msgId}"]`);
+
+        if (action === "reply") startReply(msg);
+        else if (action === "edit" && canEditMessage(msg)) startEditMessage(msg);
+        else if (action === "forward") openForwardPicker(msg);
+        else if (action === "star") toggleStarMessage(msg);
+        else if (action === "pin") setPinnedMessage(msg, activeChat && pinnedMessages[activeChat.id] !== msg.id);
+        else if (action === "copy" && msg.text && navigator.clipboard) navigator.clipboard.writeText(msg.text).catch(() => {});
+        else if (action === "delete") deleteMessageForMe(msg, row);
+        else if (action === "delete-everyone") deleteMessageForEveryone(msg);
 
     });
 

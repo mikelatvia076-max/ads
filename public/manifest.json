@@ -1,8 +1,8 @@
 {
     "id": "/",
-    "name": "Kenya Campus Hub",
-    "short_name": "Campus Hub",
-    "description": "Kenya Campus Hub - Student information, HELB, KUCCPS, scholarships, jobs and student tools.",
+    "name": "HigherSpace Connect Hub",
+    "short_name": "HSC Hub",
+    "description": "HigherSpace Connect Hub - Student information, HELB, KUCCPS, scholarships, jobs and student tools.",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",
@@ -34,7 +34,7 @@
         {
             "name": "Home",
             "short_name": "Home",
-            "description": "Open the Kenya Campus Hub homepage",
+            "description": "Open the HigherSpace Connect Hub homepage",
             "url": "/",
             "icons": [
                 {

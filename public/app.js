@@ -118,55 +118,151 @@ const MY_CAMPUS_INSTITUTIONS = {
     mmust: 'Masinde Muliro University'
 };
 
+/* Tracks which level chip (university / tvet / college) is
+   currently active in the My Campus picker. */
+let myCampusSelectedLevel = '';
+
 /**
- * Builds the row of quick-link pills shown once a campus is
- * chosen (News, Announcements, Opportunities), each carrying
- * the institution key so category.html can filter by it.
+ * Fills the institution <select> with every institution at the
+ * given level (from SAMPLE_INSTITUTIONS), A-Z. With no level
+ * chosen yet, the dropdown is cleared and disabled.
  */
-function buildMyCampusLinks(institutionKey) {
-    const container = document.getElementById('myCampusLinks');
+function populateMyCampusInstitutions(level) {
+    const select = document.getElementById('myCampusSelect');
+    if (!select) return;
+
+    select.innerHTML = '';
+
+    if (!level) {
+        select.disabled = true;
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Choose a level first...';
+        select.appendChild(placeholder);
+        return;
+    }
+
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = 'Select your institution...';
+    select.appendChild(placeholder);
+
+    SAMPLE_INSTITUTIONS
+        .filter(function (inst) { return inst.type === level; })
+        .slice()
+        .sort(function (a, b) { return a.name.localeCompare(b.name); })
+        .forEach(function (inst) {
+            const opt = document.createElement('option');
+            opt.value = getInstitutionKey(inst);
+            opt.textContent = inst.name;
+            select.appendChild(opt);
+        });
+
+    select.disabled = false;
+}
+
+/**
+ * Sets the active level chip and refills the institution
+ * dropdown to show only institutions at that level.
+ */
+function setMyCampusLevel(level, buttonEl) {
+    myCampusSelectedLevel = level;
+
+    document.querySelectorAll('#myCampusLevel .filter-chip').forEach(function (chip) {
+        chip.classList.remove('active');
+    });
+    if (buttonEl) buttonEl.classList.add('active');
+
+    populateMyCampusInstitutions(level);
+}
+
+/**
+ * Builds the News / Announcements / Opportunities card grid
+ * shown once a campus is chosen, each card carrying the
+ * institution key so category.html can filter by it. Shared
+ * with the institution chooser popup further down this file.
+ */
+function renderChoiceGrid(container, institutionKey, institutionName) {
     if (!container) return;
 
     container.innerHTML = '';
 
-    const links = [
-        { label: 'News', type: 'news' },
-        { label: 'Announcements', type: 'university-alerts' },
-        { label: 'Opportunities', type: 'scholarships' }
-    ];
+    const hasOfficialSite = Boolean(INSTITUTION_OFFICIAL_SITES[institutionKey]);
 
-    links.forEach(function (link) {
+    INSTITUTION_CHOICES.forEach(function (choice) {
         const a = document.createElement('a');
-        a.href = 'category.html?type=' + encodeURIComponent(link.type) +
-            '&institution=' + encodeURIComponent(institutionKey);
-        a.textContent = link.label;
+        a.className = 'opportunity-card ' + choice.accent;
+
+        if (choice.external) {
+            /* News and Announcements: no internal aggregator ever
+               covers a single institution, so send each to a
+               search scoped to that institution's OWN site,
+               filtered to news vs. announcements respectively. */
+            /* Same-tab navigation on purpose: opening a new tab
+               would leave it with no history to go "back" through,
+               so pressing back wouldn't return to the app. */
+            a.href = getInstitutionOfficialUrl(institutionKey, institutionName, choice.kind);
+        } else {
+            /* Opportunities: HigherSpace Connect's own nationwide
+               scholarships/jobs feed, which does have real data. */
+            a.href = 'category.html?type=' + encodeURIComponent(choice.type) +
+                '&institution=' + encodeURIComponent(institutionKey) +
+                '&name=' + encodeURIComponent(institutionName || '');
+        }
+
+        const icon = document.createElement('span');
+        icon.className = 'opportunity-icon';
+        icon.textContent = choice.icon;
+
+        const h3 = document.createElement('h3');
+        h3.textContent = choice.label;
+
+        const p = document.createElement('p');
+        p.textContent = choice.text;
+
+        a.appendChild(icon);
+        a.appendChild(h3);
+        a.appendChild(p);
+
+        if (choice.external && !hasOfficialSite) {
+            const note = document.createElement('span');
+            note.className = 'opportunity-card-note';
+            note.textContent = 'We\u2019ll search for their site \u2192';
+            a.appendChild(note);
+        }
+
         container.appendChild(a);
     });
 }
 
+function buildMyCampusLinks(institutionKey, institutionName) {
+    renderChoiceGrid(document.getElementById('myCampusLinks'), institutionKey, institutionName);
+}
+
 /**
  * Shows the "My Campus" result panel for the given institution
- * key and hides the picker. Pass no argument to just re-render
- * from whatever is already saved.
+ * key and hides the picker.
  */
 function renderMyCampus(institutionKey) {
     const picker = document.getElementById('myCampusPicker');
     const result = document.getElementById('myCampusResult');
     const nameEl = document.getElementById('myCampusName');
 
-    const name = MY_CAMPUS_INSTITUTIONS[institutionKey];
+    const inst = SAMPLE_INSTITUTIONS.find(function (i) { return getInstitutionKey(i) === institutionKey; });
+    const name = inst ? inst.name : MY_CAMPUS_INSTITUTIONS[institutionKey];
     if (!name || !picker || !result || !nameEl) return;
 
     nameEl.textContent = name;
-    buildMyCampusLinks(institutionKey);
+    buildMyCampusLinks(institutionKey, name);
 
     picker.hidden = true;
     result.hidden = false;
 }
 
 /**
- * Reads the selected institution from the dropdown, saves it,
- * and shows the personalized panel.
+ * Reads the selected institution from the dropdown, saves it
+ * (with its level) and shows the personalized card grid.
  */
 function setMyCampus() {
     const select = document.getElementById('myCampusSelect');
@@ -175,8 +271,14 @@ function setMyCampus() {
         return;
     }
 
+    const inst = SAMPLE_INSTITUTIONS.find(function (i) { return getInstitutionKey(i) === select.value; });
+    const level = inst ? inst.type : myCampusSelectedLevel;
+
     try {
-        localStorage.setItem(MY_CAMPUS_STORAGE_KEY, select.value);
+        localStorage.setItem(MY_CAMPUS_STORAGE_KEY, JSON.stringify({
+            key: select.value,
+            level: level
+        }));
     } catch (err) {
         /* Private browsing / storage disabled — still show the
            panel for this visit even if it won't persist. */
@@ -186,7 +288,8 @@ function setMyCampus() {
 }
 
 /**
- * Clears the saved institution and shows the picker again.
+ * Clears the saved institution and level, and shows the picker
+ * again from step 1.
  */
 function clearMyCampus() {
     try {
@@ -202,24 +305,56 @@ function clearMyCampus() {
     if (result) result.hidden = true;
     if (picker) picker.hidden = false;
     if (select) select.value = '';
+
+    myCampusSelectedLevel = '';
+    document.querySelectorAll('#myCampusLevel .filter-chip').forEach(function (chip) {
+        chip.classList.remove('active');
+    });
+    populateMyCampusInstitutions('');
 }
 
-/* On load, restore a previously saved campus, if any. */
+/* On load, restore a previously saved level + campus, if any. */
 document.addEventListener('DOMContentLoaded', function () {
-    let saved = null;
+    populateMyCampusInstitutions('');
 
+    let saved = null;
     try {
         saved = localStorage.getItem(MY_CAMPUS_STORAGE_KEY);
     } catch (err) {
         saved = null;
     }
 
-    if (!saved || !MY_CAMPUS_INSTITUTIONS[saved]) return;
+    if (!saved) return;
+
+    let data;
+    try {
+        data = JSON.parse(saved);
+    } catch (err) {
+        /* Legacy value from before levels existed: a bare
+           institution key string. */
+        data = { key: saved, level: '' };
+    }
+
+    if (!data || !data.key) return;
+
+    const inst = SAMPLE_INSTITUTIONS.find(function (i) { return getInstitutionKey(i) === data.key; });
+    const level = data.level || (inst ? inst.type : '');
+    const name = inst ? inst.name : MY_CAMPUS_INSTITUTIONS[data.key];
+
+    if (!name) return;
+
+    if (level) {
+        populateMyCampusInstitutions(level);
+        myCampusSelectedLevel = level;
+
+        const chip = document.querySelector('#myCampusLevel .filter-chip[data-level="' + level + '"]');
+        if (chip) chip.classList.add('active');
+    }
 
     const select = document.getElementById('myCampusSelect');
-    if (select) select.value = saved;
+    if (select) select.value = data.key;
 
-    renderMyCampus(saved);
+    renderMyCampus(data.key);
 });
 
 /* On institutions.html load: read q/type/county from the URL
@@ -501,6 +636,97 @@ const INSTITUTION_COUNTY_LABELS = {
     nairobi: 'Nairobi'
 };
 
+
+/* =====================================================
+   OFFICIAL INSTITUTION SOURCES
+   HigherSpace Connect's own News/Announcements feed (see
+   ai-updater.js) only ever aggregates NATIONWIDE sources —
+   HELB, KUCCPS, CUE, UASU, national press — it has no per-
+   institution data of its own, and "News" was never a
+   category the AI engine generates at all. So instead of
+   pointing students at an internal page that can never have
+   anything for their specific institution, each institution
+   here is mapped to its own official website: that's where
+   its real news and announcements actually get published.
+   Keys match getInstitutionKey()'s output. Any institution
+   NOT listed here falls back to a web search for its site
+   (see getInstitutionOfficialUrl) rather than a guessed URL.
+===================================================== */
+const INSTITUTION_OFFICIAL_SITES = {
+    uon: 'https://www.uonbi.ac.ke',
+    ku: 'https://www.ku.ac.ke',
+    jkuat: 'https://www.jkuat.ac.ke',
+    moi: 'https://www.mu.ac.ke',
+    strathmore: 'https://www.strathmore.edu',
+    egerton: 'https://www.egerton.ac.ke',
+    'maseno-university': 'https://www.maseno.ac.ke',
+    'technical-university-of-kenya': 'https://www.tukenya.ac.ke',
+    'multimedia-university-of-kenya': 'https://www.mmu.ac.ke',
+    'cooperative-university-of-kenya': 'https://www.cuk.ac.ke',
+    'dedan-kimathi-university-of-technology': 'https://www.dkut.ac.ke',
+    'karatina-university': 'https://www.karu.ac.ke',
+    'chuka-university': 'https://www.chuka.ac.ke',
+    'kisii-university': 'https://www.kisiiuniversity.ac.ke',
+    'laikipia-university': 'https://www.laikipia.ac.ke',
+    'south-eastern-kenya-university': 'https://www.seku.ac.ke',
+    'masinde-muliro-university-of-science-and-technology': 'https://www.mmust.ac.ke',
+    'pwani-university': 'https://www.pu.ac.ke',
+    'kibabii-university': 'https://www.kibu.ac.ke',
+    'machakos-university': 'https://www.mksu.ac.ke',
+    'meru-university-of-science-and-technology': 'https://www.must.ac.ke',
+    "murang-a-university-of-technology": 'https://www.mut.ac.ke',
+    'university-of-eldoret': 'https://www.uoeld.ac.ke',
+    'university-of-kabianga': 'https://www.kabianga.ac.ke',
+    'jaramogi-oginga-odinga-university-of-science-and-technology': 'https://www.jooust.ac.ke',
+    'university-of-embu': 'https://www.embuni.ac.ke',
+    'maasai-mara-university': 'https://www.mmarau.ac.ke',
+    'catholic-university-of-eastern-africa': 'https://www.cuea.edu',
+    'united-states-international-university-africa': 'https://www.usiu.ac.ke',
+    'daystar-university': 'https://www.daystar.ac.ke',
+    'africa-nazarene-university': 'https://www.anu.ac.ke',
+    'kabarak-university': 'https://www.kabarak.ac.ke',
+    'mount-kenya-university': 'https://www.mku.ac.ke',
+    'zetech-university': 'https://www.zetech.ac.ke',
+    'riara-university': 'https://www.riarauniversity.ac.ke',
+    'taita-taveta-university': 'https://www.ttu.ac.ke',
+    'technical-university-of-mombasa': 'https://www.tum.ac.ke'
+};
+
+/**
+ * Returns where a student should go for this institution's OWN
+ * news or its OWN announcements — two different destinations,
+ * not the same homepage for both.
+ *
+ * We don't have (and can't reliably guess) each institution's
+ * exact "/news" or "/announcements" page — those paths differ
+ * site to site and change over time, so hardcoding them would
+ * mean quietly-broken links down the road. Instead, for any
+ * institution whose official domain we DO have on file, this
+ * runs a Google search scoped to that domain (site:...) with
+ * terms matching the kind requested, so News and Announcements
+ * genuinely return different, institution-only results. With no
+ * confirmed domain, it falls back to the same kind of search
+ * using the institution's name instead of a site: filter.
+ *
+ * kind: 'news' | 'announcements'
+ */
+function getInstitutionOfficialUrl(institutionKey, institutionName, kind) {
+    const terms = kind === 'announcements'
+        ? 'announcements OR notices OR circular'
+        : 'news OR "latest news"';
+
+    const site = INSTITUTION_OFFICIAL_SITES[institutionKey];
+
+    if (site) {
+        const domain = site.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        return 'https://www.google.com/search?q=' +
+            encodeURIComponent('site:' + domain + ' ' + terms);
+    }
+
+    return 'https://www.google.com/search?q=' +
+        encodeURIComponent((institutionName || institutionKey) + ' official ' + terms);
+}
+
 let institutionsPageFilter = 'all';
 
 /**
@@ -610,10 +836,10 @@ function getInstitutionKey(inst) {
 }
 
 const INSTITUTION_CHOICES = [
-    { label: 'News', icon: '📰', type: 'news', accent: 'cat-news',
-      text: 'Latest stories and happenings.' },
-    { label: 'Announcements', icon: '📢', type: 'university-alerts', accent: 'cat-announcements',
-      text: 'Official notices and alerts.' },
+    { label: 'News', icon: '📰', accent: 'cat-news', kind: 'news',
+      text: "Latest stories, from the institution's own site.", external: true },
+    { label: 'Announcements', icon: '📢', accent: 'cat-announcements', kind: 'announcements',
+      text: "Official notices and circulars, from the institution's own site.", external: true },
     { label: 'Opportunities', icon: '💰', type: 'scholarships', accent: 'cat-scholarships',
       text: 'Scholarships, jobs and more.' }
 ];
@@ -658,29 +884,7 @@ function openInstitutionChooser(name) {
 
     const grid = document.createElement('div');
     grid.className = 'chooser-options';
-
-    INSTITUTION_CHOICES.forEach(function (choice) {
-        const a = document.createElement('a');
-        a.className = 'opportunity-card ' + choice.accent;
-        a.href = 'category.html?type=' + encodeURIComponent(choice.type) +
-            '&institution=' + encodeURIComponent(key) +
-            '&name=' + encodeURIComponent(inst.name);
-
-        const icon = document.createElement('span');
-        icon.className = 'opportunity-icon';
-        icon.textContent = choice.icon;
-
-        const h3 = document.createElement('h3');
-        h3.textContent = choice.label;
-
-        const p = document.createElement('p');
-        p.textContent = choice.text;
-
-        a.appendChild(icon);
-        a.appendChild(h3);
-        a.appendChild(p);
-        grid.appendChild(a);
-    });
+    renderChoiceGrid(grid, key, inst.name);
 
     box.appendChild(close);
     box.appendChild(title);
@@ -703,4 +907,329 @@ document.addEventListener('click', function (e) {
     if (!el) return;
     e.preventDefault();
     openInstitutionChooser(el.getAttribute('data-institution'));
+});
+
+
+/* =====================================================
+   POPULAR COURSES — info modal
+   Tapping a course chip on the homepage shows a quick
+   overview (what it covers, typical duration, career
+   paths) instead of immediately leaving the page. The
+   modal still links through to the existing category.html
+   listing for that field.
+===================================================== */
+
+const COURSES_DATA = {
+    'computer-science': {
+        label: 'Computer Science',
+        icon: '💻',
+        duration: 'Usually 4 years',
+        blurb: 'Focuses on programming, algorithms, software development, databases and the theory behind how computers work.',
+        careers: ['Software Developer', 'Systems Analyst', 'Data Analyst', 'IT Consultant']
+    },
+    'cybersecurity': {
+        label: 'Cybersecurity',
+        icon: '🔐',
+        duration: 'Usually 4 years',
+        blurb: 'Covers network security, ethical hacking, digital forensics and how to protect systems and data from cyber threats.',
+        careers: ['Security Analyst', 'Penetration Tester', 'SOC Analyst', 'IT Auditor']
+    },
+    'business': {
+        label: 'Business',
+        icon: '📊',
+        duration: 'Usually 4 years',
+        blurb: 'A broad foundation in management, marketing, accounting and entrepreneurship for running or working in organizations.',
+        careers: ['Business Analyst', 'Marketing Officer', 'Entrepreneur', 'Operations Manager']
+    },
+    'nursing': {
+        label: 'Nursing',
+        icon: '🩺',
+        duration: 'Typically 4 years',
+        blurb: 'Trains students in patient care, clinical procedures, public health and healthcare management.',
+        careers: ['Registered Nurse', 'Nurse Educator', 'Public Health Officer', 'Clinical Officer']
+    },
+    'engineering': {
+        label: 'Engineering',
+        icon: '⚙️',
+        duration: 'Typically 5 years',
+        blurb: 'Covers the design, analysis and maintenance of structures, machines, electrical systems or processes. Branches include civil, mechanical, electrical and more.',
+        careers: ['Design Engineer', 'Site Engineer', 'Project Manager', 'Systems Engineer']
+    },
+    'education': {
+        label: 'Education',
+        icon: '🍎',
+        duration: 'Usually 4 years',
+        blurb: 'Prepares students to teach, covering pedagogy, curriculum development and a chosen teaching subject.',
+        careers: ['Secondary School Teacher', 'Curriculum Developer', 'Education Officer', 'Instructional Designer']
+    },
+    'law': {
+        label: 'Law',
+        icon: '⚖️',
+        duration: 'Usually 4 years, plus the Kenya School of Law diploma before admission to the bar',
+        blurb: 'Covers legal theory, the Kenyan legal system, contracts, criminal law and litigation, leading to the LLB.',
+        careers: ['Advocate', 'Legal Officer', 'Corporate Counsel', 'Magistrate (after further training)']
+    },
+    'medicine': {
+        label: 'Medicine & Surgery',
+        icon: '🩻',
+        duration: 'Typically 5-6 years, plus a mandatory internship',
+        blurb: 'Trains doctors to diagnose and treat illness, covering anatomy, physiology, pharmacology and clinical practice.',
+        careers: ['Medical Doctor', 'Surgeon (after specialization)', 'Medical Researcher', 'Public Health Physician']
+    },
+    'information-technology': {
+        label: 'Information Technology',
+        icon: '🖥️',
+        duration: 'Usually 4 years',
+        blurb: 'Focuses on applying computing to business and organizational needs — networks, systems support and IT infrastructure.',
+        careers: ['IT Support Specialist', 'Network Administrator', 'Systems Administrator', 'Business Systems Analyst']
+    },
+    'software-engineering': {
+        label: 'Software Engineering',
+        icon: '🧑\u200d💻',
+        duration: 'Usually 4 years',
+        blurb: 'A more structured, engineering-focused approach to building, testing and maintaining large software systems.',
+        careers: ['Software Engineer', 'DevOps Engineer', 'QA Engineer', 'Technical Lead']
+    },
+    'data-science': {
+        label: 'Data Science',
+        icon: '📈',
+        duration: 'Usually 4 years',
+        blurb: 'Combines statistics, programming and machine learning to find patterns and insight in data.',
+        careers: ['Data Scientist', 'Data Analyst', 'Machine Learning Engineer', 'Business Intelligence Analyst']
+    },
+    'actuarial-science': {
+        label: 'Actuarial Science',
+        icon: '🧮',
+        duration: 'Usually 4 years',
+        blurb: 'Applies mathematics, statistics and financial theory to assess and manage risk, mainly in insurance and finance.',
+        careers: ['Actuarial Analyst', 'Risk Analyst', 'Insurance Underwriter', 'Pension Fund Analyst']
+    },
+    'economics': {
+        label: 'Economics',
+        icon: '💹',
+        duration: 'Usually 4 years',
+        blurb: 'Studies how markets, resources and policy decisions affect production, trade and wellbeing.',
+        careers: ['Economist', 'Policy Analyst', 'Research Analyst', 'Banking Officer']
+    },
+    'accounting-finance': {
+        label: 'Accounting & Finance',
+        icon: '💰',
+        duration: 'Usually 4 years',
+        blurb: 'Covers financial reporting, auditing, taxation and corporate finance.',
+        careers: ['Accountant', 'Auditor', 'Financial Analyst', 'Tax Consultant']
+    },
+    'pharmacy': {
+        label: 'Pharmacy',
+        icon: '💊',
+        duration: 'Typically 5 years',
+        blurb: 'Trains students in drug formulation, dispensing, pharmacology and counselling patients on medication.',
+        careers: ['Pharmacist', 'Clinical Pharmacist', 'Pharmaceutical Sales Rep', 'Drug Regulatory Officer']
+    },
+    'agriculture': {
+        label: 'Agriculture',
+        icon: '🌾',
+        duration: 'Usually 4 years',
+        blurb: 'Covers crop and livestock production, agribusiness, soil science and food security.',
+        careers: ['Agricultural Officer', 'Agribusiness Manager', 'Agronomist', 'Extension Officer']
+    },
+    'architecture': {
+        label: 'Architecture',
+        icon: '🏛️',
+        duration: 'Typically 5 years or more, often followed by professional registration',
+        blurb: 'Focuses on designing buildings and spaces, blending creativity with structural and technical knowledge.',
+        careers: ['Architect (after registration)', 'Urban Designer', 'Interior Designer', 'Construction Project Manager']
+    },
+    'journalism': {
+        label: 'Journalism & Mass Communication',
+        icon: '📰',
+        duration: 'Usually 4 years',
+        blurb: 'Covers news writing, media production, public relations and digital communication.',
+        careers: ['Journalist', 'PR Officer', 'Content Creator', 'Broadcast Producer']
+    },
+    'psychology': {
+        label: 'Psychology',
+        icon: '🧠',
+        duration: 'Usually 4 years',
+        blurb: 'Studies human behaviour, mental processes and emotional wellbeing.',
+        careers: ['Counselling Psychologist', 'HR Officer', 'Researcher', 'Social Worker']
+    },
+    'hospitality-tourism': {
+        label: 'Hospitality & Tourism Management',
+        icon: '🏨',
+        duration: 'Usually 4 years',
+        blurb: 'Prepares students to manage hotels, travel operations and tourism experiences.',
+        careers: ['Hotel Manager', 'Tour Operator', 'Events Manager', 'Airline Customer Service']
+    },
+    'environmental-science': {
+        label: 'Environmental Science',
+        icon: '🌍',
+        duration: 'Usually 4 years',
+        blurb: 'Studies ecosystems, pollution, conservation and sustainable resource management.',
+        careers: ['Environmental Officer', 'Conservationist', 'EIA Consultant', 'Sustainability Analyst']
+    },
+    'public-health': {
+        label: 'Public Health',
+        icon: '🏥',
+        duration: 'Usually 4 years',
+        blurb: 'Focuses on disease prevention, health promotion and community health systems.',
+        careers: ['Public Health Officer', 'Epidemiologist', 'Health Program Coordinator', 'NGO Health Worker']
+    },
+    'human-resource-management': {
+        label: 'Human Resource Management',
+        icon: '🤝',
+        duration: 'Usually 4 years',
+        blurb: 'Covers recruitment, employee relations, training and organizational development.',
+        careers: ['HR Officer', 'Recruitment Specialist', 'Training Coordinator', 'Compensation Analyst']
+    },
+    'veterinary-medicine': {
+        label: 'Veterinary Medicine',
+        icon: '🐾',
+        duration: 'Typically 5 years',
+        blurb: 'Trains veterinarians in animal health, disease diagnosis, surgery and livestock production.',
+        careers: ['Veterinary Surgeon', 'Animal Health Officer', 'Livestock Researcher', 'Wildlife Veterinarian']
+    }
+};
+
+function closeCourseInfo() {
+    const overlay = document.getElementById('courseInfoOverlay');
+    if (overlay) overlay.remove();
+    document.body.classList.remove('chooser-open');
+}
+
+function openCourseInfo(key, href) {
+    closeCourseInfo();
+
+    const course = COURSES_DATA[key];
+    if (!course) {
+        /* Unknown course key -- fall back to just navigating,
+           same as the old plain link used to. */
+        if (href) window.location.href = href;
+        return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'courseInfoOverlay';
+    overlay.className = 'chooser-overlay';
+    overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) closeCourseInfo();
+    });
+
+    const box = document.createElement('div');
+    box.className = 'chooser-box course-info-box';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'chooser-close';
+    close.setAttribute('aria-label', 'Close');
+    close.textContent = '×';
+    close.addEventListener('click', closeCourseInfo);
+
+    const head = document.createElement('div');
+    head.className = 'course-info-head';
+
+    const icon = document.createElement('span');
+    icon.className = 'course-info-icon';
+    icon.textContent = course.icon || '🎓';
+
+    const title = document.createElement('h2');
+    title.textContent = course.label;
+
+    head.appendChild(icon);
+    head.appendChild(title);
+
+    const duration = document.createElement('span');
+    duration.className = 'course-info-duration';
+    duration.textContent = course.duration;
+
+    const blurb = document.createElement('p');
+    blurb.className = 'course-info-blurb';
+    blurb.textContent = course.blurb;
+
+    const subhead = document.createElement('p');
+    subhead.className = 'course-info-subhead';
+    subhead.textContent = 'What you could become';
+
+    const careersList = document.createElement('ul');
+    careersList.className = 'course-info-careers';
+    (course.careers || []).forEach(function (career) {
+        const li = document.createElement('li');
+        li.textContent = career;
+        careersList.appendChild(li);
+    });
+
+    /* Rather than a single "explore institutions" link, ask which
+       level the student wants FIRST - the institutions (and the
+       admission criteria shown on category.html) are different
+       for a university degree vs. a TVET diploma vs. a college
+       diploma/certificate in the same field. */
+
+    const levelSubhead = document.createElement('p');
+    levelSubhead.className = 'course-info-subhead';
+    levelSubhead.textContent = 'Where would you like to study this?';
+
+    const levelGrid = document.createElement('div');
+    levelGrid.className = 'chooser-options course-info-levels';
+
+    const baseHref =
+        href ||
+        ('category.html?type=courses&field=' + encodeURIComponent(key));
+
+    const hrefHasQuery = baseHref.indexOf('?') !== -1;
+
+    const COURSE_LEVEL_CHOICES = [
+        { level: 'university', icon: '🎓', label: 'University',
+          text: 'Degree programme, placed through KUCCPS (usually KCSE mean grade C+ and above).' },
+        { level: 'tvet', icon: '🛠️', label: 'TVET Institution',
+          text: 'Diploma or certificate at a national polytechnic (usually KCSE mean grade C- and above for Diploma).' },
+        { level: 'college', icon: '🏫', label: 'College',
+          text: 'Diploma or certificate at a specialised college (e.g. KMTC, KIM, Kenya Utalii College).' }
+    ];
+
+    COURSE_LEVEL_CHOICES.forEach(function (choice) {
+        const a = document.createElement('a');
+        a.className = 'opportunity-card';
+        a.href = baseHref + (hrefHasQuery ? '&' : '?') + 'level=' + choice.level;
+
+        const icon = document.createElement('span');
+        icon.className = 'opportunity-icon';
+        icon.textContent = choice.icon;
+
+        const h3 = document.createElement('h3');
+        h3.textContent = choice.label;
+
+        const p = document.createElement('p');
+        p.textContent = choice.text;
+
+        a.appendChild(icon);
+        a.appendChild(h3);
+        a.appendChild(p);
+        levelGrid.appendChild(a);
+    });
+
+    box.appendChild(close);
+    box.appendChild(head);
+    box.appendChild(duration);
+    box.appendChild(blurb);
+    box.appendChild(subhead);
+    box.appendChild(careersList);
+    box.appendChild(levelSubhead);
+    box.appendChild(levelGrid);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    document.body.classList.add('chooser-open');
+}
+
+/* Close on Escape. */
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeCourseInfo();
+});
+
+/* Any course chip on the homepage opens the info modal
+   instead of navigating straight away. */
+document.addEventListener('click', function (e) {
+    const el = e.target.closest ? e.target.closest('[data-course]') : null;
+    if (!el) return;
+    openCourseInfo(el.getAttribute('data-course'), el.getAttribute('data-href'));
 });

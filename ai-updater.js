@@ -7,9 +7,9 @@ import OpenAI from "openai";
 import Groq from "groq-sdk";
 import { fileURLToPath } from "url";
 
-// Cerebras' API is OpenAI-compatible, so it's used through the same
-// "openai" SDK package pointed at Cerebras' base URL instead of a
-// dedicated cerebras package.
+// Gemini's API is OpenAI-compatible, so it's used through the same
+// "openai" SDK package pointed at Gemini's base URL instead of a
+// dedicated genai/Gemini package.
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,8 +23,8 @@ const __dirname = path.dirname(__filename);
 // provider running out of quota only affects the categories assigned
 // to it, not the whole engine.
 //
-// Supported providers: "openai", "groq", "gemini", "perplexity", "cohere",
-// "exa", "cerebras", "tavily"
+// Supported providers: "openai", "groq", "perplexity",
+// "exa", "gemini", "tavily", "mistral"
 // Only the providers you actually configure API keys for are used —
 // any category whose provider key is missing is skipped with a warning.
 
@@ -44,11 +44,17 @@ const groqClient =
           })
         : null;
 
-const cerebrasClient =
-    process.env.CEREBRAS_API_KEY
+// Gemini's API has an official OpenAI-compatibility layer, so - same
+// trick as Cerebras above - it's used through the "openai" SDK
+// package pointed at Google's base URL instead of a dedicated
+// Gemini/genai package. Free tier, no billing card required, and not
+// used anywhere else in this file (Groq is deliberately excluded too
+// - see the note above the Tavily compose fallback below).
+const geminiClient =
+    process.env.GEMINI_API_KEY
         ? new OpenAI({
-              apiKey: process.env.CEREBRAS_API_KEY,
-              baseURL: "https://api.cerebras.ai/v1"
+              apiKey: process.env.GEMINI_API_KEY,
+              baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"
           })
         : null;
 
@@ -62,39 +68,32 @@ const GROQ_SEARCH_MODEL =
     process.env.GROQ_SEARCH_MODEL ||
     "groq/compound";
 
+// llama-3.3-70b-versatile was decommissioned by Groq (shut down
+// 2026-08-16) - requests to it now 404 with "model_not_found", which
+// is exactly what broke the Groq fallback in the University Alerts
+// compose step. openai/gpt-oss-120b is Groq's recommended replacement
+// and is already the model the rest of this app's chat AI runs on
+// (see GROQ_MODEL in server.js), so it's a known-working choice here.
 const GROQ_TEXT_MODEL =
     process.env.GROQ_TEXT_MODEL ||
-    "llama-3.3-70b-versatile";
+    "openai/gpt-oss-120b";
 
-// Cerebras runs open-weight models on its own inference hardware for
-// very fast responses. Unlike Groq's "compound" model or Exa, it has
-// NO built-in web browsing/search — it only answers from what's in
-// the prompt. See the note above HELB's config below for why that
-// matters for this category.
+// Gemini has no built-in web browsing/search on this endpoint - like
+// Cerebras before it, it only answers from what's in the prompt. It's
+// only ever handed prompts that already carry the live search results
+// (Tavily's) to compose into JSON, never asked to search on its own.
 //
-// Default model confirmed against a real account's GET /v1/models
-// response (09/2026): available models were gpt-oss-120b,
-// qwen-3.8-27b, gemma-4-31b - NOT llama-3.3-70b, which is what this
-// default used to be and what was causing every Cerebras call to
-// 404 with "Model does not exist or you do not have access to it."
-// Cerebras's model lineup changes over time and can differ by
-// account/plan, so if this ever 404s again, run this to see what's
-// actually available and update CEREBRAS_MODEL in .env (no code
-// change needed) to match:
+// "gemini-2.5-flash" is Google's current free-tier workhorse model as
+// of this writing. Google's model lineup moves fast, so if this ever
+// 404s, run check-gemini.js (included alongside this file) to list
+// what your key actually has access to and update GEMINI_MODEL in
+// .env (no code change needed) to match:
 //
-//   node -e "fetch('https://api.cerebras.ai/v1/models',{headers:{Authorization:'Bearer '+process.env.CEREBRAS_API_KEY}}).then(r=>r.text()).then(console.log)"
+//   node check-gemini.js
 //
-const CEREBRAS_MODEL =
-    process.env.CEREBRAS_MODEL ||
-    "gpt-oss-120b";
-
-const GEMINI_API_KEY =
-    process.env.GEMINI_API_KEY ||
-    "";
-
 const GEMINI_MODEL =
     process.env.GEMINI_MODEL ||
-    "gemini-2.0-flash";
+    "gemini-2.5-flash";
 
 const PERPLEXITY_API_KEY =
     process.env.PERPLEXITY_API_KEY ||
@@ -103,17 +102,6 @@ const PERPLEXITY_API_KEY =
 const PERPLEXITY_MODEL =
     process.env.PERPLEXITY_MODEL ||
     "sonar";
-
-// Cohere is no longer assigned to a category (University Alerts moved
-// to Groq) — it's still initialized and available if you want to use
-// it elsewhere.
-const COHERE_API_KEY =
-    process.env.COHERE_API_KEY ||
-    "";
-
-const COHERE_MODEL =
-    process.env.COHERE_MODEL ||
-    "command-r-plus";
 
 // Exa is the 6th provider. It is a genuinely free (20,000 requests/
 // month on the free tier), search-native API rather than a general
@@ -151,15 +139,35 @@ const TAVILY_API_KEY =
 const TAVILY_SEARCH_URL =
     "https://api.tavily.com/search";
 
+// Mistral is the 8th provider, now used for KUCCPS instead of Google
+// Custom Search + Cerebras. Its Conversations API has a genuine
+// built-in "web_search" tool (like OpenAI's/Groq's) - a real live web
+// search PLUS the JSON composition happen in the SAME call to the
+// SAME provider, so unlike the Google CSE approach this needs no
+// second provider at all for KUCCPS. Mistral's "Free" / "Experiment"
+// tier on La Plateforme needs no billing card and is meant for
+// exactly this kind of evaluation-scale, non-production use. Not
+// assigned to any other category, so its quota is dedicated to
+// KUCCPS alone.
+const MISTRAL_API_KEY =
+    process.env.MISTRAL_API_KEY ||
+    "";
+
+const MISTRAL_MODEL =
+    process.env.MISTRAL_MODEL ||
+    "mistral-small-latest";
+
+const MISTRAL_CONVERSATIONS_URL =
+    "https://api.mistral.ai/v1/conversations";
+
 const availableProviders = {
     openai: Boolean(openaiClient),
     groq: Boolean(groqClient),
-    gemini: Boolean(GEMINI_API_KEY),
     perplexity: Boolean(PERPLEXITY_API_KEY),
-    cohere: Boolean(COHERE_API_KEY),
     exa: Boolean(EXA_API_KEY),
-    cerebras: Boolean(cerebrasClient),
-    tavily: Boolean(TAVILY_API_KEY)
+    gemini: Boolean(geminiClient),
+    tavily: Boolean(TAVILY_API_KEY),
+    mistral: Boolean(MISTRAL_API_KEY)
 };
 
 
@@ -266,7 +274,15 @@ const sourceConfigs = [
     {
         name: "KUCCPS",
         category: "KUCCPS",
-        provider: "gemini",
+        // Was "gemini" (hit its rate limit), then briefly
+        // "google_cse" (paired with Cerebras for JSON-compose, but
+        // that meant Cerebras was doing double duty across two
+        // categories). Mistral's built-in web_search tool does live
+        // search AND JSON composition in one call to one provider —
+        // see PROVIDER: MISTRAL below — so KUCCPS now runs on a
+        // single, independent API with no shared dependency on any
+        // other category's provider.
+        provider: "mistral",
         domains: ["kuccps.net"],
         topics: [
             "university applications",
@@ -360,9 +376,9 @@ const sourceConfigs = [
         // never confirm a strike/closure is actually current (see the
         // "only report it if a credible source describes it as
         // current" rule below), and every item ended up filtered out.
-        // CEREBRAS_API_KEY is also recommended (not required) alongside
+        // GEMINI_API_KEY is also recommended (not required) alongside
         // TAVILY_API_KEY: Tavily's synthesized answer is a natural-
-        // language reply, not guaranteed valid JSON, so Cerebras is
+        // language reply, not guaranteed valid JSON, so Gemini is
         // used as a fallback to compose strict JSON from Tavily's raw
         // findings when needed (see PROVIDER: TAVILY below).
         provider: "tavily",
@@ -663,9 +679,9 @@ function parseAIJson(
 // DOMAIN SAFETY FILTER
 // ========================================
 // OpenAI's web_search tool can restrict results to allowed_domains at
-// the API level. Groq/Gemini/Perplexity cannot be restricted that way,
-// so as a safety net we drop any item whose sourceUrl doesn't match one
-// of the configured domains after the fact.
+// the API level. Groq/Perplexity/Mistral cannot be restricted that
+// way, so as a safety net we drop any item whose sourceUrl doesn't
+// match one of the configured domains after the fact.
 
 function hostnameMatchesDomains(
     url,
@@ -782,6 +798,154 @@ async function textWithOpenAI(
 
 
 // ========================================
+// PROVIDER: MISTRAL
+// ========================================
+// Uses Mistral's Conversations API (/v1/conversations) with the
+// built-in "web_search" tool attached. Like OpenAI's web_search tool
+// and Groq's "compound" model, this is ONE call to ONE provider that
+// both searches the live web and composes the answer - no second
+// provider needed for KUCCPS. Mistral's web_search has no per-domain
+// allow-list like OpenAI's does, so - same as Groq/Perplexity - the
+// domain restriction relies on the prompt text plus the
+// filterItemsByDomain() safety net applied afterward.
+//
+// The Conversations API's response shape differs from the more
+// common OpenAI-style chat-completions shape: it returns an
+// `outputs` array, and the model's reply lives in the entry (or
+// entries) with type "message.output", whose `content` can itself be
+// a plain string or an array of chunks (e.g. {type:"text", text}).
+// This normalizes either shape into one plain string.
+
+function extractMistralText(
+    data
+) {
+
+    const outputs =
+        Array.isArray(data?.outputs)
+            ? data.outputs
+            : [];
+
+    const messageOutputs =
+        outputs.filter(
+            output =>
+                output?.type === "message.output"
+        );
+
+    return messageOutputs
+        .map(
+            output => {
+
+                const content =
+                    output?.content;
+
+                if (typeof content === "string") {
+
+                    return content;
+                }
+
+                if (Array.isArray(content)) {
+
+                    return content
+                        .map(
+                            chunk =>
+                                (typeof chunk === "string" && chunk) ||
+                                chunk?.text ||
+                                ""
+                        )
+                        .join("");
+                }
+
+                return "";
+            }
+        )
+        .join("\n");
+}
+
+async function callMistral(
+    prompt,
+    forceSearch = true
+) {
+
+    // Mistral's Conversations API takes `inputs` as a plain string (or
+    // its own InputEntries shape) - NOT an OpenAI-style array of
+    // {role, content} chat messages. Sending that array shape is what
+    // produced "Extra inputs are not permitted; Field required" on
+    // every KUCCPS run: `role`/`content` were rejected as unexpected
+    // fields on the InputEntries schema.
+    const body = {
+
+        model: MISTRAL_MODEL,
+
+        inputs: prompt
+    };
+
+    if (forceSearch) {
+
+        body.tools = [
+            { type: "web_search" }
+        ];
+
+        // web_search is a built-in connector, and the Conversations API
+        // rejects tool_choice: "required" for those ("Can't set
+        // 'tool_choice' to 'required' when using built in connectors.").
+        // "auto" is the only supported value here, which means we can no
+        // longer force a search purely via tool_choice the way the
+        // discovery prompt originally relied on - see the explicit
+        // "you MUST call web_search before answering" instruction added
+        // to the discovery prompt itself to compensate, so a skipped
+        // search still isn't silently allowed to produce {"items": []}.
+        body.completion_args = {
+            tool_choice: "auto"
+        };
+    }
+
+    const response =
+        await fetch(
+            MISTRAL_CONVERSATIONS_URL,
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${MISTRAL_API_KEY}`
+                },
+
+                body: JSON.stringify(body)
+            }
+        );
+
+    const data =
+        await response.json();
+
+    if (!response.ok) {
+
+        throw new Error(
+            extractApiErrorMessage(
+                data,
+                `Mistral request failed (${response.status})`
+            )
+        );
+    }
+
+    return extractMistralText(data);
+}
+
+async function searchWithMistral(
+    prompt
+) {
+
+    return callMistral(prompt, true);
+}
+
+async function textWithMistral(
+    prompt
+) {
+
+    return callMistral(prompt, false);
+}
+
+
+// ========================================
 // PROVIDER: GROQ
 // ========================================
 // Groq's "compound" models can browse the web on their own while
@@ -832,127 +996,75 @@ async function textWithGroq(
 
 
 // ========================================
-// PROVIDER: CEREBRAS
-// ========================================
-// Cerebras has no web-browsing/search mode of its own (no "compound"
-// model like Groq's), so both functions just run the prompt straight
-// through chat completions. The domain restriction and "official
-// sources only" instructions rely entirely on the prompt text here —
-// there's no live-browsing safety net like Exa/Groq-compound provide.
-
-async function searchWithCerebras(
-    prompt
-) {
-
-    const response =
-        await cerebrasClient.chat.completions.create({
-
-            model: CEREBRAS_MODEL,
-
-            messages: [
-                {
-                    role: "user",
-                    content: prompt
-                }
-            ]
-        });
-
-    return response.choices?.[0]?.message?.content || "";
-}
-
-
-async function textWithCerebras(
-    prompt
-) {
-
-    const response =
-        await cerebrasClient.chat.completions.create({
-
-            model: CEREBRAS_MODEL,
-
-            messages: [
-                {
-                    role: "user",
-                    content: prompt
-                }
-            ]
-        });
-
-    return response.choices?.[0]?.message?.content || "";
-}
-
-
-// ========================================
 // PROVIDER: GEMINI
 // ========================================
-// Uses Gemini's REST API directly (no extra package needed).
-// Search variant enables Google Search grounding; text variant does not.
+// Gemini (via its OpenAI-compatible endpoint) has no web-browsing/
+// search mode active here (no "compound" model like Groq's, no tool
+// attached), so both functions just run the prompt straight through
+// chat completions. The domain restriction and "official sources
+// only" instructions rely entirely on the prompt text here - there's
+// no live-browsing safety net like Exa/Groq-compound provide.
 
-async function callGemini(
+// Google's free-tier Gemini Flash models occasionally return a plain
+// 503 ("model overloaded") under load, with no body to explain
+// further - this is Google's servers being temporarily busy, not a
+// config/billing problem (that's what the 402 looked like when this
+// was Cerebras). A 503 or 429 is usually gone a few seconds later, so
+// it's worth one or two short retries before giving up and bubbling
+// the error up to the category as a real failure.
+const GEMINI_RETRYABLE_STATUS = [429, 500, 502, 503, 504];
+
+async function callGeminiWithRetry(
     prompt,
-    useSearchGrounding
+    attempts = 3
 ) {
 
-    const url =
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    let lastError;
 
-    const body = {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
 
-        contents: [
-            {
-                parts: [
-                    { text: prompt }
-                ]
+        try {
+
+            const response =
+                await geminiClient.chat.completions.create({
+
+                    model: GEMINI_MODEL,
+
+                    messages: [
+                        {
+                            role: "user",
+                            content: prompt
+                        }
+                    ]
+                });
+
+            return response.choices?.[0]?.message?.content || "";
+
+        } catch (error) {
+
+            lastError = error;
+
+            const isRetryable =
+                GEMINI_RETRYABLE_STATUS.includes(error?.status);
+
+            if (!isRetryable || attempt === attempts) {
+
+                throw error;
             }
-        ]
-    };
 
-    if (useSearchGrounding) {
-
-        body.tools = [
-            { google_search: {} }
-        ];
+            // Exponential-ish backoff: 1s, then 2s.
+            await sleep(1000 * attempt);
+        }
     }
 
-    const response =
-        await fetch(
-            url,
-            {
-                method: "POST",
-
-                headers: {
-                    "Content-Type": "application/json"
-                },
-
-                body: JSON.stringify(body)
-            }
-        );
-
-    const data =
-        await response.json();
-
-    if (!response.ok) {
-
-        throw new Error(
-            data?.error?.message ||
-            `Gemini request failed (${response.status})`
-        );
-    }
-
-    const parts =
-        data?.candidates?.[0]?.content?.parts || [];
-
-    return parts
-        .map(part => part.text || "")
-        .join("\n");
+    throw lastError;
 }
-
 
 async function searchWithGemini(
     prompt
 ) {
 
-    return callGemini(prompt, true);
+    return callGeminiWithRetry(prompt);
 }
 
 
@@ -960,7 +1072,7 @@ async function textWithGemini(
     prompt
 ) {
 
-    return callGemini(prompt, false);
+    return callGeminiWithRetry(prompt);
 }
 
 
@@ -1031,137 +1143,6 @@ async function textWithPerplexity(
 }
 
 
-// ========================================
-// PROVIDER: COHERE
-// ========================================
-// Cohere's Chat API supports a built-in "web-search" connector, which
-// is what lets it act as a search-capable provider. Dedicated to
-// University Alerts so campus strikes/closures never compete with
-// HELB (or any other category) for quota.
-
-async function callCohere(
-    prompt,
-    useWebSearch
-) {
-
-    const body = {
-
-        model: COHERE_MODEL,
-
-        message: prompt
-    };
-
-    if (useWebSearch) {
-
-        body.connectors = [
-            { id: "web-search" }
-        ];
-    }
-
-    const response =
-        await fetch(
-            "https://api.cohere.com/v1/chat",
-            {
-                method: "POST",
-
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${COHERE_API_KEY}`
-                },
-
-                body: JSON.stringify(body)
-            }
-        );
-
-    const data =
-        await response.json();
-
-    if (!response.ok) {
-
-        throw new Error(
-            data?.message ||
-            `Cohere request failed (${response.status})`
-        );
-    }
-
-    return data?.text || "";
-}
-
-
-async function searchWithCohere(
-    prompt
-) {
-
-    // Step 1: load a draft answer using Cohere's web-search connector.
-    const draft =
-        await callCohere(
-            prompt,
-            true
-        );
-
-    // Step 2: send the draft back to Cohere to be checked and
-    // corrected before it is treated as final. This catches malformed
-    // JSON, unsupported claims, and invented details that can slip
-    // into a first-pass web-search answer.
-    try {
-
-        const corrected =
-            await correctCohereDraft(
-                prompt,
-                draft
-            );
-
-        return corrected;
-
-    } catch (correctionError) {
-
-        console.error(
-            "Cohere correction pass failed, using original draft:",
-            correctionError.message
-        );
-
-        return draft;
-    }
-}
-
-
-async function correctCohereDraft(
-    originalPrompt,
-    draftAnswer
-) {
-
-    const correctionPrompt =
-`You are reviewing your OWN previous answer for accuracy before it gets used.
-
-ORIGINAL REQUEST YOU WERE ANSWERING:
-${originalPrompt}
-
-YOUR DRAFT ANSWER:
-${draftAnswer}
-
-Review the draft carefully and correct it:
-- Fix any invalid or malformed JSON so it exactly matches the structure the original request asked for.
-- Remove any item whose facts are not clearly supported by an official or reputable source found in your search.
-- Remove any invented dates, amounts, requirements, or other details.
-- Do not add brand-new items that were not already in the draft.
-- If the draft is already correct as-is, return it unchanged.
-
-Return ONLY the corrected, valid JSON — no explanation, no commentary, nothing before or after it.`;
-
-    return callCohere(
-        correctionPrompt,
-        false
-    );
-}
-
-
-async function textWithCohere(
-    prompt
-) {
-
-    return callCohere(prompt, false);
-}
-
 
 // ========================================
 // PROVIDER: EXA
@@ -1184,8 +1165,7 @@ async function textWithCohere(
 // prose (the same single-point-of-failure shape that took down
 // University Alerts when Cerebras returned a 402), the correction
 // pass here stays on Exa itself - one extra /answer call, same
-// provider, same free quota, no new dependency. This mirrors the
-// Cohere provider's own draft-then-self-correct pattern below.
+// provider, same free quota, no new dependency.
 
 async function fetchExaAnswer(
     query
@@ -1671,12 +1651,14 @@ RULES:
 // /answer endpoint has the exact same limitation — see the HELB
 // failures in the logs: "Unexpected token 'T', "The 2026/2"...").
 // So if Tavily's answer doesn't already look like it contains a JSON
-// object, this falls back to composing one with Cerebras from
-// Tavily's raw findings — the same pattern the old Brave+Cerebras
-// pairing used. This only costs a second API call when the direct
-// answer wasn't already usable, and if Cerebras isn't configured it
-// just returns the raw answer as before (same behavior as before this
-// fallback existed).
+// object, this falls back to composing one with Gemini from Tavily's
+// raw findings — the same pattern the old Brave+Cerebras pairing
+// used (Cerebras was swapped for Gemini after a billing lapse - a
+// 402 with no body - took this category down; see the comment on
+// geminiClient above). This only costs a second API call when the
+// direct answer wasn't already usable, and if Gemini isn't
+// configured it just returns the raw answer as before (same behavior
+// as before this fallback existed).
 
 // Tavily (and FastAPI-style APIs generally) can return an error as a
 // plain string, a nested {error: "..."} / {message: "..."} object, or
@@ -1861,14 +1843,22 @@ async function callTavily(
             .join("\n\n");
 
     // No usable JSON from Tavily directly — hand its raw findings to
-    // Cerebras (if configured) to compose the required JSON strictly
-    // from this material. Without Cerebras, fall back to whatever
+    // Gemini (if configured) to compose the required JSON strictly
+    // from this material. Without Gemini, fall back to whatever
     // Tavily gave us (answer, or the raw results block), same as
     // before this fallback existed. The FULL instructional `prompt`
     // (rules, JSON schema, existing articles) belongs here, in the
-    // compose step sent to an actual LLM (Cerebras) - never in the
+    // compose step sent to an actual LLM (Gemini) - never in the
     // Tavily `query` field itself.
-    if (!cerebrasClient) {
+    //
+    // Deliberately NOT falling back to Groq here: Groq is already used
+    // live elsewhere in this app (the site's chat AI, see GROQ_MODEL in
+    // server.js), so routing this background compose step through it
+    // too would compete with that user-facing traffic for the same
+    // rate limit. If Gemini is down, this category should fail loudly
+    // (see the catch below) rather than quietly borrow another
+    // category's/feature's provider.
+    if (!geminiClient) {
 
         return answer || resultsBlock;
     }
@@ -1880,23 +1870,24 @@ async function callTavily(
         `${resultsBlock}\n` +
         `===== END SEARCH RESULTS =====`;
 
-    // This is a SEPARATE call to a SEPARATE provider (Cerebras, not
-    // Tavily). Without this try/catch, a Cerebras failure here bubbles
+    // This is a SEPARATE call to a SEPARATE provider (Gemini, not
+    // Tavily). Without this try/catch, a Gemini failure here bubbles
     // up looking exactly like a Tavily failure to whatever logs
     // error.message under "(tavily)" - which is exactly what made a
-    // 404 from Cerebras look like a Tavily problem. Re-labelling it
-    // here means the console output points at the actual broken
-    // provider instead of the one that happened to call it.
+    // 402 from Cerebras look like a Tavily problem when this fallback
+    // ran on Cerebras. Re-labelling it here means the console output
+    // points at the actual broken provider instead of the one that
+    // happened to call it.
     try {
 
-        return await textWithCerebras(
+        return await textWithGemini(
             composePrompt
         );
 
     } catch (error) {
 
         throw new Error(
-            `Tavily search succeeded, but the Cerebras JSON-compose ` +
+            `Tavily search succeeded, but the Gemini JSON-compose ` +
             `step failed: ${error.message}`
         );
     }
@@ -1963,20 +1954,17 @@ async function runProviderSearch(
         case "groq":
             return searchWithGroq(prompt);
 
-        case "gemini":
-            return searchWithGemini(prompt);
+        case "mistral":
+            return searchWithMistral(prompt);
 
         case "perplexity":
             return searchWithPerplexity(prompt);
 
-        case "cohere":
-            return searchWithCohere(prompt);
-
         case "exa":
             return searchWithExa(prompt);
 
-        case "cerebras":
-            return searchWithCerebras(prompt);
+        case "gemini":
+            return searchWithGemini(prompt);
 
         case "tavily":
             return searchWithTavily(prompt, domains, topics, category);
@@ -2003,20 +1991,17 @@ async function runProviderText(
         case "groq":
             return textWithGroq(prompt);
 
-        case "gemini":
-            return textWithGemini(prompt);
+        case "mistral":
+            return textWithMistral(prompt);
 
         case "perplexity":
             return textWithPerplexity(prompt);
 
-        case "cohere":
-            return textWithCohere(prompt);
-
         case "exa":
             return textWithExa(prompt);
 
-        case "cerebras":
-            return textWithCerebras(prompt);
+        case "gemini":
+            return textWithGemini(prompt);
 
         case "tavily":
             return textWithTavily(prompt, searchHint);
@@ -2092,6 +2077,8 @@ async function discoverInformation(
 Today's date is ${new Date().toISOString().split("T")[0]}.
 
 Your task is to search the internet for CURRENT information from the official websites/domains provided.
+
+You MUST actually call your web search tool before answering. Do not answer from memory or training data alone - if you skip the search, you will return stale or incorrect information. Only return "items": [] if a real search turned up nothing new, never as a way of skipping the search itself.
 
 CATEGORY:
 ${config.category}
@@ -2236,9 +2223,11 @@ If nothing new or changed exists, return:
 `;
 
 
+    let rawText;
+
     try {
 
-        const rawText =
+        rawText =
             await runProviderSearch(
                 config.provider,
                 prompt,
@@ -2259,6 +2248,10 @@ If nothing new or changed exists, return:
             )
         ) {
 
+            console.log(
+                `${config.provider} response for ${config.name} had no "items" array — treating as zero candidates.`
+            );
+
             return [];
         }
 
@@ -2272,6 +2265,28 @@ If nothing new or changed exists, return:
             `Found ${filtered.length} candidate item(s) (${config.provider}).`
         );
 
+        // Distinguish "the model genuinely found nothing new" from "the
+        // model found items but every one got dropped by the domain
+        // filter" - these look identical as a bare 0-count otherwise,
+        // but only the second is a bug worth investigating (wrong URLs,
+        // a provider like Mistral with no server-side domain
+        // allow-list drifting off the official sources).
+        if (
+            result.items.length > 0 &&
+            filtered.length === 0
+        ) {
+
+            console.log(
+                `${config.provider} returned ${result.items.length} ` +
+                `item(s) for ${config.name} but ALL were filtered out ` +
+                `as off-domain. Sample URLs: ` +
+                result.items
+                    .slice(0, 3)
+                    .map(item => item.sourceUrl || "(no url)")
+                    .join(", ")
+            );
+        }
+
         return filtered;
 
     } catch (error) {
@@ -2280,6 +2295,22 @@ If nothing new or changed exists, return:
             `Search failed for ${config.name} (${config.provider}):`,
             error.message
         );
+
+        // If the provider returned something but it wasn't parseable
+        // JSON, the bare error.message ("Unexpected token ...") gives
+        // no clue what the provider actually said. Logging a preview
+        // of the raw response here is what makes silent, ongoing
+        // failures (bad model name, provider replying with prose or
+        // an error message instead of JSON, empty output, etc.)
+        // diagnosable from the console instead of just looking like
+        // "no new information found" every run.
+        if (rawText) {
+
+            console.error(
+                `Raw ${config.provider} response for ${config.name} (first 500 chars):`,
+                String(rawText).slice(0, 500)
+            );
+        }
 
         return [];
     }
@@ -3083,15 +3114,7 @@ async function main() {
     );
 
     console.log(
-        `  Gemini:     ${availableProviders.gemini ? "yes" : "no (GEMINI_API_KEY missing)"}`
-    );
-
-    console.log(
         `  Perplexity: ${availableProviders.perplexity ? "yes" : "no (PERPLEXITY_API_KEY missing)"}`
-    );
-
-    console.log(
-        `  Cohere:     ${availableProviders.cohere ? "yes" : "no (COHERE_API_KEY missing)"}`
     );
 
     console.log(
@@ -3099,11 +3122,15 @@ async function main() {
     );
 
     console.log(
-        `  Cerebras:   ${availableProviders.cerebras ? "yes" : "no (CEREBRAS_API_KEY missing)"}`
+        `  Gemini:     ${availableProviders.gemini ? "yes" : "no (GEMINI_API_KEY missing)"}`
     );
 
     console.log(
-        `  Tavily:     ${availableProviders.tavily ? "yes" : "no (TAVILY_API_KEY missing)"}${availableProviders.tavily && !availableProviders.cerebras ? " (CEREBRAS_API_KEY also recommended, as a JSON-composing fallback)" : ""}`
+        `  Tavily:     ${availableProviders.tavily ? "yes" : "no (TAVILY_API_KEY missing)"}${availableProviders.tavily && !availableProviders.gemini ? " (GEMINI_API_KEY also recommended, as a JSON-composing fallback)" : ""}`
+    );
+
+    console.log(
+        `  Mistral:    ${availableProviders.mistral ? "yes" : "no (MISTRAL_API_KEY missing)"}`
     );
 
     console.log(
@@ -3117,7 +3144,7 @@ async function main() {
 
         console.error(
             "ERROR: No AI provider API keys found in .env. " +
-            "Set at least one of OPENAI_API_KEY, GROQ_API_KEY, GEMINI_API_KEY, PERPLEXITY_API_KEY, COHERE_API_KEY, EXA_API_KEY, CEREBRAS_API_KEY."
+            "Set at least one of OPENAI_API_KEY, GROQ_API_KEY, PERPLEXITY_API_KEY, EXA_API_KEY, GEMINI_API_KEY, TAVILY_API_KEY, or MISTRAL_API_KEY."
         );
 
         process.exit(1);
@@ -3136,22 +3163,33 @@ async function main() {
     // Optional CLI filter: `node ai-updater.js "University Alerts"`
     // runs only that one category instead of the full sweep - handy
     // for debugging a single provider without waiting on (or
-    // burning quota from) every other category first.
+    // burning quota from) every other category first. Comma-separate
+    // several: `node ai-updater.js "KUCCPS,University Alerts"` runs
+    // just those two.
     const categoryFilter =
         process.argv[2] ||
         null;
 
-    const configsToRun =
+    const requestedCategories =
         categoryFilter
+            ? categoryFilter
+                  .split(",")
+                  .map(name => name.trim().toLowerCase())
+                  .filter(Boolean)
+            : null;
+
+    const configsToRun =
+        requestedCategories
             ? sourceConfigs.filter(
                   config =>
-                      config.category.toLowerCase() ===
-                      categoryFilter.toLowerCase()
+                      requestedCategories.includes(
+                          config.category.toLowerCase()
+                      )
               )
             : sourceConfigs;
 
     if (
-        categoryFilter &&
+        requestedCategories &&
         !configsToRun.length
     ) {
 
@@ -3161,6 +3199,27 @@ async function main() {
         );
 
         process.exit(1);
+    }
+
+    if (
+        requestedCategories &&
+        configsToRun.length < requestedCategories.length
+    ) {
+
+        const matched =
+            configsToRun.map(
+                config => config.category.toLowerCase()
+            );
+
+        const unmatched =
+            requestedCategories.filter(
+                name => !matched.includes(name)
+            );
+
+        console.warn(
+            `No category matches: ${unmatched.join(", ")}. ` +
+            `Available: ${sourceConfigs.map(c => c.category).join(", ")}`
+        );
     }
 
     if (categoryFilter) {

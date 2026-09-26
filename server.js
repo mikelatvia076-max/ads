@@ -411,29 +411,85 @@ function removeStoredMessage(userA, userB, messageId) {
     writeChatHistoryStore(store);
 }
 
-// updates a stored message's text in place and stamps it as edited.
-// Returns the updated message, or null if it couldn't be found /
-// the requester wasn't the original sender.
-function editStoredMessage(requesterId, userA, userB, messageId, newText) {
+// WhatsApp only lets you edit your own text within a short window
+// after sending, and only edits the text itself (not attachments)
+const EDIT_MESSAGE_WINDOW_MS = 15 * 60 * 1000;
+
+// returns the updated message on success, or null if the edit was
+// refused (not found, not yours, no text to edit, or past the window)
+function editStoredMessage(editorId, otherId, messageId, newText) {
 
     const store = readChatHistoryStore();
-    const key = isGroupId(userB) ? userB : conversationKey(userA, userB);
+    const key = isGroupId(otherId) ? otherId : conversationKey(editorId, otherId);
     const convo = getOrCreateConversation(store, key);
-    const stored = convo.messages.find(m => m.id === messageId);
 
-    if (!stored) return null;
-    if (stored.deletedForEveryone || !stored.from || stored.from.id !== requesterId) return null;
+    const msg = convo.messages.find(m => m.id === messageId);
 
-    // editing only ever applies to the text of a message - swapping
-    // out an attachment isn't something WhatsApp allows either, so
-    // this intentionally leaves stored.attachment untouched
-    stored.text = newText;
-    stored.edited = true;
-    stored.editedAt = Date.now();
+    if (!msg) return null;
+    if (!msg.from || msg.from.id !== editorId) return null;
+    if (!msg.text) return null;
+    if (msg.deletedForEveryone) return null;
+    if (Date.now() - msg.at > EDIT_MESSAGE_WINDOW_MS) return null;
+
+    msg.text = newText;
+    msg.edited = true;
+    msg.editedAt = Date.now();
 
     writeChatHistoryStore(store);
 
-    return stored;
+    return msg;
+}
+
+// toggles the starred flag on a single stored message; returns the
+// resolved boolean (or null if the message couldn't be found)
+function setStoredMessageStarred(userId, otherId, messageId, starred) {
+
+    const store = readChatHistoryStore();
+    const key = isGroupId(otherId) ? otherId : conversationKey(userId, otherId);
+    const convo = getOrCreateConversation(store, key);
+
+    const msg = convo.messages.find(m => m.id === messageId);
+    if (!msg) return null;
+
+    msg.starred = !!starred;
+    writeChatHistoryStore(store);
+
+    return msg.starred;
+}
+
+// scans every conversation this user is part of (1:1 pairs and any
+// group they belong to) for messages they've starred, newest first -
+// backs the "Starred messages" account panel
+function collectStarredMessagesForUser(userId) {
+
+    const store = readChatHistoryStore();
+    const results = [];
+
+    for (const key of Object.keys(store)) {
+
+        const convo = store[key];
+        if (!convo || !Array.isArray(convo.messages)) continue;
+
+        let chatId = null;
+
+        if (isGroupId(key)) {
+            const group = groupsStore.get(key);
+            if (!group || !group.memberIds.includes(userId)) continue;
+            chatId = key;
+        } else {
+            const parts = key.split("::");
+            if (!parts.includes(userId)) continue;
+            chatId = parts.find(p => p !== userId) || userId;
+        }
+
+        convo.messages.forEach(m => {
+            if (m.starred) results.push({ ...m, chatId });
+        });
+    }
+
+    results.sort((a, b) => b.at - a.at);
+
+    return results;
 }
 
 try {
@@ -788,9 +844,9 @@ function sleep(ms) {
 /*
 Each entry is tagged with the category its results get stored under.
 University Alerts used to be its own AI-provider category in
-ai-updater.js (Tavily search + Cerebras JSON-compose) - that second
-compose step was a single point of failure (see the 402 "Cerebras
-JSON-compose step failed" incident). These are exactly the
+ai-updater.js (Tavily search + Gemini JSON-compose, Gemini having
+replaced Cerebras after a billing-lapse 402 took it down) - that
+second compose step was a single point of failure. These are exactly the
 disruption-flavoured search groups that category cared about, so
 they're tagged "University Alerts" here instead, and everything else
 stays "University Rumours". Same NewsData sweep, same request, just
@@ -2212,46 +2268,11 @@ function isSafeAvatarUrl(url) {
 
 function broadcastChatUserList() {
 
-    // Personalized per recipient so each user's "last seen & online" and
-    // "profile photo" privacy choices are actually respected, instead of
-    // one global list sent to everyone. NOTE: this only distinguishes
-    // "nobody" from everyone else - the "My contacts" tier currently
-    // behaves the same as "Everyone", because there's no server-side
-    // contacts/friends graph to check against yet (friend requests are
-    // relayed client-to-client and never persisted server-side). Wiring
-    // a real contacts store is the natural next step for that tier.
+    const list =
+        Array.from(onlineChatUsers.entries())
+            .map(([id, u]) => ({ id, name: u.name, avatar: u.avatar || null }));
 
-    const allEntries =
-        Array.from(onlineChatUsers.entries());
-
-    for (const [, recipientSocket] of io.sockets.sockets) {
-
-        const viewerId =
-            recipientSocket.data && recipientSocket.data.chatUserId;
-
-        const list =
-            allEntries
-                .filter(([id]) => {
-
-                    if (id === viewerId) return true; // always see yourself
-
-                    return getPrivacyForUser(id).lastSeen !== "nobody";
-                })
-                .map(([id, u]) => {
-
-                    const hidePhoto =
-                        id !== viewerId &&
-                        getPrivacyForUser(id).profilePhoto === "nobody";
-
-                    return {
-                        id,
-                        name: u.name,
-                        avatar: hidePhoto ? null : (u.avatar || null)
-                    };
-                });
-
-        recipientSocket.emit("user-list", list);
-    }
+    io.emit("user-list", list);
 }
 
 io.on("connection", (socket) => {
@@ -2343,7 +2364,6 @@ io.on("connection", (socket) => {
 
         socket.data.name = safeName;
         socket.data.email = safeEmail;
-        socket.data.chatUserId = chatUserId;
 
         // rejoin the room for every group this user already
         // belongs to, so group messages/calls reach them without
@@ -2492,7 +2512,6 @@ io.on("connection", (socket) => {
         chatUserId = null;
         socket.data.name = null;
         socket.data.email = null;
-        socket.data.chatUserId = null;
     });
 
     socket.on("set-avatar", (avatarUrl) => {
@@ -2670,11 +2689,9 @@ io.on("connection", (socket) => {
         convo.lastRead[chatUserId] = messageId;
         writeChatHistoryStore(store);
 
-        // respect the reader's own "read receipts" privacy toggle - if
-        // they've turned it off, the other side doesn't get the blue
-        // double-tick event for this read (matches WhatsApp: turning
-        // off read receipts hides yours from others too)
-        if (getPrivacyForUser(chatUserId).readReceipts) {
+        // WhatsApp's rule: turn off read receipts and you also stop
+        // sending them - the other side never learns you read it
+        if (getPrivacyPrefs(chatUserId).readReceipts) {
             socket.to(toId).emit("read-receipt", { fromId: chatUserId, messageId });
         }
     });
@@ -2843,17 +2860,17 @@ io.on("connection", (socket) => {
         socket.emit("message-deleted", payload);
     });
 
-    socket.on("edit-message", ({ toId, messageId, text } = {}) => {
+    // edit the text of a message you sent, same 15-minute window and
+    // "pencil + Edited label" behaviour as WhatsApp
+    socket.on("edit-message", ({ toId, messageId, newText } = {}) => {
 
         if (!toId || !messageId || !chatUserId) return;
-        if (typeof text !== "string" || !text.trim()) return;
 
-        // for a group, edits use the same room key everyone's
-        // messages are stored under; for a 1:1 chat it's the pair key
-        const trimmed = text.trim().slice(0, 4000);
-        const updated = editStoredMessage(chatUserId, chatUserId, toId, messageId, trimmed);
+        const text = String(newText || "").trim().slice(0, 4000);
+        if (!text) return;
 
-        if (!updated) return; // not found, or requester didn't send it originally
+        const updated = editStoredMessage(chatUserId, toId, messageId, text);
+        if (!updated) return;
 
         const payload = {
             messageId,
@@ -2864,7 +2881,29 @@ io.on("connection", (socket) => {
         };
 
         socket.to(toId).emit("message-edited", payload);
-        socket.emit("message-edited", payload); // echo back to sender
+        socket.emit("message-edited", payload);
+    });
+
+    // star / unstar a message for the "Starred messages" panel
+    socket.on("star-message", ({ toId, messageId, starred } = {}) => {
+
+        if (!toId || !messageId || !chatUserId) return;
+
+        const resolved = setStoredMessageStarred(chatUserId, toId, messageId, !!starred);
+        if (resolved === null) return;
+
+        socket.emit("message-starred", { toId, messageId, starred: resolved });
+    });
+
+    // every starred message across every conversation this user is in
+    socket.on("get-starred-messages", () => {
+
+        if (!chatUserId) return;
+
+        socket.emit(
+            "starred-messages",
+            collectStarredMessagesForUser(chatUserId)
+        );
     });
 
     socket.on("call-user", ({ toId, offer, callType }) => {
@@ -3300,180 +3339,81 @@ io.on("connection", (socket) => {
             store[chatUserId].push(userId);
             writeBlockedStore(store);
         }
-
-        socket.emit("blocked-list", { blocked: store[chatUserId] || [] });
     });
-
-
-    // ==========================================================
-    // NEW FEATURE SCAFFOLDING - added so the existing "Privacy &
-    // security" / "Linked devices" / "Starred messages" menu
-    // buttons (already in the UI) have somewhere real to go.
-    // ==========================================================
-
-    // ---- unblock / list blocked contacts ----
 
     socket.on("unblock-user", ({ userId } = {}) => {
 
         if (!userId || !chatUserId) return;
 
         const store = readBlockedStore();
-        if (Array.isArray(store[chatUserId])) {
-            store[chatUserId] = store[chatUserId].filter((id) => id !== userId);
-            writeBlockedStore(store);
-        }
+        if (!Array.isArray(store[chatUserId])) return;
 
-        socket.emit("blocked-list", { blocked: store[chatUserId] || [] });
+        store[chatUserId] = store[chatUserId].filter(id => id !== userId);
+        writeBlockedStore(store);
+
+        socket.emit("blocked-contacts", store[chatUserId]);
     });
 
-    socket.on("get-blocked-list", () => {
+    // ids this user has blocked, for the Privacy & security panel
+    socket.on("get-blocked-contacts", () => {
 
         if (!chatUserId) return;
 
         const store = readBlockedStore();
-        socket.emit("blocked-list", { blocked: store[chatUserId] || [] });
+        socket.emit("blocked-contacts", Array.isArray(store[chatUserId]) ? store[chatUserId] : []);
     });
 
-
-    // ---- privacy settings (last seen, profile photo, about, read
-    // receipts, who can add me to groups) ----
+    // ------------------------------------------------------
+    // PRIVACY & SECURITY (last seen visibility, read receipts)
+    // ------------------------------------------------------
 
     socket.on("get-privacy-settings", () => {
 
         if (!chatUserId) return;
-
-        const store = readPrivacyStore();
-        socket.emit("privacy-settings", {
-            ...DEFAULT_PRIVACY_SETTINGS,
-            ...(store[chatUserId] || {})
-        });
+        socket.emit("privacy-settings", getPrivacyPrefs(chatUserId));
     });
 
     socket.on("set-privacy-settings", (payload = {}) => {
 
         if (!chatUserId) return;
 
-        const store = readPrivacyStore();
+        const current = getPrivacyPrefs(chatUserId);
 
-        store[chatUserId] = {
-            ...DEFAULT_PRIVACY_SETTINGS,
-            ...(store[chatUserId] || {}),
-            ...payload
+        const next = {
+            lastSeen: payload.lastSeen === "nobody" ? "nobody" : "everyone",
+            readReceipts: payload.readReceipts !== false
         };
 
-        writePrivacyStore(store);
-
-        socket.emit("privacy-settings", store[chatUserId]);
-
-        // last-seen / profile-photo visibility can change what other
-        // people are allowed to see, so refresh everyone's user list
-        broadcastChatUserList();
-
-        // NOTE: last-seen/profile-photo are now enforced (see
-        // broadcastChatUserList) for the "Nobody" case. Read receipts
-        // are enforced in the "mark-read" handler below. The "My
-        // contacts" tier for all of these still falls back to
-        // "Everyone" until there's a real contacts store server-side.
-    });
-
-
-    // ---- two-step verification (PIN) ----
-
-    socket.on("get-two-step-status", () => {
-
-        if (!chatUserId) return;
-
-        const store = readTwoStepStore();
-        socket.emit("two-step-status", { enabled: Boolean(store[chatUserId]) });
-    });
-
-    socket.on("set-two-step-pin", ({ pin } = {}) => {
-
-        if (!chatUserId || !pin || String(pin).length < 4) {
-            socket.emit("two-step-error", { message: "PIN must be at least 4 digits." });
+        // avoid a needless disk write when nothing actually changed
+        if (current.lastSeen === next.lastSeen && current.readReceipts === next.readReceipts) {
+            socket.emit("privacy-settings", current);
             return;
         }
 
-        const store = readTwoStepStore();
-        const salt = crypto.randomBytes(8).toString("hex");
+        const store = readPrivacyStore();
+        store[chatUserId] = next;
+        writePrivacyStore(store);
 
-        store[chatUserId] = { hash: hashTwoStepPin(String(pin), salt), salt, setAt: Date.now() };
-        writeTwoStepStore(store);
-
-        socket.emit("two-step-status", { enabled: true });
+        socket.emit("privacy-settings", next);
     });
 
-    socket.on("disable-two-step-pin", () => {
+    // last seen is fetched on demand (only when a chat is opened),
+    // same as WhatsApp, rather than broadcast to everyone up front,
+    // and only handed over if the target hasn't hidden it
+    socket.on("get-last-seen", ({ userId } = {}) => {
 
-        if (!chatUserId) return;
+        if (!userId || !chatUserId) return;
 
-        const store = readTwoStepStore();
-        delete store[chatUserId];
-        writeTwoStepStore(store);
+        const prefs = getPrivacyPrefs(userId);
 
-        socket.emit("two-step-status", { enabled: false });
-    });
-
-
-    // ---- linked devices ----
-
-    socket.on("get-linked-devices", () => {
-
-        if (!chatUserId) return;
-
-        const store = readLinkedDevicesStore();
-        socket.emit("linked-devices", { devices: store[chatUserId] || [] });
-    });
-
-    socket.on("request-link-code", () => {
-
-        if (!chatUserId) return;
-
-        pruneExpiredLinkCodes();
-
-        const code = String(crypto.randomInt(100000, 999999));
-        pendingLinkCodes.set(code, { chatUserId, expiresAt: Date.now() + LINK_CODE_LIFETIME_MS });
-
-        socket.emit("link-code", { code, expiresInMs: LINK_CODE_LIFETIME_MS });
-
-        // NOTE: nothing currently redeems this code from a second
-        // device/session - that pairing handshake (a second socket
-        // calling something like "redeem-link-code" and then mirroring
-        // this account's events) is the follow-up piece.
-    });
-
-    socket.on("remove-linked-device", ({ deviceId } = {}) => {
-
-        if (!chatUserId || !deviceId) return;
-
-        const store = readLinkedDevicesStore();
-        store[chatUserId] = (store[chatUserId] || []).filter((d) => d.id !== deviceId);
-        writeLinkedDevicesStore(store);
-
-        socket.emit("linked-devices", { devices: store[chatUserId] || [] });
-    });
-
-
-    // ---- chat backup / export (fully working: bundles this user's
-    // stored conversations into one JSON payload for the client to
-    // download - no server-side scheduled backup yet) ----
-
-    socket.on("request-chat-backup", () => {
-
-        if (!chatUserId) return;
-
-        const store = readChatHistoryStore();
-        const mine = {};
-
-        for (const key of Object.keys(store)) {
-            if (key.includes(chatUserId) || isGroupId(key)) {
-                mine[key] = store[key];
-            }
+        if (prefs.lastSeen === "nobody") {
+            socket.emit("last-seen", { userId, lastSeen: null });
+            return;
         }
 
-        socket.emit("chat-backup-ready", { exportedAt: Date.now(), conversations: mine });
+        const store = readLastSeenStore();
+        socket.emit("last-seen", { userId, lastSeen: store[userId] || null });
     });
-
 
     socket.on("clear-chat", ({ chatId, deleteStarred } = {}) => {
 
@@ -3697,27 +3637,6 @@ io.on("connection", (socket) => {
     // their own dedicated events higher up in this file.
     // ------------------------------------------------------
 
-    socket.on("message-context-action", ({ action, msgId, chatId } = {}) => {
-
-        if (action !== "star" || !msgId || !chatId || !chatUserId) return;
-
-        const store = readChatHistoryStore();
-        const key = isGroupId(chatId) ? chatId : conversationKey(chatUserId, chatId);
-        const convo = getOrCreateConversation(store, key);
-        const stored = convo.messages.find(m => m.id === msgId);
-
-        if (!stored) return;
-
-        stored.starred = !stored.starred;
-        writeChatHistoryStore(store);
-
-        // let the client know the toggle actually happened so it can
-        // update its local cache and the Starred Messages list - this
-        // was previously fire-and-forget with no confirmation.
-        socket.emit("message-starred", { chatId, msgId, starred: stored.starred });
-    });
-
-
     socket.on("disconnect", () => {
 
         if (!chatUserId || !onlineChatUsers.has(chatUserId)) return;
@@ -3737,6 +3656,11 @@ io.on("connection", (socket) => {
 
             const name = onlineChatUsers.get(userKey).name;
             onlineChatUsers.delete(userKey);
+
+            const lastSeenStore = readLastSeenStore();
+            lastSeenStore[userKey] = Date.now();
+            writeLastSeenStore(lastSeenStore);
+
             broadcastChatUserList();
             io.emit("system-message", `${name} left the chat`);
 
@@ -3949,9 +3873,8 @@ const statusesFile = path.join(os.tmpdir(), "site-chat-statuses.json");
 const channelsFile = path.join(os.tmpdir(), "site-chat-channels.json");
 const communitiesFile = path.join(os.tmpdir(), "site-chat-communities.json");
 const blockedUsersFile = path.join(os.tmpdir(), "site-chat-blocked.json");
-const privacySettingsFile = path.join(os.tmpdir(), "site-chat-privacy.json");
-const twoStepFile = path.join(os.tmpdir(), "site-chat-two-step.json");
-const linkedDevicesFile = path.join(os.tmpdir(), "site-chat-linked-devices.json");
+const lastSeenFile = path.join(os.tmpdir(), "site-chat-last-seen.json");
+const userPrivacyFile = path.join(os.tmpdir(), "site-chat-privacy.json");
 
 const STATUS_LIFETIME_MS = 24 * 60 * 60 * 1000; // stories disappear after 24h
 
@@ -4050,58 +3973,6 @@ function writeCommunitiesStore(store) { writeJsonStore(communitiesFile, store); 
 function readBlockedStore() { return readJsonStore(blockedUsersFile, {}); }
 function writeBlockedStore(store) { writeJsonStore(blockedUsersFile, store); }
 
-// ---- privacy & security settings (last seen / profile photo / about /
-// read receipts / who-can-add-to-groups). Stored per user id, applied
-// client-side for now - see NEW FEATURE SCAFFOLDING notes near the
-// socket handlers below for what still needs server-side enforcement. ----
-
-function getPrivacyForUser(userId) {
-    const store = readPrivacyStore();
-    return { ...DEFAULT_PRIVACY_SETTINGS, ...(store[userId] || {}) };
-}
-
-function readPrivacyStore() { return readJsonStore(privacySettingsFile, {}); }
-function writePrivacyStore(store) { writeJsonStore(privacySettingsFile, store); }
-
-const DEFAULT_PRIVACY_SETTINGS = {
-    lastSeen: "everyone",       // everyone | contacts | nobody
-    profilePhoto: "everyone",   // everyone | contacts | nobody
-    about: "everyone",          // everyone | contacts | nobody
-    readReceipts: true,
-    groupsAddMe: "everyone"     // everyone | contacts
-};
-
-// ---- two-step verification (PIN). The PIN is stored as a salted hash,
-// never in plain text. NOTE: this is added as scaffolding per request -
-// nothing currently *checks* this PIN during login/join yet, so it does
-// not protect the account until that enforcement is wired in. ----
-
-function readTwoStepStore() { return readJsonStore(twoStepFile, {}); }
-function writeTwoStepStore(store) { writeJsonStore(twoStepFile, store); }
-
-function hashTwoStepPin(pin, salt) {
-    return crypto.createHash("sha256").update(`${salt}:${pin}`).digest("hex");
-}
-
-// ---- linked devices (multi-device). Pairing-code generation is fully
-// working; actually mirroring a session onto a second device is a bigger
-// architecture change (a linked device would need its own authenticated
-// socket that receives the same events) and is left as a follow-up -
-// this gives the UI and the code exchange to build that on top of. ----
-
-function readLinkedDevicesStore() { return readJsonStore(linkedDevicesFile, {}); }
-function writeLinkedDevicesStore(store) { writeJsonStore(linkedDevicesFile, store); }
-
-const pendingLinkCodes = new Map(); // code -> { chatUserId, expiresAt }
-const LINK_CODE_LIFETIME_MS = 5 * 60 * 1000;
-
-function pruneExpiredLinkCodes() {
-    const now = Date.now();
-    for (const [code, entry] of pendingLinkCodes.entries()) {
-        if (entry.expiresAt < now) pendingLinkCodes.delete(code);
-    }
-}
-
 // true once EITHER side has blocked the other - blocking is treated as
 // mutual (like WhatsApp: once blocked, neither side's messages reach
 // the other) rather than a one-way mute
@@ -4111,6 +3982,23 @@ function isBlockedPair(store, a, b) {
     const listB = Array.isArray(store[b]) ? store[b] : [];
 
     return listA.includes(b) || listB.includes(a);
+}
+
+// ---- last seen ----
+
+function readLastSeenStore() { return readJsonStore(lastSeenFile, {}); }
+function writeLastSeenStore(store) { writeJsonStore(lastSeenFile, store); }
+
+// ---- privacy settings (last seen visibility, read receipts) ----
+
+const DEFAULT_PRIVACY = { lastSeen: "everyone", readReceipts: true };
+
+function readPrivacyStore() { return readJsonStore(userPrivacyFile, {}); }
+function writePrivacyStore(store) { writeJsonStore(userPrivacyFile, store); }
+
+function getPrivacyPrefs(userId) {
+    const store = readPrivacyStore();
+    return { ...DEFAULT_PRIVACY, ...(store[userId] || {}) };
 }
 
 
@@ -6063,6 +5951,51 @@ app.get(
 
 /*
 =========================================================
+MANUAL AI UPDATE TRIGGER
+=========================================================
+Lets you force a fresh discovery run (e.g. right after changing
+ai-updater.js) without restarting the whole server - restarting was
+what kept burning provider quota, since runUpdater() used to fire
+immediately on every startup regardless of how recently it last ran.
+This always runs (no cooldown) since triggering it IS the deliberate
+"run it now" action; runUpdaterinFlight still stops it from doubling
+up if a scheduled or previous manual run is already in progress.
+*/
+
+app.post(
+    "/api/ai/run-update",
+    (req, res) => {
+
+        if (updaterInFlight) {
+
+            return res.status(409).json({
+                started: false,
+                error: "An AI update is already in progress."
+            });
+        }
+
+        // Optional ?category=KUCCPS or ?category=KUCCPS,University%20Alerts
+        // (also accepted in the JSON body as { "category": "..." }) runs
+        // only those categories instead of the full sweep - e.g.
+        // POST /api/ai/run-update?category=KUCCPS,University Alerts
+        const category =
+            req.query.category ||
+            req.body?.category ||
+            null;
+
+        runUpdater(category);
+
+        res.json({
+            started: true,
+            category: category || "all",
+            message: "AI update started - watch the server console for progress."
+        });
+    }
+);
+
+
+/*
+=========================================================
 WEBSITE STATUS
 =========================================================
 */
@@ -6232,7 +6165,113 @@ AUTOMATIC AI UPDATER
 =========================================================
 */
 
-function runUpdater() {
+// Every provider call in ai-updater.js (Tavily, Mistral, Perplexity,
+// OpenAI, Exa, Gemini) runs against a real, rate-limited account.
+// runUpdater() used to fire immediately on every server start with no
+// memory of when it last ran, so restarting the app repeatedly while
+// testing (npm start, Ctrl+C, npm start, ...) fired a brand-new full
+// discovery pass across every category each time - this is exactly
+// what tripped Mistral's "web_search rate limit reached" on KUCCPS
+// during a run of quick restarts. This file just remembers the last
+// run's timestamp across restarts so a restart soon after a real run
+// can skip straight to scheduling the next one instead of burning
+// quota again immediately.
+const lastUpdateFile =
+    path.join(
+        dataFolder,
+        "last-ai-update.json"
+    );
+
+function readLastUpdateTime() {
+
+    try {
+
+        if (
+            !fs.existsSync(
+                lastUpdateFile
+            )
+        ) {
+
+            return 0;
+        }
+
+        const raw =
+            fs.readFileSync(
+                lastUpdateFile,
+                "utf8"
+            );
+
+        const parsed =
+            JSON.parse(raw);
+
+        return (
+            Number(
+                parsed?.lastRunAt
+            ) || 0
+        );
+
+    } catch {
+
+        return 0;
+    }
+}
+
+function writeLastUpdateTime() {
+
+    try {
+
+        if (
+            !fs.existsSync(
+                dataFolder
+            )
+        ) {
+
+            fs.mkdirSync(
+                dataFolder,
+                { recursive: true }
+            );
+        }
+
+        fs.writeFileSync(
+            lastUpdateFile,
+            JSON.stringify({
+                lastRunAt: Date.now()
+            })
+        );
+
+    } catch (error) {
+
+        console.warn(
+            "Could not persist last AI update time:",
+            error.message
+        );
+    }
+}
+
+// Guards against two updater runs overlapping - e.g. the scheduled
+// interval firing while a manually-triggered run (see
+// /api/ai/run-update below) is still in progress.
+let updaterInFlight = false;
+
+// categoryFilter: optional string, comma-separated category names
+// (e.g. "KUCCPS,University Alerts") - forwarded to ai-updater.js's own
+// CLI filter (see its `node ai-updater.js "KUCCPS,University Alerts"`
+// support) so a restart, a schedule tick, or a manual trigger can all
+// run a subset of categories instead of burning every provider's
+// quota just to test or refresh one or two.
+function runUpdater(categoryFilter = null) {
+
+    if (updaterInFlight) {
+
+        console.log(
+            "AI updater already running - skipping this trigger."
+        );
+
+        return;
+    }
+
+    updaterInFlight = true;
+    writeLastUpdateTime();
 
     console.log("");
 
@@ -6241,7 +6280,9 @@ function runUpdater() {
     );
 
     console.log(
-        "STARTING AUTOMATIC AI UPDATE"
+        categoryFilter
+            ? `STARTING AI UPDATE (${categoryFilter})`
+            : "STARTING AUTOMATIC AI UPDATE"
     );
 
     console.log(
@@ -6266,6 +6307,8 @@ function runUpdater() {
             "ai-updater.js was not found."
         );
 
+        updaterInFlight = false;
+
         return;
     }
 
@@ -6274,7 +6317,8 @@ function runUpdater() {
         spawn(
             process.execPath,
             [
-                updaterPath
+                updaterPath,
+                ...(categoryFilter ? [categoryFilter] : [])
             ],
             {
                 stdio:
@@ -6291,6 +6335,8 @@ function runUpdater() {
                 "AI updater failed to start:",
                 error.message
             );
+
+            updaterInFlight = false;
         }
     );
 
@@ -6302,6 +6348,8 @@ function runUpdater() {
             console.log(
                 `AI updater finished with code ${code}`
             );
+
+            updaterInFlight = false;
         }
     );
 }
@@ -6392,9 +6440,55 @@ server.listen(
             -----------------------------------------
             FIRST AUTOMATIC UPDATE
             -----------------------------------------
+            Only fires immediately if it's actually been a full
+            UPDATE_INTERVAL since the last real run. A quick restart
+            (testing a code change, Ctrl+C + npm start) lands well
+            inside that window and just gets scheduled for the
+            remaining time instead of firing another full-quota run
+            on top of the one that already ran minutes ago.
             */
 
-            runUpdater();
+            const msSinceLastUpdate =
+                Date.now() -
+                readLastUpdateTime();
+
+            const updateIntervalMs =
+                UPDATE_INTERVAL *
+                60 *
+                1000;
+
+            if (
+                msSinceLastUpdate >=
+                updateIntervalMs
+            ) {
+
+                runUpdater();
+
+            } else {
+
+                const minutesLeft =
+                    Math.ceil(
+                        (updateIntervalMs -
+                            msSinceLastUpdate) /
+                        60000
+                    );
+
+                console.log(
+                    `Skipping immediate AI update - last run was ` +
+                    `${Math.round(msSinceLastUpdate / 60000)} minute(s) ` +
+                    `ago. Next automatic run in ~${minutesLeft} minute(s). ` +
+                    `POST /api/ai/run-update to force one now.`
+                );
+
+                setTimeout(
+                    runUpdater,
+                    Math.max(
+                        0,
+                        updateIntervalMs - msSinceLastUpdate
+                    )
+                );
+            }
+
             runUniversityRumoursAutoUpdate();
 
 

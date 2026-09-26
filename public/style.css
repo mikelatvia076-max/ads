@@ -693,6 +693,14 @@ header {
     color: var(--ink-soft);
 }
 
+.opportunity-card-note {
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    color: color-mix(in srgb, var(--accent, var(--ink-soft)) 70%, var(--ink-soft));
+    opacity: 0.85;
+}
+
 .opportunity-card.cat-scholarships { --accent: var(--gold); }
 .opportunity-card.cat-internships { --accent: var(--teal); }
 .opportunity-card.cat-attachments { --accent: var(--sky); }
@@ -826,13 +834,12 @@ header {
 
 .my-campus-picker {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
+    flex-direction: column;
+    gap: 16px;
 
-    max-width: 480px;
+    max-width: 520px;
     margin: 0 auto;
-    padding: 16px;
+    padding: 18px;
 
     background: linear-gradient(135deg, rgba(11, 94, 215, 0.08), rgba(124, 58, 237, 0.08));
     border: 1px solid var(--border);
@@ -840,7 +847,41 @@ header {
     box-shadow: var(--shadow);
 }
 
-.my-campus-picker select {
+.my-campus-level,
+.my-campus-institution {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.my-campus-level label,
+.my-campus-institution label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+}
+
+.my-campus-level-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.my-campus-level-chips .filter-chip.active {
+    color: #fff;
+    background: linear-gradient(120deg, var(--navy), var(--green));
+    border-color: transparent;
+}
+
+.my-campus-institution-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.my-campus-institution-row select {
     flex: 1;
     min-width: 180px;
     padding: 12px 14px;
@@ -854,7 +895,12 @@ header {
     border-radius: 10px;
 }
 
-.my-campus-picker button {
+.my-campus-institution-row select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.my-campus-institution-row button {
     padding: 12px 22px;
 
     font-family: inherit;
@@ -870,7 +916,7 @@ header {
     transition: filter 0.2s ease, transform 0.2s ease;
 }
 
-.my-campus-picker button:hover {
+.my-campus-institution-row button:hover {
     filter: brightness(1.08);
     transform: translateY(-1px);
 }
@@ -894,35 +940,16 @@ header {
     color: var(--ink-soft);
 }
 
+.my-campus-result-note {
+    margin: -4px 0 14px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    opacity: 0.85;
+}
+
 .my-campus-links {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
-
     margin-bottom: 10px;
-}
-
-.my-campus-links a {
-    padding: 6px 14px;
-
-    font-size: 13px;
-    font-weight: 700;
-    color: #fff;
-    text-decoration: none;
-
-    background: linear-gradient(120deg, var(--navy), var(--sky));
-    border: none;
-    border-radius: 50px;
-    transition: transform 0.2s ease, filter 0.2s ease;
-}
-
-.my-campus-links a:nth-child(2) { background: linear-gradient(120deg, var(--green), var(--teal)); }
-.my-campus-links a:nth-child(3) { background: linear-gradient(120deg, var(--gold), #b3261e); }
-
-.my-campus-links a:hover {
-    transform: translateY(-2px);
-    filter: brightness(1.08);
+    text-align: left;
 }
 
 .my-campus-result > a#myCampusChangeLink {
@@ -1680,3 +1707,109 @@ body.chooser-open { overflow: hidden; }
 }
 
 .institution-result-card { cursor: pointer; }
+
+/* =====================================================
+   POPULAR COURSES — button reset (chips are now <button>s
+   so they can open the course info modal instead of
+   always navigating away)
+===================================================== */
+
+.course-chip {
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    text-align: center;
+}
+
+/* =====================================================
+   COURSE INFO MODAL
+   Reuses .chooser-overlay / .chooser-box / .chooser-close
+   from the institution chooser above for a consistent look.
+===================================================== */
+
+.course-info-box {
+    text-align: left;
+}
+
+.course-info-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0 30px 4px 0;
+}
+
+.course-info-icon {
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--sky) 12%, var(--card));
+}
+
+.course-info-head h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.course-info-duration {
+    display: inline-block;
+    margin: 10px 0 14px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--green);
+    background: color-mix(in srgb, var(--green) 10%, var(--card));
+    border-radius: 50px;
+}
+
+.course-info-blurb {
+    margin: 0 0 18px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+}
+
+.course-info-subhead {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+}
+
+.course-info-careers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 20px;
+    padding: 0;
+    list-style: none;
+}
+
+.course-info-careers li {
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    background: color-mix(in srgb, var(--sky) 8%, var(--card));
+    border: 1px solid color-mix(in srgb, var(--sky) 25%, var(--border));
+    border-radius: 50px;
+}
+
+.course-info-explore {
+    display: inline-block;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    text-decoration: none;
+    background: linear-gradient(135deg, var(--navy), var(--sky));
+    border-radius: 50px;
+}
+
+.course-info-explore:hover { filter: brightness(1.05); }
