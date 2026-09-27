@@ -5,23 +5,24 @@
 //    phone locked, browser backgrounded) and turn them into a
 //    real OS-level notification, then route a tap on that
 //    notification back into the app to the right place.
-// 2) Cache core static assets so the app can still open (with
-//    a "you're offline" fallback for anything not cached) when
-//    there's no network connection. Live data - chat messages,
-//    socket.io, and /api/ routes - always go to the network,
-//    never the cache, since that content changes constantly.
+// 2) Pre-cache core static assets purely for faster repeat
+//    loads while online. Page loads (navigations) are NOT
+//    served from cache when offline - the app is meant to
+//    require a connection, so offline shows a blocking "you're
+//    offline" screen instead of a stale cached page. Live data -
+//    chat messages, socket.io, and /api/ routes - always go to
+//    the network, never the cache, since that content changes
+//    constantly.
 // ============================================================
 
 const CACHE_NAME = "campus-hub-cache-v1";
 
-// The core shell of the app - enough to open the homepage and
-// the chat page even with no network. Anything else gets
-// cached the first time it's actually requested (see fetch
-// handler below).
+// Static assets worth pre-caching for speed. Deliberately does
+// NOT include index.html/nodi.html - those are navigation
+// documents, and this service worker never serves a cached page
+// as an offline fallback (see the "navigate" branch below), so
+// pre-caching them would just be dead weight.
 const CORE_ASSETS = [
-    "/",
-    "/index.html",
-    "/nodi.html",
     "/style.css",
     "/load.css",
     "/nodi.css",
@@ -31,6 +32,56 @@ const CORE_ASSETS = [
     "/icon-192.png",
     "/icon-512.png"
 ];
+
+// Minimal "you can't use this without internet" page, built
+// inline so it never depends on a network request or a cached
+// file that could itself go stale.
+const OFFLINE_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>You're offline</title>
+<style>
+  html, body {
+      margin: 0;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      background: linear-gradient(135deg, #063b8f, #0b5ed7 35%, #087f5b 70%, #7c3aed);
+      color: #ffffff;
+  }
+  .offline-box { max-width: 380px; }
+  .offline-icon { font-size: 46px; margin-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0 0 10px; }
+  p { font-size: 14px; opacity: 0.9; line-height: 1.5; margin: 0 0 22px; }
+  button {
+      padding: 12px 26px;
+      border: none;
+      border-radius: 50px;
+      background: #f2a900;
+      color: #063b8f;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="offline-box">
+      <div class="offline-icon">&#128225;</div>
+      <h1>No internet connection</h1>
+      <p>This app needs an internet connection to open. Reconnect and try again.</p>
+      <button onclick="location.reload()">Retry</button>
+  </div>
+</body>
+</html>`;
 
 self.addEventListener("install", (event) => {
     self.skipWaiting();
@@ -74,18 +125,17 @@ self.addEventListener("fetch", (event) => {
     if (url.pathname.startsWith("/api/")) return;
     if (url.pathname.startsWith("/uploads/")) return;
 
-    // Page navigations: try the network first so users get the
-    // latest content, but fall back to the cached shell if
-    // they're offline instead of showing a browser error page.
+    // Page navigations: always go to the network. If that fails
+    // (offline), show the blocking offline screen instead of a
+    // cached page - the app deliberately doesn't work offline.
     if (request.mode === "navigate") {
         event.respondWith(
-            fetch(request)
-                .then((response) => {
-                    const copy = response.clone();
-                    caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-                    return response;
+            fetch(request).catch(() =>
+                new Response(OFFLINE_HTML, {
+                    status: 200,
+                    headers: { "Content-Type": "text/html; charset=UTF-8" }
                 })
-                .catch(() => caches.match(request).then((cached) => cached || caches.match("/index.html")))
+            )
         );
         return;
     }

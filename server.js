@@ -146,17 +146,19 @@ const chatUploadsFolder =
         "uploads"
     );
 
-// Best-effort email → name lookup, so a returning visitor who forgets
-// which name they used can look it up by the email they signed in
-// with. This lives in the OS temp dir for the same reason uploads do:
-// it's the only writable location on serverless platforms like
-// Vercel. It is NOT durable storage — a recycled serverless instance
-// can lose it — but it survives for as long as a given server
-// process/instance is alive, which is enough to be genuinely useful
-// without standing up a real database.
+// Best-effort phone → name lookup, so a returning visitor who forgets
+// which name they used can look it up by the phone number they signed
+// in with. Stored under the project's own "data" folder (same place as
+// articles.json) rather than the OS temp dir: on Render, temp-dir files
+// can be cleared far more aggressively than the app's own working
+// directory, which is what was making created accounts disappear. This
+// still isn't bulletproof - a redeploy on Render replaces the whole
+// filesystem unless a persistent Disk is attached to the service - but
+// it survives ordinary restarts, crashes, and idling, which a plain
+// os.tmpdir() file does not reliably do.
 const usersRegistryFile =
     path.join(
-        os.tmpdir(),
+        dataFolder,
         "site-chat-users.json"
     );
 
@@ -185,6 +187,11 @@ function writeUsersRegistry(registry) {
 
     try {
 
+        fs.mkdirSync(
+            dataFolder,
+            { recursive: true }
+        );
+
         fs.writeFileSync(
             usersRegistryFile,
             JSON.stringify(registry, null, 2),
@@ -197,55 +204,174 @@ function writeUsersRegistry(registry) {
     }
 }
 
-function rememberUserEmail(name, email) {
+function rememberUserPhone(name, phone) {
 
-    if (!email) return;
+    if (!phone) return;
 
-    const emailKey = String(email).trim().toLowerCase();
+    const phoneKey = normalizeKenyanPhone(phone);
 
-    if (!emailKey) return;
+    if (!phoneKey) return;
 
     const registry = readUsersRegistry();
 
-    registry[emailKey] = { name, updatedAt: Date.now() };
+    registry[phoneKey] = { name, updatedAt: Date.now() };
 
     writeUsersRegistry(registry);
 }
 
-function lookupNameByEmail(email) {
+function lookupNameByPhone(phone) {
 
-    const emailKey = String(email || "").trim().toLowerCase();
+    const phoneKey = normalizeKenyanPhone(phone);
 
-    if (!emailKey) return null;
+    if (!phoneKey) return null;
 
     const registry = readUsersRegistry();
-    const entry = registry[emailKey];
+    const entry = registry[phoneKey];
 
     return entry ? entry.name : null;
 }
 
-function deleteUserAccount(email) {
+function deleteUserAccount(phone) {
 
-    const emailKey = String(email || "").trim().toLowerCase();
+    const phoneKey = normalizeKenyanPhone(phone);
 
-    if (!emailKey) return false;
+    if (!phoneKey) return false;
 
     const registry = readUsersRegistry();
 
-    if (!registry[emailKey]) return false;
+    if (!registry[phoneKey]) return false;
 
-    delete registry[emailKey];
+    delete registry[phoneKey];
     writeUsersRegistry(registry);
 
     return true;
 }
 
-// server-side check too - never trust the client alone. This is a
-// deliberately simple check (has an @, something on each side, a
-// dot in the domain) rather than a full RFC 5322 validator, which
-// is exactly what a real email address needs to satisfy anyway.
-function isValidEmailFormat(value) {
-    return typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+// server-side check too - never trust the client alone. Only Safaricom
+// and Airtel Kenya mobile numbers are accepted, keyed off the national
+// destination codes assigned to those two carriers by the
+// Communications Authority of Kenya. A valid number is 9 digits after
+// the leading 0 (or after the +254 / 254 country code), and those 9
+// digits must start with one of the prefixes below.
+const SAFARICOM_PREFIXES = [
+    "110", "111", "112", "113", "114", "115", "116", "117", "118", "119",
+    "140", "141", "142", "143", "180", "181", "182",
+    "700", "701", "702", "703", "704", "705", "706", "707", "708", "709",
+    "710", "711", "712", "713", "714", "715", "716", "717", "718", "719",
+    "720", "721", "722", "723", "724", "725", "726", "727", "728", "729",
+    "740", "741", "742", "743", "745", "746", "748",
+    "757", "758", "759", "768", "769",
+    "790", "791", "792", "793", "794", "795", "796", "797", "798", "799"
+];
+
+const AIRTEL_PREFIXES = [
+    "100", "101", "102", "103", "104", "105", "106", "107", "108",
+    "730", "731", "732", "733", "734", "735", "736", "737", "738", "739",
+    "750", "751", "752", "753", "754", "755", "756",
+    "780", "781", "782", "783", "784", "785", "786", "787", "788", "789"
+];
+
+const KENYAN_MOBILE_PREFIXES = new Set([...SAFARICOM_PREFIXES, ...AIRTEL_PREFIXES]);
+
+// Strips spaces/dashes/parens and any of the country-code forms
+// (+254, 254, or a leading 0) down to the bare 9-digit national
+// number, e.g. "+254 722 123 456" / "0722-123-456" -> "722123456".
+// Returns null if what's left isn't 9 digits.
+function toNationalDigits(value) {
+
+    const cleaned = String(value || "").replace(/[\s\-().]/g, "");
+
+    let digits = null;
+
+    if (cleaned.startsWith("+254")) {
+        digits = cleaned.slice(4);
+    } else if (cleaned.startsWith("254")) {
+        digits = cleaned.slice(3);
+    } else if (cleaned.startsWith("0")) {
+        digits = cleaned.slice(1);
+    } else {
+        digits = cleaned;
+    }
+
+    if (!/^\d{9}$/.test(digits)) return null;
+
+    return digits;
+}
+
+// Validates that a phone number is a Kenyan Safaricom or Airtel mobile
+// number. Returns the carrier ("safaricom" | "airtel") or null.
+function kenyanMobileCarrier(value) {
+
+    const digits = toNationalDigits(value);
+
+    if (!digits) return null;
+
+    const prefix = digits.slice(0, 3);
+
+    if (SAFARICOM_PREFIXES.includes(prefix)) return "safaricom";
+    if (AIRTEL_PREFIXES.includes(prefix)) return "airtel";
+
+    return null;
+}
+
+function isValidKenyanMobile(value) {
+    return kenyanMobileCarrier(value) !== null;
+}
+
+// Canonical registry key for a phone number: national digits with a
+// single leading 0, e.g. "0722123456". Returns null if invalid.
+function normalizeKenyanPhone(value) {
+
+    const digits = toNationalDigits(value);
+
+    if (!digits) return null;
+
+    return "0" + digits;
+}
+
+/*
+=========================================================
+TWO-STEP VERIFICATION (PIN LOCK)
+=========================================================
+A 6-digit PIN, additional to the phone+name login, stored as
+"<salt>:<hash>" on the account entry in the users registry (see
+account.pin below) - never the raw digits. Modeled on WhatsApp's
+own two-step verification: once it's turned on, joining with the
+right phone+name isn't enough on its own, the PIN has to be
+entered too (see "join-verify-pin" in the connection handler).
+*/
+
+function isValidPin(pin) {
+    return typeof pin === "string" && /^\d{6}$/.test(pin);
+}
+
+function hashPin(pin) {
+
+    const salt = crypto.randomBytes(16).toString("hex");
+    const hash = crypto.scryptSync(String(pin), salt, 64).toString("hex");
+
+    return `${salt}:${hash}`;
+}
+
+function verifyPinHash(pin, stored) {
+
+    if (typeof stored !== "string" || !stored.includes(":")) return false;
+
+    const [salt, hash] = stored.split(":");
+
+    let check;
+    try {
+        check = crypto.scryptSync(String(pin), salt, 64).toString("hex");
+    } catch (error) {
+        return false;
+    }
+
+    const a = Buffer.from(hash, "hex");
+    const b = Buffer.from(check, "hex");
+
+    if (a.length !== b.length) return false;
+
+    return crypto.timingSafeEqual(a, b);
 }
 
 
@@ -526,6 +652,19 @@ app.use(
         limit: "10mb"
     })
 );
+
+// The service worker and its registration script must never be
+// cached by the browser or by any CDN sitting in front of this
+// server. If either were cached, an already-installed copy of the
+// app could keep running old update-checking logic long after a
+// new version has been deployed, which defeats the whole point of
+// having auto-updating installs.
+app.use((req, res, next) => {
+    if (req.path === "/sw.js" || req.path === "/pwa-register.js") {
+        res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    }
+    next();
+});
 
 app.use(
     express.static(
@@ -2209,6 +2348,13 @@ show "online") and only remove them — really marking them
 offline — if they haven't reconnected within a grace window.
 Rejoining with the same name before that window elapses
 (e.g. re-opening the app) just cancels the pending removal.
+
+The one exception is an intentional tab close/navigation: the
+client's own "pagehide" handler calls socket.disconnect() for
+that case specifically, which the server sees as reason
+"client namespace disconnect" below. That case skips the grace
+window entirely and marks them offline immediately, since we
+know for certain they're actually gone.
 */
 
 const PRESENCE_GRACE_MS = 45 * 1000;
@@ -2221,6 +2367,24 @@ function cancelPendingOffline(userKey) {
         clearTimeout(timer);
         pendingOfflineTimers.delete(userKey);
     }
+}
+
+// The actual "mark this person offline" work, shared by the
+// immediate path (intentional tab close/navigation) and the
+// end of the grace window (nobody reconnected in time).
+function dropUserOffline(userKey) {
+
+    if (!onlineChatUsers.has(userKey) || hasActiveSocket(userKey)) return;
+
+    const name = onlineChatUsers.get(userKey).name;
+    onlineChatUsers.delete(userKey);
+
+    const lastSeenStore = readLastSeenStore();
+    lastSeenStore[userKey] = Date.now();
+    writeLastSeenStore(lastSeenStore);
+
+    broadcastChatUserList();
+    io.emit("system-message", `${name} left the chat`);
 }
 
 /*
@@ -2253,6 +2417,44 @@ function clearPendingCall(toId) {
 
 const onlineChatUsers = new Map();
 
+// ---------------------------------------------------------
+// LINK A DEVICE (QR code linking)
+// A short-lived code lets one device get signed into the same
+// account as another, without retyping phone+name (and PIN) by
+// hand - similar in spirit to WhatsApp Web's QR linking. Works
+// in both directions:
+//   - "await-scan": a signed-out device asked for a code and is
+//     showing it as a QR (request-device-link-code); a signed-in
+//     device scans it and vouches for it (confirm-device-link).
+//   - "await-redeem": a signed-in device generated a code for its
+//     own account and is showing it as a QR
+//     (generate-account-link-code); a signed-out device scans it
+//     and redeems it directly (redeem-device-link-code).
+// This app only keeps one live socket per account (see
+// onlineChatUsers above), so linking a second device this way
+// hands the active session to the new device rather than running
+// both at once.
+// ---------------------------------------------------------
+const DEVICE_LINK_CODE_TTL_MS = 3 * 60 * 1000; // 3 minutes
+const pendingDeviceLinks = new Map(); // code -> { kind, socketId?, phone?, name?, generatorSocketId?, timer }
+const deviceLinkApprovedSockets = new Set(); // socket ids allowed to skip the PIN once, because another signed-in device (or a generated code) just vouched for them
+
+function generateDeviceLinkCode() {
+    let code;
+    do {
+        code = crypto.randomBytes(5).toString("hex").toUpperCase();
+    } while (pendingDeviceLinks.has(code));
+    return code;
+}
+
+function clearPendingDeviceLink(code) {
+    const pending = pendingDeviceLinks.get(code);
+    if (pending) {
+        clearTimeout(pending.timer);
+        pendingDeviceLinks.delete(code);
+    }
+}
+
 function isSafeAvatarUrl(url) {
 
     if (typeof url !== "string" || !url) return false;
@@ -2266,13 +2468,36 @@ function isSafeAvatarUrl(url) {
     );
 }
 
+// Sends each connected socket its own view of who's online: users
+// who've hidden their online status (Settings > Privacy > Last seen
+// and online) are left out of everyone else's list, the same way
+// their real WhatsApp counterpart just doesn't show a green dot.
+// Messaging itself isn't gated by this list (it's delivered by
+// socket room, not by presence), so hiding your online status never
+// stops people from reaching you - it only hides the dot/label.
 function broadcastChatUserList() {
 
-    const list =
-        Array.from(onlineChatUsers.entries())
-            .map(([id, u]) => ({ id, name: u.name, avatar: u.avatar || null }));
+    const allEntries = Array.from(onlineChatUsers.entries());
 
-    io.emit("user-list", list);
+    const publicList = allEntries
+        .filter(([id]) => isOnlineVisibleToOthers(id))
+        .map(([id, u]) => ({ id, name: u.name, avatar: u.avatar || null }));
+
+    const publicIds = new Set(publicList.map(entry => entry.id));
+
+    allEntries.forEach(([id, u]) => {
+
+        const targetSocket = io.sockets.sockets.get(u.socketId);
+        if (!targetSocket) return;
+
+        // everyone always sees their own presence in their own list,
+        // even if they've hidden it from everyone else
+        const list = publicIds.has(id)
+            ? publicList
+            : [...publicList, { id, name: u.name, avatar: u.avatar || null }];
+
+        targetSocket.emit("user-list", list);
+    });
 }
 
 io.on("connection", (socket) => {
@@ -2282,47 +2507,100 @@ io.on("connection", (socket) => {
     socket.on("join", (payload) => {
 
         // accepts either the old plain-string form or the newer
-        // { name, email } shape
+        // { name, phone } shape
         const isObj = payload && typeof payload === "object";
 
         const rawName = isObj ? payload.name : payload;
-        const rawEmail = isObj ? payload.email : null;
+        const rawPhone = isObj ? payload.phone : null;
 
         const enteredName =
             String(rawName || "").slice(0, 40).trim();
 
-        const safeEmail =
-            rawEmail
-                ? String(rawEmail).slice(0, 120).trim()
+        const safePhone =
+            rawPhone
+                ? String(rawPhone).slice(0, 20).trim()
                 : "";
 
         // joining now requires an account created up front via
         // "Create new account" - no more walking in with any random
-        // name/email. The email is the account key; the name typed
+        // name/phone. The phone is the account key; the name typed
         // in must match what that account was registered with.
-        if (!safeEmail) {
-            socket.emit("account-required", { reason: "no-email" });
+        if (!safePhone) {
+            socket.emit("account-required", { reason: "no-phone" });
             return;
         }
 
-        if (!isValidEmailFormat(safeEmail)) {
-            socket.emit("account-required", { reason: "invalid-email", email: safeEmail });
+        if (!isValidKenyanMobile(safePhone)) {
+            socket.emit("account-required", { reason: "invalid-phone", phone: safePhone });
             return;
         }
 
-        const emailKey = safeEmail.toLowerCase();
+        const phoneKey = normalizeKenyanPhone(safePhone);
         const registry = readUsersRegistry();
-        const account = registry[emailKey];
+        const account = registry[phoneKey];
 
         if (!account) {
-            socket.emit("account-required", { reason: "not-found", email: safeEmail });
+            socket.emit("account-required", { reason: "not-found", phone: safePhone });
             return;
         }
 
         if (!enteredName || account.name.toLowerCase() !== enteredName.toLowerCase()) {
-            socket.emit("account-required", { reason: "mismatch", email: safeEmail, name: account.name });
+            socket.emit("account-required", { reason: "mismatch", phone: safePhone, name: account.name });
             return;
         }
+
+        // Two-step verification (PIN lock): phone+name alone isn't
+        // enough for an account that has a PIN set - hold the sign-in
+        // here and make the client prove the PIN first. The rest of
+        // what "join" used to do inline now lives in finishJoin()
+        // below, so this path and the PIN-confirmed path can't drift
+        // apart from each other.
+        if (account.pin) {
+
+            // an already signed-in device just vouched for this socket
+            // via QR-code device linking - getting this far already
+            // required someone to physically scan a code off a screen,
+            // so let it through without asking for the PIN too
+            if (deviceLinkApprovedSockets.has(socket.id)) {
+                deviceLinkApprovedSockets.delete(socket.id);
+            } else {
+                socket.emit("two-step-pin-required", { phone: safePhone });
+                return;
+            }
+        }
+
+        finishJoin(account, safePhone);
+    });
+
+    // Verifies a submitted two-step PIN against the account named by
+    // `phone`, then runs the exact same sign-in finishJoin() would run
+    // for an account with no PIN at all. The account is re-looked-up
+    // from the server's own registry (never trusted from the client),
+    // same as the plain "join" handler above.
+    socket.on("join-verify-pin", ({ phone, pin } = {}) => {
+
+        const safePhone = String(phone || "").slice(0, 20).trim();
+        const phoneKey = normalizeKenyanPhone(safePhone);
+        const registry = readUsersRegistry();
+        const account = phoneKey ? registry[phoneKey] : null;
+
+        if (!account || !account.pin) {
+            socket.emit("account-required", { reason: "not-found", phone: safePhone });
+            return;
+        }
+
+        if (!isValidPin(pin) || !verifyPinHash(pin, account.pin)) {
+            socket.emit("two-step-pin-incorrect", { phone: safePhone });
+            return;
+        }
+
+        finishJoin(account, safePhone);
+    });
+
+    // Everything "join" used to do once phone+name (and PIN, if the
+    // account has one) checked out: creates the live session. Shared
+    // by the no-PIN path and the PIN-confirmed path above.
+    function finishJoin(account, safePhone) {
 
         // use the name exactly as it was registered, so capitalization
         // stays consistent no matter how the person typed it just now
@@ -2363,7 +2641,7 @@ io.on("connection", (socket) => {
         );
 
         socket.data.name = safeName;
-        socket.data.email = safeEmail;
+        socket.data.phone = normalizeKenyanPhone(safePhone);
 
         // rejoin the room for every group this user already
         // belongs to, so group messages/calls reach them without
@@ -2400,16 +2678,16 @@ io.on("connection", (socket) => {
             "system-message",
             `${safeName} joined the chat`
         );
-    });
+    }
 
-    socket.on("forgot-name", ({ email } = {}) => {
+    socket.on("forgot-name", ({ phone } = {}) => {
 
-        const name = lookupNameByEmail(email);
+        const name = lookupNameByPhone(phone);
 
         socket.emit("name-lookup-result", {
             found: !!name,
             name: name || null,
-            email
+            phone
         });
     });
 
@@ -2418,71 +2696,64 @@ io.on("connection", (socket) => {
         const isObj = payload && typeof payload === "object";
 
         const rawName = isObj ? payload.name : null;
-        const rawEmail = isObj ? payload.email : null;
+        const rawPhone = isObj ? payload.phone : null;
 
         const safeName =
             String(rawName || "").slice(0, 40).trim();
 
-        const safeEmail =
-            String(rawEmail || "").slice(0, 120).trim();
+        const safePhone =
+            String(rawPhone || "").slice(0, 20).trim();
 
-        if (!safeName || !safeEmail) {
+        if (!safeName || !safePhone) {
             socket.emit("account-create-error", {
-                message: "Please enter both your name and email."
+                message: "Please enter both your name and phone number."
             });
             return;
         }
 
-        if (safeName.includes("@")) {
+        if (!isValidKenyanMobile(safePhone)) {
             socket.emit("account-create-error", {
-                message: "That doesn't look like a name - check the name and email fields aren't swapped."
+                message: "Enter a valid Safaricom or Airtel Kenya number (e.g. 0722 123 456)."
             });
             return;
         }
 
-        if (!isValidEmailFormat(safeEmail)) {
-            socket.emit("account-create-error", {
-                message: "Enter a valid email address (e.g. name@example.com)."
-            });
-            return;
-        }
-
-        const emailKey = safeEmail.toLowerCase();
+        const phoneKey = normalizeKenyanPhone(safePhone);
         const registry = readUsersRegistry();
 
-        if (registry[emailKey]) {
-            // an account is already registered under this email - don't
-            // overwrite it, point the user at "Join" instead
+        if (registry[phoneKey]) {
+            // an account is already registered under this phone number -
+            // don't overwrite it, point the user at "Join" instead
             socket.emit("account-exists", {
-                name: registry[emailKey].name,
-                email: safeEmail
+                name: registry[phoneKey].name,
+                phone: safePhone
             });
             return;
         }
 
-        rememberUserEmail(safeName, safeEmail);
+        rememberUserPhone(safeName, safePhone);
 
         socket.emit("account-created", {
             name: safeName,
-            email: safeEmail
+            phone: safePhone
         });
     });
 
     socket.on("delete-account", () => {
 
         // only ever deletes the account of whoever is asking - the
-        // email comes from the server's own record of this socket's
-        // join, never from client-supplied input, so there's no way
-        // to delete someone else's account by passing a different
-        // email in the payload
-        if (!chatUserId || !socket.data.email) {
+        // phone number comes from the server's own record of this
+        // socket's join, never from client-supplied input, so there's
+        // no way to delete someone else's account by passing a
+        // different phone number in the payload
+        if (!chatUserId || !socket.data.phone) {
             socket.emit("account-delete-error", {
                 message: "You need to be signed in to delete your account."
             });
             return;
         }
 
-        const deleted = deleteUserAccount(socket.data.email);
+        const deleted = deleteUserAccount(socket.data.phone);
 
         if (!deleted) {
             socket.emit("account-delete-error", {
@@ -2511,7 +2782,230 @@ io.on("connection", (socket) => {
 
         chatUserId = null;
         socket.data.name = null;
-        socket.data.email = null;
+        socket.data.phone = null;
+    });
+
+
+    // ============================================================
+    // TWO-STEP VERIFICATION (PIN LOCK)
+    // Settings > Account > Two-step verification. All four handlers
+    // below only ever read/write the signed-in socket's own account
+    // (via socket.data.phone, set by finishJoin()), same rule as
+    // delete-account and request-account-info above.
+    // ============================================================
+
+    socket.on("get-two-step-status", () => {
+
+        if (!socket.data.phone) return;
+
+        const registry = readUsersRegistry();
+        const account = registry[normalizeKenyanPhone(socket.data.phone)];
+
+        socket.emit("two-step-status", { enabled: !!(account && account.pin) });
+    });
+
+    socket.on("set-two-step-pin", ({ pin } = {}) => {
+
+        if (!socket.data.phone) {
+            socket.emit("two-step-error", { message: "You need to be signed in to turn this on." });
+            return;
+        }
+
+        if (!isValidPin(pin)) {
+            socket.emit("two-step-error", { message: "Your PIN must be exactly 6 digits." });
+            return;
+        }
+
+        const phoneKey = normalizeKenyanPhone(socket.data.phone);
+        const registry = readUsersRegistry();
+        const account = registry[phoneKey];
+
+        if (!account) {
+            socket.emit("two-step-error", { message: "We couldn't find your account." });
+            return;
+        }
+
+        account.pin = hashPin(pin);
+        writeUsersRegistry(registry);
+
+        socket.emit("two-step-status", { enabled: true, justChanged: true });
+    });
+
+    socket.on("change-two-step-pin", ({ oldPin, newPin } = {}) => {
+
+        if (!socket.data.phone) {
+            socket.emit("two-step-error", { message: "You need to be signed in to do this." });
+            return;
+        }
+
+        const phoneKey = normalizeKenyanPhone(socket.data.phone);
+        const registry = readUsersRegistry();
+        const account = registry[phoneKey];
+
+        if (!account || !account.pin) {
+            socket.emit("two-step-error", { message: "Two-step verification isn't turned on." });
+            return;
+        }
+
+        if (!verifyPinHash(oldPin, account.pin)) {
+            socket.emit("two-step-error", { message: "That current PIN isn't right." });
+            return;
+        }
+
+        if (!isValidPin(newPin)) {
+            socket.emit("two-step-error", { message: "Your new PIN must be exactly 6 digits." });
+            return;
+        }
+
+        account.pin = hashPin(newPin);
+        writeUsersRegistry(registry);
+
+        socket.emit("two-step-status", { enabled: true, justChanged: true });
+    });
+
+    socket.on("disable-two-step-pin", ({ pin } = {}) => {
+
+        if (!socket.data.phone) {
+            socket.emit("two-step-error", { message: "You need to be signed in to do this." });
+            return;
+        }
+
+        const phoneKey = normalizeKenyanPhone(socket.data.phone);
+        const registry = readUsersRegistry();
+        const account = registry[phoneKey];
+
+        if (!account || !account.pin) {
+            socket.emit("two-step-status", { enabled: false });
+            return;
+        }
+
+        if (!verifyPinHash(pin, account.pin)) {
+            socket.emit("two-step-error", { message: "That PIN isn't right." });
+            return;
+        }
+
+        delete account.pin;
+        writeUsersRegistry(registry);
+
+        socket.emit("two-step-status", { enabled: false });
+    });
+
+
+    // ============================================================
+    // CHANGE NUMBER (Settings > Account > Change number)
+    // Moves the signed-in account to a new phone number. Chat
+    // history, friends, groups, blocked contacts, privacy prefs
+    // and everything else are keyed by name (see the userKey
+    // comment in finishJoin() above), never by phone number, so
+    // this only has to touch the users registry - it's an account
+    // lookup migration, not a data migration. Same self-only rule
+    // as delete-account/two-step above: the account being moved
+    // always comes from socket.data.phone, never client input.
+    // ============================================================
+
+    socket.on("change-number", ({ newPhone, pin } = {}) => {
+
+        if (!chatUserId || !socket.data.phone) {
+            socket.emit("change-number-error", {
+                message: "You need to be signed in to change your number."
+            });
+            return;
+        }
+
+        const safeNewPhone = String(newPhone || "").slice(0, 20).trim();
+
+        if (!isValidKenyanMobile(safeNewPhone)) {
+            socket.emit("change-number-error", {
+                message: "Enter a valid Safaricom or Airtel number."
+            });
+            return;
+        }
+
+        const oldPhoneKey = normalizeKenyanPhone(socket.data.phone);
+        const newPhoneKey = normalizeKenyanPhone(safeNewPhone);
+
+        if (!oldPhoneKey || !newPhoneKey) {
+            socket.emit("change-number-error", {
+                message: "That number doesn't look right."
+            });
+            return;
+        }
+
+        if (newPhoneKey === oldPhoneKey) {
+            socket.emit("change-number-error", {
+                message: "That's the number you're already using."
+            });
+            return;
+        }
+
+        const registry = readUsersRegistry();
+        const account = registry[oldPhoneKey];
+
+        if (!account) {
+            socket.emit("change-number-error", {
+                message: "We couldn't find your account."
+            });
+            return;
+        }
+
+        if (registry[newPhoneKey]) {
+            socket.emit("change-number-error", {
+                message: "That number is already registered to an account."
+            });
+            return;
+        }
+
+        // if two-step verification is on, the PIN has to be confirmed
+        // before the account can be moved - same protection WhatsApp
+        // asks for when changing number
+        if (account.pin && !verifyPinHash(pin, account.pin)) {
+            socket.emit("change-number-error", {
+                message: "Enter your two-step verification PIN to confirm."
+            });
+            return;
+        }
+
+        delete registry[oldPhoneKey];
+        registry[newPhoneKey] = { ...account, updatedAt: Date.now() };
+        writeUsersRegistry(registry);
+
+        // keep this session's own record in sync so a refresh or a
+        // second change right after this one uses the new number
+        socket.data.phone = newPhoneKey;
+
+        socket.emit("change-number-done", { phone: safeNewPhone });
+    });
+
+    socket.on("request-account-info", () => {
+
+        // WhatsApp Settings > Account > Request account info - hands
+        // back a copy of exactly what the server holds on this account.
+        // Same rule as delete-account: the phone comes from the
+        // server's own record of this socket, never from the client,
+        // so a person can only ever export their own data.
+        if (!socket.data.phone) {
+            socket.emit("account-info-error", {
+                message: "You need to be signed in to request your account info."
+            });
+            return;
+        }
+
+        const registry = readUsersRegistry();
+        const entry = registry[socket.data.phone];
+
+        if (!entry) {
+            socket.emit("account-info-error", {
+                message: "We couldn't find an account to export."
+            });
+            return;
+        }
+
+        socket.emit("account-info-export", {
+            name: entry.name,
+            phone: socket.data.phone,
+            accountUpdatedAt: entry.updatedAt || null,
+            exportedAt: Date.now()
+        });
     });
 
     socket.on("set-avatar", (avatarUrl) => {
@@ -3381,11 +3875,16 @@ io.on("connection", (socket) => {
 
         const next = {
             lastSeen: payload.lastSeen === "nobody" ? "nobody" : "everyone",
+            online: payload.online === "everyone" ? "everyone" : "same",
             readReceipts: payload.readReceipts !== false
         };
 
         // avoid a needless disk write when nothing actually changed
-        if (current.lastSeen === next.lastSeen && current.readReceipts === next.readReceipts) {
+        if (
+            current.lastSeen === next.lastSeen &&
+            current.online === next.online &&
+            current.readReceipts === next.readReceipts
+        ) {
             socket.emit("privacy-settings", current);
             return;
         }
@@ -3395,6 +3894,12 @@ io.on("connection", (socket) => {
         writePrivacyStore(store);
 
         socket.emit("privacy-settings", next);
+
+        // the online setting changes who's allowed to see this user in
+        // the live presence list, so everyone's list needs recomputing
+        if (current.online !== next.online || current.lastSeen !== next.lastSeen) {
+            broadcastChatUserList();
+        }
     });
 
     // last seen is fetched on demand (only when a chat is opened),
@@ -3631,38 +4136,171 @@ io.on("connection", (socket) => {
 
 
     // ------------------------------------------------------
+    // LINK A DEVICE (QR code, both directions - see the
+    // pendingDeviceLinks comment near onlineChatUsers above)
+    // ------------------------------------------------------
+
+    // A signed-out device (the join screen) asks for a code to show
+    // as a QR. Any already signed-in device can scan it to sign this
+    // one into the same account.
+    socket.on("request-device-link-code", () => {
+
+        if (chatUserId) return; // only the join screen needs this
+
+        const code = generateDeviceLinkCode();
+
+        const timer = setTimeout(() => {
+            pendingDeviceLinks.delete(code);
+            socket.emit("device-link-code-expired", { code });
+        }, DEVICE_LINK_CODE_TTL_MS);
+
+        pendingDeviceLinks.set(code, { kind: "await-scan", socketId: socket.id, timer });
+
+        socket.emit("device-link-code", { code, expiresInMs: DEVICE_LINK_CODE_TTL_MS });
+    });
+
+    // An already signed-in device scanned another device's QR code -
+    // confirm it and hand that other device this same account.
+    socket.on("confirm-device-link", ({ code } = {}) => {
+
+        if (!chatUserId || !socket.data.phone) {
+            socket.emit("device-link-error", {
+                message: "You need to be signed in to link another device."
+            });
+            return;
+        }
+
+        const safeCode = String(code || "").trim().toUpperCase();
+        const pending = safeCode ? pendingDeviceLinks.get(safeCode) : null;
+
+        if (!pending || pending.kind !== "await-scan") {
+            socket.emit("device-link-error", {
+                message: "That code has expired. Ask the other device to show a new QR code."
+            });
+            return;
+        }
+
+        const targetSocket = io.sockets.sockets.get(pending.socketId);
+        clearPendingDeviceLink(safeCode);
+
+        if (!targetSocket) {
+            socket.emit("device-link-error", {
+                message: "That device is no longer waiting to be linked."
+            });
+            return;
+        }
+
+        deviceLinkApprovedSockets.add(targetSocket.id);
+
+        targetSocket.emit("device-link-approved", {
+            phone: socket.data.phone,
+            name: socket.data.name
+        });
+
+        socket.emit("device-link-confirmed", { name: socket.data.name });
+    });
+
+    // A signed-in device generates a code for its own account and
+    // shows it as a QR. A signed-out device can scan and redeem it
+    // directly, no second device needed to confirm.
+    socket.on("generate-account-link-code", () => {
+
+        if (!chatUserId || !socket.data.phone) {
+            socket.emit("device-link-error", {
+                message: "You need to be signed in to generate a linking QR code."
+            });
+            return;
+        }
+
+        const code = generateDeviceLinkCode();
+        const phone = socket.data.phone;
+        const name = socket.data.name;
+        const generatorSocketId = socket.id;
+
+        const timer = setTimeout(() => {
+            pendingDeviceLinks.delete(code);
+        }, DEVICE_LINK_CODE_TTL_MS);
+
+        pendingDeviceLinks.set(code, { kind: "await-redeem", phone, name, generatorSocketId, timer });
+
+        socket.emit("device-link-code", { code, expiresInMs: DEVICE_LINK_CODE_TTL_MS });
+    });
+
+    // A signed-out device scanned a code generated by a signed-in
+    // device's account - sign this one into that same account.
+    socket.on("redeem-device-link-code", ({ code } = {}) => {
+
+        if (chatUserId) return; // only the join screen redeems these
+
+        const safeCode = String(code || "").trim().toUpperCase();
+        const pending = safeCode ? pendingDeviceLinks.get(safeCode) : null;
+
+        if (!pending || pending.kind !== "await-redeem") {
+            socket.emit("device-link-error", {
+                message: "That QR code has expired. Generate a new one on the signed-in device."
+            });
+            return;
+        }
+
+        clearPendingDeviceLink(safeCode);
+        deviceLinkApprovedSockets.add(socket.id);
+
+        socket.emit("device-link-approved", {
+            phone: pending.phone,
+            name: pending.name
+        });
+
+        const generatorSocket = io.sockets.sockets.get(pending.generatorSocketId);
+        if (generatorSocket) {
+            generatorSocket.emit("device-link-code-redeemed");
+        }
+    });
+
+
+    // ------------------------------------------------------
     // MESSAGE CONTEXT MENU (right-click / long-press)
     // Only "star" needs a server round-trip: reply/copy are
     // handled entirely client-side, and pin/delete already have
     // their own dedicated events higher up in this file.
     // ------------------------------------------------------
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
+
+        deviceLinkApprovedSockets.delete(socket.id);
+
+        for (const [code, pending] of pendingDeviceLinks) {
+            if (pending.kind === "await-scan" && pending.socketId === socket.id) {
+                clearPendingDeviceLink(code);
+            }
+        }
 
         if (!chatUserId || !onlineChatUsers.has(chatUserId)) return;
 
-        // don't drop them offline immediately - a locked phone or a
-        // backgrounded tab disconnects the socket too, and they're
-        // still reachable by push. Only actually go offline if they
-        // haven't reconnected by the end of the grace window.
-        cancelPendingOffline(chatUserId);
-
         const userKey = chatUserId;
+
+        // "client namespace disconnect" is what the server sees when the
+        // client itself called socket.disconnect() - which our own
+        // "pagehide" handler on the client only does for an intentional
+        // tab close/navigation (not a backgrounded tab or a dropped
+        // connection). We can trust that one: skip the grace window and
+        // mark them offline right away instead of waiting 45s.
+        if (reason === "client namespace disconnect") {
+            cancelPendingOffline(userKey);
+            dropUserOffline(userKey);
+            return;
+        }
+
+        // any other reason (ping timeout, transport close, transport
+        // error) could just as easily be a locked phone or a brief
+        // network blip, and they're still reachable by push - so don't
+        // drop them offline immediately. Only actually go offline if
+        // they haven't reconnected by the end of the grace window.
+        cancelPendingOffline(userKey);
+
         const timer = setTimeout(() => {
 
             pendingOfflineTimers.delete(userKey);
-
-            if (!onlineChatUsers.has(userKey) || hasActiveSocket(userKey)) return;
-
-            const name = onlineChatUsers.get(userKey).name;
-            onlineChatUsers.delete(userKey);
-
-            const lastSeenStore = readLastSeenStore();
-            lastSeenStore[userKey] = Date.now();
-            writeLastSeenStore(lastSeenStore);
-
-            broadcastChatUserList();
-            io.emit("system-message", `${name} left the chat`);
+            dropUserOffline(userKey);
 
         }, PRESENCE_GRACE_MS);
 
@@ -3989,9 +4627,12 @@ function isBlockedPair(store, a, b) {
 function readLastSeenStore() { return readJsonStore(lastSeenFile, {}); }
 function writeLastSeenStore(store) { writeJsonStore(lastSeenFile, store); }
 
-// ---- privacy settings (last seen visibility, read receipts) ----
+// ---- privacy settings (last seen visibility, online visibility, read receipts) ----
 
-const DEFAULT_PRIVACY = { lastSeen: "everyone", readReceipts: true };
+// "online" mirrors WhatsApp's "Who can see when I'm online":
+// "same" ties it to the lastSeen setting above, "everyone" shows
+// the online dot regardless of the lastSeen choice.
+const DEFAULT_PRIVACY = { lastSeen: "everyone", online: "same", readReceipts: true };
 
 function readPrivacyStore() { return readJsonStore(userPrivacyFile, {}); }
 function writePrivacyStore(store) { writeJsonStore(userPrivacyFile, store); }
@@ -3999,6 +4640,14 @@ function writePrivacyStore(store) { writeJsonStore(userPrivacyFile, store); }
 function getPrivacyPrefs(userId) {
     const store = readPrivacyStore();
     return { ...DEFAULT_PRIVACY, ...(store[userId] || {}) };
+}
+
+// whether userId's online status is allowed to be shown to other
+// people at all (used to build everyone else's presence list)
+function isOnlineVisibleToOthers(userId) {
+    const prefs = getPrivacyPrefs(userId);
+    if (prefs.online === "everyone") return true;
+    return prefs.lastSeen === "everyone";
 }
 
 

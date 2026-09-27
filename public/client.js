@@ -11,6 +11,13 @@ const socket = io({
     transports: ["websocket", "polling"]
 });
 
+// The public URL this app is deployed at. Invite links, and anything
+// else meant to be opened on a different device, always point here
+// instead of window.location.origin - which would be
+// "http://localhost:####" while testing locally, a link that's
+// useless to whoever actually receives it.
+const PUBLIC_SITE_URL = "https://ads-1-z5vy.onrender.com";
+
 // ============================================================
 // THEME (light / dark) - WhatsApp Settings > Chats > Theme
 // ============================================================
@@ -185,8 +192,19 @@ let replyingTo = null;
 let editingMessage = null;
 const EDIT_MESSAGE_WINDOW_MS = 15 * 60 * 1000;
 let currentAccountView = null;
-let myPrivacySettings = { lastSeen: "everyone", readReceipts: true };
+let myPrivacySettings = { lastSeen: "everyone", online: "same", readReceipts: true };
 let myBlockedContactIds = [];
+
+const savedName =
+    localStorage.getItem("siteChatName");
+
+const savedPhone =
+    localStorage.getItem("siteChatPhone");
+
+// the phone number shown in Settings > Account - starts as whatever
+// was saved at sign-in, updated in place after a successful "Change
+// number" so a page refresh isn't needed to see the new one
+let myAccountPhone = savedPhone;
 
 // one pinned message id per conversation: { [convoKey]: messageId }
 const pinnedMessages = {};
@@ -236,12 +254,6 @@ const pendingSent = new Set(
 
 const pendingReceived = new Map();
 
-const savedName =
-    localStorage.getItem("siteChatName");
-
-const savedEmail =
-    localStorage.getItem("siteChatEmail");
-
 
 // ============================================================
 // DOM
@@ -253,8 +265,8 @@ const joinScreen =
 const nameInput =
     document.getElementById("nameInput");
 
-const emailInput =
-    document.getElementById("emailInput");
+const phoneInput =
+    document.getElementById("phoneInput");
 
 const joinBtn =
     document.getElementById("joinBtn");
@@ -268,6 +280,14 @@ const autoSigninState =
 const autoSigninText =
     document.getElementById("autoSigninText");
 
+// Guards the "Welcome back - signing you in..." state below: if the
+// server never answers the auto-join with any of "joined",
+// "name-taken", "account-required", or "connect_error" (a hung
+// request, a dropped connection that doesn't error out, etc.), the
+// screen would otherwise sit on that message forever with no way
+// out. This forces it back to the normal form after a timeout.
+let autoSigninTimeout = null;
+
 const forgotNameBtn =
     document.getElementById("forgotNameBtn");
 
@@ -280,8 +300,8 @@ const forgotNameBackdrop =
 const closeForgotModal =
     document.getElementById("closeForgotModal");
 
-const forgotEmailInput =
-    document.getElementById("forgotEmailInput");
+const forgotPhoneInput =
+    document.getElementById("forgotPhoneInput");
 
 const forgotNameMsg =
     document.getElementById("forgotNameMsg");
@@ -304,14 +324,32 @@ const closeCreateAccountModalBtn =
 const createAccountNameInput =
     document.getElementById("createAccountNameInput");
 
-const createAccountEmailInput =
-    document.getElementById("createAccountEmailInput");
+const createAccountPhoneInput =
+    document.getElementById("createAccountPhoneInput");
 
 const createAccountMsg =
     document.getElementById("createAccountMsg");
 
 const createAccountSubmit =
     document.getElementById("createAccountSubmit");
+
+const twoStepPinModal =
+    document.getElementById("twoStepPinModal");
+
+const twoStepPinBackdrop =
+    document.getElementById("twoStepPinBackdrop");
+
+const closeTwoStepPinModalBtn =
+    document.getElementById("closeTwoStepPinModal");
+
+const twoStepPinInput =
+    document.getElementById("twoStepPinInput");
+
+const twoStepPinMsg =
+    document.getElementById("twoStepPinMsg");
+
+const twoStepPinSubmit =
+    document.getElementById("twoStepPinSubmit");
 
 const niceAlertModal =
     document.getElementById("niceAlertModal");
@@ -1140,9 +1178,9 @@ if (nameInput) {
 }
 
 
-if (emailInput) {
+if (phoneInput) {
 
-    emailInput.addEventListener(
+    phoneInput.addEventListener(
         "keydown",
         (e) => {
 
@@ -1156,19 +1194,53 @@ if (emailInput) {
 }
 
 
+// Only Safaricom and Airtel Kenya mobile numbers are accepted. This
+// mirrors the server-side check in server.js - type="tel" on the
+// inputs doesn't validate anything on its own, so we check it
+// ourselves. Accepts 07XX/01XX local format or +254/254 country-code
+// format, with spaces/dashes stripped.
+//
+// Declared here, above the auto sign-in block below, on purpose:
+// a returning user's join() call fires immediately on page load and
+// reaches isValidKenyanMobile() synchronously, so these lists must
+// already be initialized by then. They used to sit further down the
+// file - past the point that first call happens - which threw
+// "Cannot access 'SAFARICOM_PREFIXES' before initialization" and
+// aborted the rest of this script (every socket.on handler included)
+// before it ever ran, leaving returning users stuck on the
+// "signing you in…" screen forever.
+const SAFARICOM_PREFIXES = [
+    "110", "111", "112", "113", "114", "115", "116", "117", "118", "119",
+    "140", "141", "142", "143", "180", "181", "182",
+    "700", "701", "702", "703", "704", "705", "706", "707", "708", "709",
+    "710", "711", "712", "713", "714", "715", "716", "717", "718", "719",
+    "720", "721", "722", "723", "724", "725", "726", "727", "728", "729",
+    "740", "741", "742", "743", "745", "746", "748",
+    "757", "758", "759", "768", "769",
+    "790", "791", "792", "793", "794", "795", "796", "797", "798", "799"
+];
+
+const AIRTEL_PREFIXES = [
+    "100", "101", "102", "103", "104", "105", "106", "107", "108",
+    "730", "731", "732", "733", "734", "735", "736", "737", "738", "739",
+    "750", "751", "752", "753", "754", "755", "756",
+    "780", "781", "782", "783", "784", "785", "786", "787", "788", "789"
+];
+
+
 // ---- returning user: auto sign back in until they log out ----
 
 if (
     savedName &&
-    savedEmail &&
+    savedPhone &&
     nameInput
 ) {
 
     nameInput.value =
         savedName;
 
-    if (emailInput) {
-        emailInput.value = savedEmail;
+    if (phoneInput) {
+        phoneInput.value = savedPhone;
     }
 
     // show a lightweight "signing you in…" state instead of the
@@ -1185,21 +1257,57 @@ if (
 
     join();
 
+    autoSigninTimeout = setTimeout(() => {
+
+        autoSigninTimeout = null;
+        resetJoinButton();
+
+        showNiceAlert(
+            "That's taking longer than expected. Please check your connection and tap Join again.",
+            { title: "Couldn't sign you in", icon: "fa-triangle-exclamation" }
+        );
+
+    }, 12000);
+
 } else if (savedName && nameInput) {
 
-    // we know their name but not their email (e.g. saved before
-    // accounts existed) - pre-fill it but let them fill in email
-    // and tap Join themselves rather than auto-submitting
+    // we know their name but not their phone number (e.g. saved
+    // before accounts existed) - pre-fill it but let them fill in
+    // their phone number and tap Join themselves rather than
+    // auto-submitting
     nameInput.value = savedName;
 
 }
 
 
-// a real email check - type="email" on the inputs only validates
-// through the browser's native form machinery, which we bypass by
-// reading .value directly on button clicks, so we check it ourselves
-function isValidEmail(value) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+function toNationalDigits(value) {
+
+    const cleaned = String(value || "").replace(/[\s\-().]/g, "");
+
+    let digits = null;
+
+    if (cleaned.startsWith("+254")) {
+        digits = cleaned.slice(4);
+    } else if (cleaned.startsWith("254")) {
+        digits = cleaned.slice(3);
+    } else if (cleaned.startsWith("0")) {
+        digits = cleaned.slice(1);
+    } else {
+        digits = cleaned;
+    }
+
+    return /^\d{9}$/.test(digits) ? digits : null;
+}
+
+function isValidKenyanMobile(value) {
+
+    const digits = toNationalDigits(value);
+
+    if (!digits) return false;
+
+    const prefix = digits.slice(0, 3);
+
+    return SAFARICOM_PREFIXES.includes(prefix) || AIRTEL_PREFIXES.includes(prefix);
 }
 
 function join() {
@@ -1211,45 +1319,31 @@ function join() {
 
     if (!name) return;
 
-    const email =
-        emailInput ? emailInput.value.trim() : "";
+    const phone =
+        phoneInput ? phoneInput.value.trim() : "";
 
-    if (!email) {
+    if (!phone) {
 
         resetJoinButton();
 
         showNiceAlert(
-            "Enter the email you used to create your account, then join. Don't have one yet? Tap \"Create new account\" first.",
-            { title: "Email needed", icon: "fa-user-lock", onClose: () => {
-                if (emailInput) emailInput.focus();
+            "Enter the phone number you used to create your account, then join. Don't have one yet? Tap \"Create new account\" first.",
+            { title: "Phone number needed", icon: "fa-user-lock", onClose: () => {
+                if (phoneInput) phoneInput.focus();
             } }
         );
 
         return;
     }
 
-    if (name.includes("@")) {
+    if (!isValidKenyanMobile(phone)) {
 
         resetJoinButton();
 
         showNiceAlert(
-            "That doesn't look like a name. Check you haven't put your email in the name field.",
-            { title: "Check your name", icon: "fa-triangle-exclamation", onClose: () => {
-                if (nameInput) nameInput.focus();
-            } }
-        );
-
-        return;
-    }
-
-    if (!isValidEmail(email)) {
-
-        resetJoinButton();
-
-        showNiceAlert(
-            "Enter a valid email address (e.g. name@example.com).",
-            { title: "Check your email", icon: "fa-triangle-exclamation", onClose: () => {
-                if (emailInput) emailInput.focus();
+            "Enter a valid Safaricom or Airtel Kenya number (e.g. 0722 123 456).",
+            { title: "Check your phone number", icon: "fa-triangle-exclamation", onClose: () => {
+                if (phoneInput) phoneInput.focus();
             } }
         );
 
@@ -1266,7 +1360,7 @@ function join() {
         name
     );
 
-    localStorage.setItem("siteChatEmail", email);
+    localStorage.setItem("siteChatPhone", phone);
 
     if (joinBtn) {
 
@@ -1284,7 +1378,7 @@ function join() {
 
     socket.emit(
         "join",
-        { name, email }
+        { name, phone }
     );
 
 }
@@ -1294,6 +1388,11 @@ function resetJoinButton() {
 
     // back out of the "signing you in…" auto-login state, if we
     // were in it, and show the real form again
+    if (autoSigninTimeout) {
+        clearTimeout(autoSigninTimeout);
+        autoSigninTimeout = null;
+    }
+
     if (joinFormFields) joinFormFields.classList.remove("hidden");
     if (autoSigninState) autoSigninState.classList.add("hidden");
 
@@ -1451,12 +1550,12 @@ socket.on(
 
 socket.on(
     "account-required",
-    ({ reason, email, name } = {}) => {
+    ({ reason, phone, name } = {}) => {
 
         resetJoinButton();
 
         localStorage.removeItem("siteChatName");
-        localStorage.removeItem("siteChatEmail");
+        localStorage.removeItem("siteChatPhone");
 
         if (joinScreen) joinScreen.classList.remove("hidden");
         if (app) app.classList.add("hidden");
@@ -1464,13 +1563,13 @@ socket.on(
         let message;
 
         if (reason === "not-found") {
-            message = `We don't have an account for ${email || "that email"} yet. Tap "Create new account" first.`;
+            message = `We don't have an account for ${phone || "that phone number"} yet. Tap "Create new account" first.`;
         } else if (reason === "mismatch") {
-            message = `That name doesn't match the account for ${email || "that email"}${name ? ` (it's registered as "${name}")` : ""}. Try "Forgot your name?" or check your email.`;
-        } else if (reason === "invalid-email") {
-            message = "That doesn't look like a valid email address. Please check it and try again.";
+            message = `That name doesn't match the account for ${phone || "that phone number"}${name ? ` (it's registered as "${name}")` : ""}. Try "Forgot your name?" or check your phone number.`;
+        } else if (reason === "invalid-phone") {
+            message = "Enter a valid Safaricom or Airtel Kenya number. Please check it and try again.";
         } else {
-            message = "Enter the email you used to create your account, then join.";
+            message = "Enter the phone number you used to create your account, then join.";
         }
 
         showNiceAlert(
@@ -1481,7 +1580,7 @@ socket.on(
                     nameInput.value = name;
                 }
 
-                if (emailInput) emailInput.focus();
+                if (phoneInput) phoneInput.focus();
                 else if (nameInput) nameInput.focus();
 
             } }
@@ -1492,15 +1591,148 @@ socket.on(
 
 
 // ============================================================
-// FORGOT NAME (looks up the name saved against an email)
+// TWO-STEP VERIFICATION (PIN prompt shown at login)
+// ============================================================
+
+// which phone number the pending "join-verify-pin" submission is
+// for - set when the server tells us this account has a PIN, and
+// cleared once the modal closes (by success or by cancelling)
+let pendingTwoStepPhone = null;
+
+socket.on(
+    "two-step-pin-required",
+    ({ phone } = {}) => {
+
+        resetJoinButton();
+
+        pendingTwoStepPhone =
+            phone || (phoneInput ? phoneInput.value.trim() : "");
+
+        openTwoStepPinModal();
+    }
+);
+
+socket.on(
+    "two-step-pin-incorrect",
+    () => {
+
+        if (twoStepPinSubmit) {
+            twoStepPinSubmit.disabled = false;
+            twoStepPinSubmit.textContent = "Verify";
+        }
+
+        if (twoStepPinMsg) {
+            twoStepPinMsg.textContent = "That PIN isn't right. Try again.";
+            twoStepPinMsg.classList.remove("hidden");
+        }
+
+        if (twoStepPinInput) {
+            twoStepPinInput.value = "";
+            twoStepPinInput.focus();
+        }
+    }
+);
+
+function openTwoStepPinModal() {
+
+    if (!twoStepPinModal) return;
+
+    if (twoStepPinInput) twoStepPinInput.value = "";
+
+    if (twoStepPinMsg) {
+        twoStepPinMsg.classList.add("hidden");
+        twoStepPinMsg.textContent = "";
+    }
+
+    if (twoStepPinSubmit) {
+        twoStepPinSubmit.disabled = false;
+        twoStepPinSubmit.textContent = "Verify";
+    }
+
+    twoStepPinModal.classList.remove("hidden");
+
+    if (twoStepPinInput) twoStepPinInput.focus();
+}
+
+function closeTwoStepPinModal() {
+
+    if (!twoStepPinModal) return;
+
+    twoStepPinModal.classList.add("hidden");
+    pendingTwoStepPhone = null;
+}
+
+function submitTwoStepPin() {
+
+    if (!twoStepPinInput || !pendingTwoStepPhone) return;
+
+    const pin = twoStepPinInput.value.trim();
+
+    if (!/^\d{6}$/.test(pin)) {
+
+        if (twoStepPinMsg) {
+            twoStepPinMsg.textContent = "Enter all 6 digits of your PIN.";
+            twoStepPinMsg.classList.remove("hidden");
+        }
+
+        return;
+    }
+
+    if (twoStepPinMsg) {
+        twoStepPinMsg.classList.add("hidden");
+        twoStepPinMsg.textContent = "";
+    }
+
+    if (twoStepPinSubmit) {
+        twoStepPinSubmit.disabled = true;
+        twoStepPinSubmit.textContent = "Verifying…";
+    }
+
+    socket.emit("join-verify-pin", { phone: pendingTwoStepPhone, pin });
+}
+
+if (twoStepPinSubmit) {
+    twoStepPinSubmit.addEventListener("click", submitTwoStepPin);
+}
+
+if (twoStepPinInput) {
+
+    twoStepPinInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") submitTwoStepPin();
+    });
+
+    // numeric-only, capped at 6 digits, as the person types
+    twoStepPinInput.addEventListener("input", () => {
+        twoStepPinInput.value =
+            twoStepPinInput.value.replace(/\D/g, "").slice(0, 6);
+    });
+}
+
+if (closeTwoStepPinModalBtn) {
+    closeTwoStepPinModalBtn.addEventListener("click", () => {
+        closeTwoStepPinModal();
+        resetJoinButton();
+    });
+}
+
+if (twoStepPinBackdrop) {
+    twoStepPinBackdrop.addEventListener("click", () => {
+        closeTwoStepPinModal();
+        resetJoinButton();
+    });
+}
+
+
+// ============================================================
+// FORGOT NAME (looks up the name saved against a phone number)
 // ============================================================
 
 function openForgotNameModal() {
 
     if (!forgotNameModal) return;
 
-    if (forgotEmailInput) {
-        forgotEmailInput.value = emailInput ? emailInput.value.trim() : "";
+    if (forgotPhoneInput) {
+        forgotPhoneInput.value = phoneInput ? phoneInput.value.trim() : "";
     }
 
     if (forgotNameMsg) {
@@ -1510,7 +1742,7 @@ function openForgotNameModal() {
 
     forgotNameModal.classList.remove("hidden");
 
-    if (forgotEmailInput) forgotEmailInput.focus();
+    if (forgotPhoneInput) forgotPhoneInput.focus();
 }
 
 function closeForgotNameModal() {
@@ -1531,21 +1763,21 @@ if (forgotNameBackdrop) {
 
 function submitForgotName() {
 
-    if (!forgotEmailInput) return;
+    if (!forgotPhoneInput) return;
 
-    const email = forgotEmailInput.value.trim();
+    const phone = forgotPhoneInput.value.trim();
 
-    if (!email) {
+    if (!phone) {
         if (forgotNameMsg) {
-            forgotNameMsg.textContent = "Enter the email you used before.";
+            forgotNameMsg.textContent = "Enter the phone number you used before.";
             forgotNameMsg.classList.remove("hidden");
         }
         return;
     }
 
-    if (!isValidEmail(email)) {
+    if (!isValidKenyanMobile(phone)) {
         if (forgotNameMsg) {
-            forgotNameMsg.textContent = "Enter a valid email address (e.g. name@example.com).";
+            forgotNameMsg.textContent = "Enter a valid Safaricom or Airtel Kenya number (e.g. 0722 123 456).";
             forgotNameMsg.classList.remove("hidden");
         }
         return;
@@ -1561,22 +1793,22 @@ function submitForgotName() {
         forgotNameSubmit.textContent = "Looking…";
     }
 
-    socket.emit("forgot-name", { email });
+    socket.emit("forgot-name", { phone });
 }
 
 if (forgotNameSubmit) {
     forgotNameSubmit.addEventListener("click", submitForgotName);
 }
 
-if (forgotEmailInput) {
+if (forgotPhoneInput) {
 
-    forgotEmailInput.addEventListener("keydown", (e) => {
+    forgotPhoneInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") submitForgotName();
     });
 
 }
 
-socket.on("name-lookup-result", ({ found, name, email }) => {
+socket.on("name-lookup-result", ({ found, name, phone }) => {
 
     if (forgotNameSubmit) {
         forgotNameSubmit.disabled = false;
@@ -1586,7 +1818,7 @@ socket.on("name-lookup-result", ({ found, name, email }) => {
     if (found && name) {
 
         if (nameInput) nameInput.value = name;
-        if (emailInput) emailInput.value = email || (forgotEmailInput ? forgotEmailInput.value.trim() : "");
+        if (phoneInput) phoneInput.value = phone || (forgotPhoneInput ? forgotPhoneInput.value.trim() : "");
 
         closeForgotNameModal();
 
@@ -1597,7 +1829,7 @@ socket.on("name-lookup-result", ({ found, name, email }) => {
 
     } else if (forgotNameMsg) {
 
-        forgotNameMsg.textContent = "We couldn't find a name saved for that email.";
+        forgotNameMsg.textContent = "We couldn't find a name saved for that phone number.";
         forgotNameMsg.classList.remove("hidden");
 
     }
@@ -1606,9 +1838,9 @@ socket.on("name-lookup-result", ({ found, name, email }) => {
 
 
 // ============================================================
-// CREATE ACCOUNT (registers a name against an email so "Join"
+// CREATE ACCOUNT (registers a name against a phone number so "Join"
 // and "Forgot your name?" can find it later; refuses to create
-// a duplicate if that email is already registered)
+// a duplicate if that phone number is already registered)
 // ============================================================
 
 function openCreateAccountModal() {
@@ -1619,8 +1851,8 @@ function openCreateAccountModal() {
         createAccountNameInput.value = nameInput ? nameInput.value.trim() : "";
     }
 
-    if (createAccountEmailInput) {
-        createAccountEmailInput.value = emailInput ? emailInput.value.trim() : "";
+    if (createAccountPhoneInput) {
+        createAccountPhoneInput.value = phoneInput ? phoneInput.value.trim() : "";
     }
 
     if (createAccountMsg) {
@@ -1659,40 +1891,29 @@ function resetCreateAccountSubmit() {
 
 function submitCreateAccount() {
 
-    if (!createAccountNameInput || !createAccountEmailInput) return;
+    if (!createAccountNameInput || !createAccountPhoneInput) return;
 
     const name = createAccountNameInput.value.trim();
-    const email = createAccountEmailInput.value.trim();
+    const phone = createAccountPhoneInput.value.trim();
 
-    if (!name || !email) {
+    if (!name || !phone) {
 
         if (createAccountMsg) {
-            createAccountMsg.textContent = "Enter both your name and email.";
+            createAccountMsg.textContent = "Enter both your name and phone number.";
             createAccountMsg.classList.remove("hidden");
         }
 
         return;
     }
 
-    if (name.includes("@")) {
+    if (!isValidKenyanMobile(phone)) {
 
         if (createAccountMsg) {
-            createAccountMsg.textContent = "That doesn't look like a name — check the name and email fields aren't swapped.";
+            createAccountMsg.textContent = "Enter a valid Safaricom or Airtel Kenya number (e.g. 0722 123 456).";
             createAccountMsg.classList.remove("hidden");
         }
 
-        createAccountNameInput.focus();
-        return;
-    }
-
-    if (!isValidEmail(email)) {
-
-        if (createAccountMsg) {
-            createAccountMsg.textContent = "Enter a valid email address (e.g. name@example.com).";
-            createAccountMsg.classList.remove("hidden");
-        }
-
-        createAccountEmailInput.focus();
+        createAccountPhoneInput.focus();
         return;
     }
 
@@ -1706,7 +1927,7 @@ function submitCreateAccount() {
         createAccountSubmit.textContent = "Creating…";
     }
 
-    socket.emit("create-account", { name, email });
+    socket.emit("create-account", { name, phone });
 }
 
 if (createAccountSubmit) {
@@ -1721,15 +1942,15 @@ if (createAccountNameInput) {
 
 }
 
-if (createAccountEmailInput) {
+if (createAccountPhoneInput) {
 
-    createAccountEmailInput.addEventListener("keydown", (e) => {
+    createAccountPhoneInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") submitCreateAccount();
     });
 
 }
 
-socket.on("account-created", ({ name, email } = {}) => {
+socket.on("account-created", ({ name, phone } = {}) => {
 
     resetCreateAccountSubmit();
     closeCreateAccountModal();
@@ -1737,13 +1958,13 @@ socket.on("account-created", ({ name, email } = {}) => {
     // carry the new account straight into the join fields so the
     // person can just hit "Join Site Chat" next
     if (nameInput && name) nameInput.value = name;
-    if (emailInput && email) emailInput.value = email;
+    if (phoneInput && phone) phoneInput.value = phone;
 
     // and remember it locally too, so the NEXT time they open the
     // site (new tab, closed browser, etc.) the join screen already
     // has it filled in / auto-signs them straight in
     if (name) localStorage.setItem("siteChatName", name);
-    if (email) localStorage.setItem("siteChatEmail", email);
+    if (phone) localStorage.setItem("siteChatPhone", phone);
 
     showNiceAlert(
         `Account created — welcome, ${name}! Tap "Join Site Chat" to get started.`,
@@ -1752,18 +1973,18 @@ socket.on("account-created", ({ name, email } = {}) => {
 
 });
 
-socket.on("account-exists", ({ name, email } = {}) => {
+socket.on("account-exists", ({ name, phone } = {}) => {
 
     resetCreateAccountSubmit();
     closeCreateAccountModal();
 
     // don't overwrite an existing account - just point them at Join,
     // pre-filling what we already know so it's a single tap
-    if (emailInput && email) emailInput.value = email;
+    if (phoneInput && phone) phoneInput.value = phone;
     if (nameInput && name) nameInput.value = name;
 
     showNiceAlert(
-        `An account with that email already exists${name ? ` (${name})` : ""}. Please join the chat instead.`,
+        `An account with that phone number already exists${name ? ` (${name})` : ""}. Please join the chat instead.`,
         { title: "Account already exists", icon: "fa-user-check" }
     );
 
@@ -1789,6 +2010,13 @@ socket.on("account-create-error", ({ message } = {}) => {
 socket.on(
     "joined",
     (payload) => {
+
+        if (autoSigninTimeout) {
+            clearTimeout(autoSigninTimeout);
+            autoSigninTimeout = null;
+        }
+
+        closeTwoStepPinModal();
 
         me = payload;
 
@@ -1919,6 +2147,93 @@ document.addEventListener(
 
     }
 );
+
+// ---- go offline the instant the tab is actually closed/navigated
+// away from, rather than staying "online" for other people until
+// Socket.IO's own ping-timeout notices the connection is gone ----
+//
+// A dropped connection (network blip, phone locking) should NOT
+// immediately mark someone offline - it might just be a blip, and
+// the reconnect logic above already handles coming back from that.
+// But an intentional close (closing the tab, navigating away) should
+// mark them offline right away, so a friend reopening the app later
+// sees accurate presence instead of a stale "online" from a session
+// that's actually long gone.
+//
+// "pagehide" is the reliable one for this (unlike "beforeunload",
+// it fires on mobile Safari and on tab close, and also on bfcache
+// navigation - handled below via "pageshow").
+window.addEventListener(
+    "pagehide",
+    (e) => {
+
+        // if the page is only going into the back/forward cache (the
+        // user might come straight back with the back button), leave
+        // the connection alone - closing it here would incorrectly
+        // mark them offline for a page that isn't really gone
+        if (e.persisted) return;
+
+        if (socket.connected) {
+            socket.disconnect();
+        }
+
+    }
+);
+
+// if the page IS restored from the back/forward cache, the socket
+// from before may have been closed by the browser anyway - reconnect
+// so presence comes back instead of silently staying disconnected
+window.addEventListener(
+    "pageshow",
+    (e) => {
+
+        if (e.persisted && !socket.connected) {
+            socket.connect();
+        }
+
+    }
+);
+
+
+// ============================================================
+// SYSTEM MESSAGES (server-wide join/leave notices, e.g.
+// "X joined the chat" / "X left the chat") - shown as a brief
+// toast rather than dropped into whichever chat happens to be
+// open, since these aren't about any one conversation.
+// ============================================================
+
+let systemToastTimer = null;
+
+function showSystemToast(text) {
+
+    if (!text) return;
+
+    let toast = document.getElementById("systemToast");
+
+    if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "systemToast";
+        toast.className = "system-toast";
+        document.body.appendChild(toast);
+    }
+
+    toast.textContent = text;
+
+    // restart the "visible" animation even if a toast is already
+    // showing, so a quick run of joins/leaves each get their own turn
+    toast.classList.remove("visible");
+    void toast.offsetWidth; // force reflow so the class removal registers
+    toast.classList.add("visible");
+
+    clearTimeout(systemToastTimer);
+    systemToastTimer = setTimeout(() => {
+        toast.classList.remove("visible");
+    }, 3000);
+}
+
+socket.on("system-message", (text) => {
+    showSystemToast(text);
+});
 
 
 // ============================================================
@@ -2574,7 +2889,7 @@ socket.on("group-invite", ({ groupId, code } = {}) => {
 
     if (!code) return;
 
-    const link = `${location.origin}/?invite=${encodeURIComponent(code)}`;
+    const link = `${PUBLIC_SITE_URL}/?invite=${encodeURIComponent(code)}`;
 
     if (pendingInviteAction === "copy") {
 
@@ -4166,8 +4481,8 @@ function renderAccountPanel(
         ],
 
         settings: [
-            "Notifications & calls",
-            "Choose your message notification sound and call ringtone"
+            "Chats & notifications",
+            "Dark theme, message notification sound and call ringtone"
         ],
 
         starred: [
@@ -4183,6 +4498,31 @@ function renderAccountPanel(
         "linked-devices": [
             "Linked devices",
             "Manage where you're logged in"
+        ],
+
+        account: [
+            "Account",
+            "Your account details and data"
+        ],
+
+        "two-step": [
+            "Two-step verification",
+            "Require a PIN alongside your phone number when signing in"
+        ],
+
+        "change-number": [
+            "Change number",
+            "Move your account to a new phone number"
+        ],
+
+        "storage-data": [
+            "Storage and data",
+            "Manage the space this app uses on your device"
+        ],
+
+        help: [
+            "Help",
+            "Get help, and learn more about this app"
         ]
 
     };
@@ -4431,6 +4771,51 @@ function renderAccountPanel(
         renderLinkedDevicesPanel();
     }
 
+
+    // --------------------------------------------------------
+    // ACCOUNT
+    // --------------------------------------------------------
+
+    if (view === "account") {
+        renderAccountInfoPanel();
+    }
+
+
+    // --------------------------------------------------------
+    // TWO-STEP VERIFICATION
+    // --------------------------------------------------------
+
+    if (view === "two-step") {
+        renderTwoStepPanel();
+    }
+
+
+    // --------------------------------------------------------
+    // CHANGE NUMBER
+    // --------------------------------------------------------
+
+    if (view === "change-number") {
+        renderChangeNumberPanel();
+    }
+
+
+    // --------------------------------------------------------
+    // STORAGE AND DATA
+    // --------------------------------------------------------
+
+    if (view === "storage-data") {
+        renderStorageDataPanel();
+    }
+
+
+    // --------------------------------------------------------
+    // HELP
+    // --------------------------------------------------------
+
+    if (view === "help") {
+        renderHelpPanel();
+    }
+
 }
 
 
@@ -4546,6 +4931,42 @@ function drawPrivacyPanel() {
     lastSeenBlock.appendChild(lastSeenToggle);
     accountPanelBody.appendChild(lastSeenBlock);
 
+    // ---- who can see when I'm online ----
+    const onlineBlock = document.createElement("div");
+    onlineBlock.className = "settings-block";
+    onlineBlock.innerHTML = `
+        <h4 class="settings-heading">Online</h4>
+        <p class="settings-hint">Choose who can see when you're active, separately from last seen.</p>
+    `;
+
+    const onlineOptions = [
+        { value: "same", label: "Same as last seen", hint: "Follows your last seen choice above" },
+        { value: "everyone", label: "Everyone", hint: "Always show your online status, even if last seen is hidden" }
+    ];
+
+    onlineOptions.forEach(({ value, label, hint }) => {
+
+        const row = document.createElement("label");
+        row.className = "group-info-toggle-row";
+        row.innerHTML = `
+            <span>
+                <strong>${label}</strong>
+                <small>${hint}</small>
+            </span>
+            <input type="radio" name="onlineVisibility" value="${value}" ${myPrivacySettings.online === value ? "checked" : ""}>
+        `;
+
+        row.querySelector("input").addEventListener("change", (e) => {
+            if (!e.target.checked) return;
+            myPrivacySettings.online = value;
+            socket.emit("set-privacy-settings", myPrivacySettings);
+        });
+
+        onlineBlock.appendChild(row);
+    });
+
+    accountPanelBody.appendChild(onlineBlock);
+
     // ---- read receipts ----
     const readReceiptsBlock = document.createElement("div");
     readReceiptsBlock.className = "settings-block";
@@ -4656,6 +5077,933 @@ function renderLinkedDevicesPanel() {
     note.style.padding = "0 4px";
     note.textContent = "Signing in elsewhere will use this same account, but only one session can be active at a time.";
     accountPanelBody.appendChild(note);
+
+    // ---- link another device (QR code) ----
+    const linkBlock = document.createElement("div");
+    linkBlock.className = "settings-block";
+    linkBlock.innerHTML = `<h4 class="settings-heading">Link a device</h4>`;
+
+    const scanBtn = document.createElement("button");
+    scanBtn.type = "button";
+    scanBtn.className = "panel-action-full";
+    scanBtn.innerHTML = `<i class="fa-solid fa-camera"></i> Scan to link a device`;
+    scanBtn.addEventListener("click", () => {
+        openDeviceLinkScanner("confirm-device-link", {
+            title: "Scan the other device's QR code"
+        });
+    });
+    linkBlock.appendChild(scanBtn);
+
+    const genBtn = document.createElement("button");
+    genBtn.type = "button";
+    genBtn.className = "panel-action-full";
+    genBtn.innerHTML = `<i class="fa-solid fa-qrcode"></i> Generate QR to link a device`;
+    genBtn.addEventListener("click", () => {
+        showDeviceLinkQr("generate-account-link-code", {
+            title: "Scan this on the new device",
+            hint: "Open Site Chat on the other device and scan this with its camera to sign it into this account."
+        });
+    });
+    linkBlock.appendChild(genBtn);
+
+    accountPanelBody.appendChild(linkBlock);
+}
+
+
+// ============================================================
+// LINK A DEVICE (QR code) - shared modal logic
+// ============================================================
+// Two flows, one pair of modals:
+//   - showDeviceLinkQr(): this device asks the server for a code
+//     and displays it as a QR. Used both by the join screen
+//     ("request-device-link-code") and by Linked devices >
+//     "Generate QR to link a device" ("generate-account-link-code").
+//   - openDeviceLinkScanner(): this device opens its camera, reads
+//     a QR shown on another device, and submits the code. Used both
+//     by the join screen ("redeem-device-link-code") and by Linked
+//     devices > "Scan to link a device" ("confirm-device-link").
+// Either way, whichever device was signed out ends up approved to
+// join without its PIN - see "device-link-approved" below.
+// ============================================================
+
+const deviceLinkQrModal = document.getElementById("deviceLinkQrModal");
+const deviceLinkQrBackdrop = document.getElementById("deviceLinkQrBackdrop");
+const deviceLinkQrTitle = document.getElementById("deviceLinkQrTitle");
+const deviceLinkQrHint = document.getElementById("deviceLinkQrHint");
+const deviceLinkQrBox = document.getElementById("deviceLinkQrBox");
+const deviceLinkQrStatus = document.getElementById("deviceLinkQrStatus");
+const closeDeviceLinkQrModal = document.getElementById("closeDeviceLinkQrModal");
+
+const deviceLinkScanModal = document.getElementById("deviceLinkScanModal");
+const deviceLinkScanBackdrop = document.getElementById("deviceLinkScanBackdrop");
+const deviceLinkScanTitle = document.getElementById("deviceLinkScanTitle");
+const deviceLinkScanStatus = document.getElementById("deviceLinkScanStatus");
+const closeDeviceLinkScanModal = document.getElementById("closeDeviceLinkScanModal");
+
+let deviceLinkQrExpireTimer = null;
+let deviceLinkScanner = null;   // the Html5Qrcode instance currently running
+let deviceLinkScanBusy = false; // true once a scanned code has been submitted, to ignore further frames
+
+function showDeviceLinkQr(requestEvent, { title, hint }) {
+
+    if (!deviceLinkQrModal) return;
+
+    if (deviceLinkQrTitle) deviceLinkQrTitle.textContent = title;
+    if (deviceLinkQrHint) deviceLinkQrHint.textContent = hint;
+    if (deviceLinkQrBox) deviceLinkQrBox.innerHTML = "";
+
+    if (deviceLinkQrStatus) {
+        deviceLinkQrStatus.textContent = "Generating code…";
+        deviceLinkQrStatus.classList.remove("error");
+    }
+
+    deviceLinkQrModal.classList.remove("hidden");
+    deviceLinkQrModal.dataset.requestEvent = requestEvent;
+
+    socket.emit(requestEvent);
+}
+
+function hideDeviceLinkQrModal() {
+    if (deviceLinkQrModal) deviceLinkQrModal.classList.add("hidden");
+    clearTimeout(deviceLinkQrExpireTimer);
+    if (deviceLinkQrBox) deviceLinkQrBox.innerHTML = "";
+}
+
+if (closeDeviceLinkQrModal) closeDeviceLinkQrModal.addEventListener("click", hideDeviceLinkQrModal);
+if (deviceLinkQrBackdrop) deviceLinkQrBackdrop.addEventListener("click", hideDeviceLinkQrModal);
+
+socket.on("device-link-code", ({ code, expiresInMs } = {}) => {
+
+    if (!deviceLinkQrModal || deviceLinkQrModal.classList.contains("hidden") || !code) return;
+    if (!deviceLinkQrBox) return;
+
+    deviceLinkQrBox.innerHTML = "";
+
+    const qrText = `${PUBLIC_SITE_URL}/?linkdevice=${encodeURIComponent(code)}`;
+
+    if (window.QRCode) {
+        new QRCode(deviceLinkQrBox, {
+            text: qrText,
+            width: 200,
+            height: 200,
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    } else {
+        deviceLinkQrBox.textContent = code;
+    }
+
+    if (deviceLinkQrStatus) deviceLinkQrStatus.textContent = "Waiting for it to be scanned…";
+
+    clearTimeout(deviceLinkQrExpireTimer);
+    if (expiresInMs) {
+        deviceLinkQrExpireTimer = setTimeout(() => {
+            if (deviceLinkQrStatus) {
+                deviceLinkQrStatus.textContent = "This code expired.";
+                deviceLinkQrStatus.classList.add("error");
+            }
+        }, expiresInMs);
+    }
+});
+
+socket.on("device-link-code-expired", () => {
+    if (!deviceLinkQrModal || deviceLinkQrModal.classList.contains("hidden") || !deviceLinkQrStatus) return;
+    deviceLinkQrStatus.textContent = "This code expired.";
+    deviceLinkQrStatus.classList.add("error");
+});
+
+// only fires for a code generated via "Generate QR to link a device" -
+// the device that showed the QR gets told once someone else scans it
+socket.on("device-link-code-redeemed", () => {
+    if (!deviceLinkQrModal || deviceLinkQrModal.classList.contains("hidden")) return;
+    clearTimeout(deviceLinkQrExpireTimer);
+    if (deviceLinkQrStatus) deviceLinkQrStatus.textContent = "Linked! That device is signing in now.";
+    setTimeout(hideDeviceLinkQrModal, 1500);
+});
+
+function stopDeviceLinkScanner() {
+    if (deviceLinkScanner) {
+        const scanner = deviceLinkScanner;
+        deviceLinkScanner = null;
+        scanner.stop().then(() => scanner.clear()).catch(() => {});
+    }
+}
+
+function hideDeviceLinkScanModal() {
+    if (deviceLinkScanModal) deviceLinkScanModal.classList.add("hidden");
+    stopDeviceLinkScanner();
+    deviceLinkScanBusy = false;
+}
+
+if (closeDeviceLinkScanModal) closeDeviceLinkScanModal.addEventListener("click", hideDeviceLinkScanModal);
+if (deviceLinkScanBackdrop) deviceLinkScanBackdrop.addEventListener("click", hideDeviceLinkScanModal);
+
+// Accepts either a full link (https://.../?linkdevice=CODE) or a bare
+// code, since some QR scanner apps only surface the raw text.
+function extractDeviceLinkCode(text) {
+
+    if (!text) return null;
+
+    try {
+        const url = new URL(text);
+        const fromQuery = url.searchParams.get("linkdevice");
+        if (fromQuery) return fromQuery.trim().toUpperCase();
+    } catch (error) {
+        // not a URL - fall through and try it as a bare code
+    }
+
+    const trimmed = text.trim();
+    return /^[A-Z0-9]{6,12}$/i.test(trimmed) ? trimmed.toUpperCase() : null;
+}
+
+function openDeviceLinkScanner(confirmEvent, { title }) {
+
+    if (!deviceLinkScanModal || !window.Html5Qrcode) {
+        showNiceAlert(
+            "Scanning isn't available on this device or browser.",
+            { title: "Can't scan", icon: "fa-camera" }
+        );
+        return;
+    }
+
+    if (deviceLinkScanTitle) deviceLinkScanTitle.textContent = title;
+
+    if (deviceLinkScanStatus) {
+        deviceLinkScanStatus.textContent = "Point your camera at the QR code.";
+        deviceLinkScanStatus.classList.remove("error");
+    }
+
+    deviceLinkScanModal.classList.remove("hidden");
+    deviceLinkScanBusy = false;
+
+    deviceLinkScanner = new Html5Qrcode("deviceLinkScanReader");
+
+    deviceLinkScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 220 },
+        (decodedText) => {
+
+            if (deviceLinkScanBusy) return;
+
+            const code = extractDeviceLinkCode(decodedText);
+            if (!code) return;
+
+            deviceLinkScanBusy = true;
+            if (deviceLinkScanStatus) deviceLinkScanStatus.textContent = "Linking…";
+
+            socket.emit(confirmEvent, { code });
+        },
+        () => {} // fires on every frame with nothing found - not an error, ignore it
+    ).catch(() => {
+        if (deviceLinkScanStatus) {
+            deviceLinkScanStatus.textContent = "Couldn't access the camera. Check permissions and try again.";
+            deviceLinkScanStatus.classList.add("error");
+        }
+    });
+}
+
+// only fires on the device that scanned (Linked devices > "Scan to
+// link a device")
+socket.on("device-link-confirmed", ({ name } = {}) => {
+    if (!deviceLinkScanModal || deviceLinkScanModal.classList.contains("hidden")) return;
+    if (deviceLinkScanStatus) {
+        deviceLinkScanStatus.textContent = name ? `Linked ${name}'s device!` : "Device linked!";
+    }
+    setTimeout(hideDeviceLinkScanModal, 1500);
+});
+
+socket.on("device-link-error", ({ message } = {}) => {
+
+    if (deviceLinkScanModal && !deviceLinkScanModal.classList.contains("hidden")) {
+        deviceLinkScanBusy = false;
+        if (deviceLinkScanStatus) {
+            deviceLinkScanStatus.textContent = message || "That code didn't work.";
+            deviceLinkScanStatus.classList.add("error");
+        }
+    }
+
+    if (deviceLinkQrModal && !deviceLinkQrModal.classList.contains("hidden") && deviceLinkQrStatus) {
+        deviceLinkQrStatus.textContent = message || "Something went wrong.";
+        deviceLinkQrStatus.classList.add("error");
+    }
+});
+
+// the signed-out device (join screen), whichever way it got approved,
+// signs in exactly like a normal manual join - this also saves
+// name/phone to localStorage so future visits auto sign in
+socket.on("device-link-approved", ({ phone, name } = {}) => {
+
+    if (me) return; // already signed in - ignore
+
+    hideDeviceLinkQrModal();
+    hideDeviceLinkScanModal();
+
+    if (nameInput) nameInput.value = name || "";
+    if (phoneInput) phoneInput.value = phone || "";
+
+    if (joinFormFields) joinFormFields.classList.add("hidden");
+
+    if (autoSigninState) {
+        autoSigninState.classList.remove("hidden");
+        if (autoSigninText) {
+            autoSigninText.textContent = `Linked! Signing you in as ${name || "your account"}…`;
+        }
+    }
+
+    join();
+});
+
+// ---- join screen entry points ----
+
+const joinShowQrBtn = document.getElementById("joinShowQrBtn");
+const joinScanQrBtn = document.getElementById("joinScanQrBtn");
+
+if (joinShowQrBtn) {
+    joinShowQrBtn.addEventListener("click", () => {
+        showDeviceLinkQr("request-device-link-code", {
+            title: "Link with a signed-in device",
+            hint: "On a device you're already signed into, go to Settings > Linked devices > \"Scan to link a device\" and scan this."
+        });
+    });
+}
+
+if (joinScanQrBtn) {
+    joinScanQrBtn.addEventListener("click", () => {
+        openDeviceLinkScanner("redeem-device-link-code", {
+            title: "Scan a QR code to sign in"
+        });
+    });
+}
+
+
+// ============================================================
+// ACCOUNT PANEL (WhatsApp Settings > Account)
+// ============================================================
+
+function renderAccountInfoPanel() {
+
+    if (!accountPanelBody) return;
+
+    accountPanelBody.innerHTML = "";
+
+    const infoRow = document.createElement("div");
+    infoRow.className = "panel-person";
+    infoRow.innerHTML = `
+        <div class="panel-avatar">${avatarMarkup(me ? me.name : "?", me ? me.avatar : null)}</div>
+        <div class="panel-person-info">
+            <div class="panel-person-name">${escapeHtml(me ? me.name : "")}</div>
+            <div class="panel-person-status">${escapeHtml(myAccountPhone || "")}</div>
+        </div>
+    `;
+    accountPanelBody.appendChild(infoRow);
+
+    const block = document.createElement("div");
+    block.className = "settings-block";
+    block.innerHTML = `<h4 class="settings-heading">Account</h4>`;
+
+    const requestInfoBtn = document.createElement("button");
+    requestInfoBtn.type = "button";
+    requestInfoBtn.className = "panel-action-full";
+    requestInfoBtn.innerHTML = `<i class="fa-solid fa-file-export"></i> Request account info`;
+    requestInfoBtn.addEventListener("click", () => {
+        requestInfoBtn.disabled = true;
+        socket.emit("request-account-info");
+    });
+    block.appendChild(requestInfoBtn);
+
+    const twoStepBtn = document.createElement("button");
+    twoStepBtn.type = "button";
+    twoStepBtn.className = "panel-action-full";
+    twoStepBtn.innerHTML = `<i class="fa-solid fa-lock"></i> Two-step verification`;
+    twoStepBtn.addEventListener("click", () => {
+        renderAccountPanel("two-step");
+    });
+    block.appendChild(twoStepBtn);
+
+    const changeNumberBtn = document.createElement("button");
+    changeNumberBtn.type = "button";
+    changeNumberBtn.className = "panel-action-full";
+    changeNumberBtn.innerHTML = `<i class="fa-solid fa-mobile-screen-button"></i> Change number`;
+    changeNumberBtn.addEventListener("click", () => {
+        renderAccountPanel("change-number");
+    });
+    block.appendChild(changeNumberBtn);
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "panel-action-full danger";
+    deleteBtn.innerHTML = `<i class="fa-solid fa-trash-can"></i> Delete my account`;
+    deleteBtn.addEventListener("click", () => {
+        const existing = document.getElementById("deleteAccountBtn");
+        if (existing) existing.click();
+    });
+    block.appendChild(deleteBtn);
+
+    accountPanelBody.appendChild(block);
+}
+
+socket.on("account-info-export", (info) => {
+
+    const requestInfoBtn = accountPanelBody
+        ? accountPanelBody.querySelector(".panel-action-full")
+        : null;
+    if (requestInfoBtn) requestInfoBtn.disabled = false;
+
+    const blob = new Blob(
+        [JSON.stringify(info, null, 2)],
+        { type: "application/json" }
+    );
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "site-chat-account-info.json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+});
+
+socket.on("account-info-error", ({ message } = {}) => {
+    const requestInfoBtn = accountPanelBody
+        ? accountPanelBody.querySelector(".panel-action-full")
+        : null;
+    if (requestInfoBtn) requestInfoBtn.disabled = false;
+
+    showNiceAlert(
+        message || "Couldn't fetch your account info.",
+        { title: "Request account info", icon: "fa-file-export" }
+    );
+});
+
+
+// ============================================================
+// TWO-STEP VERIFICATION PANEL (WhatsApp Settings > Account >
+// Two-step verification)
+// ============================================================
+
+// what the panel is currently doing, so a "two-step-status" or
+// "two-step-error" reply knows how to redraw it: null (just showing
+// current status), "set" (choosing a new PIN), "change" (entering
+// old + new PIN), or "disable" (confirming PIN to turn it off)
+let twoStepMode = null;
+let twoStepEnabled = false;
+
+function renderTwoStepPanel() {
+
+    if (!accountPanelBody) return;
+
+    accountPanelBody.innerHTML = `<div class="empty-panel">Loading…</div>`;
+
+    twoStepMode = null;
+
+    socket.emit("get-two-step-status");
+}
+
+socket.on("two-step-status", ({ enabled, justChanged } = {}) => {
+
+    twoStepEnabled = !!enabled;
+
+    if (currentAccountView !== "two-step") return;
+
+    if (justChanged) {
+        twoStepMode = null;
+    }
+
+    drawTwoStepPanel();
+});
+
+socket.on("two-step-error", ({ message } = {}) => {
+
+    if (currentAccountView !== "two-step") return;
+
+    drawTwoStepPanel(message || "Something went wrong. Please try again.");
+});
+
+function drawTwoStepPanel(errorMessage) {
+
+    if (!accountPanelBody) return;
+
+    accountPanelBody.innerHTML = "";
+
+    const status = document.createElement("div");
+    status.className = "two-step-status-row" + (twoStepEnabled ? " on" : "");
+    status.innerHTML = `
+        <i class="fa-solid ${twoStepEnabled ? "fa-shield-halved" : "fa-shield"}"></i>
+        <span>
+            <strong>${twoStepEnabled ? "Two-step verification is on" : "Two-step verification is off"}</strong>
+            <small>${twoStepEnabled
+                ? "A 6-digit PIN is required whenever you sign in."
+                : "Add a 6-digit PIN so no one can sign into your account with just your phone number."}</small>
+        </span>
+    `;
+    accountPanelBody.appendChild(status);
+
+    if (errorMessage) {
+        const err = document.createElement("p");
+        err.className = "panel-inline-msg";
+        err.textContent = errorMessage;
+        accountPanelBody.appendChild(err);
+    }
+
+    // ---- mode: nothing open yet - just the action button(s) ----
+    if (!twoStepMode) {
+
+        if (!twoStepEnabled) {
+
+            const enableBtn = document.createElement("button");
+            enableBtn.type = "button";
+            enableBtn.className = "panel-action-full";
+            enableBtn.innerHTML = `<i class="fa-solid fa-lock"></i> Turn on`;
+            enableBtn.addEventListener("click", () => {
+                twoStepMode = "set";
+                drawTwoStepPanel();
+            });
+            accountPanelBody.appendChild(enableBtn);
+
+        } else {
+
+            const changeBtn = document.createElement("button");
+            changeBtn.type = "button";
+            changeBtn.className = "panel-action-full";
+            changeBtn.innerHTML = `<i class="fa-solid fa-key"></i> Change PIN`;
+            changeBtn.addEventListener("click", () => {
+                twoStepMode = "change";
+                drawTwoStepPanel();
+            });
+            accountPanelBody.appendChild(changeBtn);
+
+            const disableBtn = document.createElement("button");
+            disableBtn.type = "button";
+            disableBtn.className = "panel-action-full danger";
+            disableBtn.innerHTML = `<i class="fa-solid fa-lock-open"></i> Turn off`;
+            disableBtn.addEventListener("click", () => {
+                twoStepMode = "disable";
+                drawTwoStepPanel();
+            });
+            accountPanelBody.appendChild(disableBtn);
+        }
+
+        const note = document.createElement("p");
+        note.className = "settings-hint";
+        note.style.padding = "12px 4px 0";
+        note.textContent = twoStepEnabled
+            ? "If you forget your PIN, there's currently no recovery - you'd need to delete and recreate your account."
+            : "There's no email recovery yet, so keep your PIN somewhere safe once it's set.";
+        accountPanelBody.appendChild(note);
+
+        return;
+    }
+
+    // ---- mode: "set" - choose a new PIN (account has none yet) ----
+    if (twoStepMode === "set") {
+
+        const pinInput = document.createElement("input");
+        pinInput.type = "password";
+        pinInput.inputMode = "numeric";
+        pinInput.maxLength = 6;
+        pinInput.className = "panel-text-input";
+        pinInput.placeholder = "Enter a 6-digit PIN";
+        accountPanelBody.appendChild(pinInput);
+
+        const confirmInput = document.createElement("input");
+        confirmInput.type = "password";
+        confirmInput.inputMode = "numeric";
+        confirmInput.maxLength = 6;
+        confirmInput.className = "panel-text-input";
+        confirmInput.placeholder = "Confirm your PIN";
+        accountPanelBody.appendChild(confirmInput);
+
+        [pinInput, confirmInput].forEach(inp => {
+            inp.addEventListener("input", () => {
+                inp.value = inp.value.replace(/\D/g, "").slice(0, 6);
+            });
+        });
+
+        const saveBtn = document.createElement("button");
+        saveBtn.type = "button";
+        saveBtn.className = "panel-action-full";
+        saveBtn.innerHTML = `<i class="fa-solid fa-check"></i> Save PIN`;
+        saveBtn.addEventListener("click", () => {
+
+            if (!/^\d{6}$/.test(pinInput.value)) {
+                drawTwoStepPanel("Your PIN must be exactly 6 digits.");
+                return;
+            }
+
+            if (pinInput.value !== confirmInput.value) {
+                drawTwoStepPanel("Those PINs don't match.");
+                return;
+            }
+
+            saveBtn.disabled = true;
+            socket.emit("set-two-step-pin", { pin: pinInput.value });
+        });
+        accountPanelBody.appendChild(saveBtn);
+
+        appendCancelBtn();
+        pinInput.focus();
+
+        return;
+    }
+
+    // ---- mode: "change" - current PIN + new PIN (account has one) ----
+    if (twoStepMode === "change") {
+
+        const oldInput = document.createElement("input");
+        oldInput.type = "password";
+        oldInput.inputMode = "numeric";
+        oldInput.maxLength = 6;
+        oldInput.className = "panel-text-input";
+        oldInput.placeholder = "Current PIN";
+        accountPanelBody.appendChild(oldInput);
+
+        const newInput = document.createElement("input");
+        newInput.type = "password";
+        newInput.inputMode = "numeric";
+        newInput.maxLength = 6;
+        newInput.className = "panel-text-input";
+        newInput.placeholder = "New 6-digit PIN";
+        accountPanelBody.appendChild(newInput);
+
+        const confirmInput = document.createElement("input");
+        confirmInput.type = "password";
+        confirmInput.inputMode = "numeric";
+        confirmInput.maxLength = 6;
+        confirmInput.className = "panel-text-input";
+        confirmInput.placeholder = "Confirm new PIN";
+        accountPanelBody.appendChild(confirmInput);
+
+        [oldInput, newInput, confirmInput].forEach(inp => {
+            inp.addEventListener("input", () => {
+                inp.value = inp.value.replace(/\D/g, "").slice(0, 6);
+            });
+        });
+
+        const saveBtn = document.createElement("button");
+        saveBtn.type = "button";
+        saveBtn.className = "panel-action-full";
+        saveBtn.innerHTML = `<i class="fa-solid fa-check"></i> Save new PIN`;
+        saveBtn.addEventListener("click", () => {
+
+            if (!/^\d{6}$/.test(newInput.value)) {
+                drawTwoStepPanel("Your new PIN must be exactly 6 digits.");
+                return;
+            }
+
+            if (newInput.value !== confirmInput.value) {
+                drawTwoStepPanel("Those new PINs don't match.");
+                return;
+            }
+
+            saveBtn.disabled = true;
+            socket.emit("change-two-step-pin", { oldPin: oldInput.value, newPin: newInput.value });
+        });
+        accountPanelBody.appendChild(saveBtn);
+
+        appendCancelBtn();
+        oldInput.focus();
+
+        return;
+    }
+
+    // ---- mode: "disable" - confirm current PIN, then turn off ----
+    if (twoStepMode === "disable") {
+
+        const pinInput = document.createElement("input");
+        pinInput.type = "password";
+        pinInput.inputMode = "numeric";
+        pinInput.maxLength = 6;
+        pinInput.className = "panel-text-input";
+        pinInput.placeholder = "Enter your PIN to confirm";
+        pinInput.addEventListener("input", () => {
+            pinInput.value = pinInput.value.replace(/\D/g, "").slice(0, 6);
+        });
+        accountPanelBody.appendChild(pinInput);
+
+        const confirmBtn = document.createElement("button");
+        confirmBtn.type = "button";
+        confirmBtn.className = "panel-action-full danger";
+        confirmBtn.innerHTML = `<i class="fa-solid fa-lock-open"></i> Turn off two-step verification`;
+        confirmBtn.addEventListener("click", () => {
+
+            if (!/^\d{6}$/.test(pinInput.value)) {
+                drawTwoStepPanel("Enter your current 6-digit PIN.");
+                return;
+            }
+
+            confirmBtn.disabled = true;
+            socket.emit("disable-two-step-pin", { pin: pinInput.value });
+        });
+        accountPanelBody.appendChild(confirmBtn);
+
+        appendCancelBtn();
+        pinInput.focus();
+
+        return;
+    }
+
+    function appendCancelBtn() {
+        const cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "panel-action-full";
+        cancelBtn.innerHTML = `<i class="fa-solid fa-xmark"></i> Cancel`;
+        cancelBtn.addEventListener("click", () => {
+            twoStepMode = null;
+            drawTwoStepPanel();
+        });
+        accountPanelBody.appendChild(cancelBtn);
+    }
+}
+
+
+// ============================================================
+// CHANGE NUMBER PANEL (WhatsApp Settings > Account > Change number)
+// ============================================================
+
+function renderChangeNumberPanel() {
+
+    if (!accountPanelBody) return;
+
+    drawChangeNumberPanel();
+}
+
+function drawChangeNumberPanel(errorMessage) {
+
+    if (!accountPanelBody || currentAccountView !== "change-number") return;
+
+    accountPanelBody.innerHTML = "";
+
+    const intro = document.createElement("p");
+    intro.className = "settings-hint";
+    intro.style.padding = "0 4px 8px";
+    intro.textContent =
+        `Your current number is ${myAccountPhone || "not set"}. ` +
+        "Moving to a new number keeps your name, chats, friends and settings exactly as they are.";
+    accountPanelBody.appendChild(intro);
+
+    if (errorMessage) {
+        const err = document.createElement("p");
+        err.className = "panel-inline-msg";
+        err.textContent = errorMessage;
+        accountPanelBody.appendChild(err);
+    }
+
+    const newNumberInput = document.createElement("input");
+    newNumberInput.type = "tel";
+    newNumberInput.inputMode = "tel";
+    newNumberInput.className = "panel-text-input";
+    newNumberInput.placeholder = "New phone number, e.g. 0712345678";
+    accountPanelBody.appendChild(newNumberInput);
+
+    let pinInput = null;
+
+    if (twoStepEnabled) {
+
+        pinInput = document.createElement("input");
+        pinInput.type = "password";
+        pinInput.inputMode = "numeric";
+        pinInput.maxLength = 6;
+        pinInput.className = "panel-text-input";
+        pinInput.placeholder = "Two-step verification PIN";
+        pinInput.addEventListener("input", () => {
+            pinInput.value = pinInput.value.replace(/\D/g, "").slice(0, 6);
+        });
+        accountPanelBody.appendChild(pinInput);
+    }
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "panel-action-full";
+    confirmBtn.innerHTML = `<i class="fa-solid fa-check"></i> Change number`;
+    confirmBtn.addEventListener("click", () => {
+
+        const newPhone = newNumberInput.value.trim();
+
+        if (!newPhone) {
+            drawChangeNumberPanel("Enter the new number you'd like to use.");
+            return;
+        }
+
+        if (!isValidKenyanMobile(newPhone)) {
+            drawChangeNumberPanel("Enter a valid Safaricom or Airtel number.");
+            return;
+        }
+
+        if (twoStepEnabled && !/^\d{6}$/.test(pinInput.value)) {
+            drawChangeNumberPanel("Enter your 6-digit two-step verification PIN.");
+            return;
+        }
+
+        confirmBtn.disabled = true;
+        socket.emit("change-number", {
+            newPhone,
+            pin: pinInput ? pinInput.value : undefined
+        });
+    });
+    accountPanelBody.appendChild(confirmBtn);
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "panel-action-full";
+    cancelBtn.innerHTML = `<i class="fa-solid fa-xmark"></i> Cancel`;
+    cancelBtn.addEventListener("click", () => {
+        renderAccountPanel("account");
+    });
+    accountPanelBody.appendChild(cancelBtn);
+
+    newNumberInput.focus();
+}
+
+socket.on("change-number-done", ({ phone } = {}) => {
+
+    myAccountPhone = phone || myAccountPhone;
+    localStorage.setItem("siteChatPhone", myAccountPhone);
+
+    showNiceAlert(
+        `Your number has been changed to ${myAccountPhone}.`,
+        { title: "Number changed", icon: "fa-mobile-screen-button", onClose: () => {
+            renderAccountPanel("account");
+        } }
+    );
+});
+
+socket.on("change-number-error", ({ message } = {}) => {
+    drawChangeNumberPanel(message || "Something went wrong. Please try again.");
+});
+
+
+// ============================================================
+// STORAGE AND DATA PANEL (WhatsApp Settings > Storage and data)
+// ============================================================
+
+function renderStorageDataPanel() {
+
+    if (!accountPanelBody) return;
+
+    accountPanelBody.innerHTML = "";
+
+    const block = document.createElement("div");
+    block.className = "settings-block";
+    block.innerHTML = `
+        <h4 class="settings-heading">Cached files</h4>
+        <p class="settings-hint">Photos, styling and app files this device has saved so pages open faster and still work offline.</p>
+    `;
+
+    const clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "panel-action-full danger";
+    clearBtn.innerHTML = `<i class="fa-solid fa-broom"></i> Clear cached files`;
+
+    clearBtn.addEventListener("click", async () => {
+
+        clearBtn.disabled = true;
+        clearBtn.textContent = "Clearing…";
+
+        try {
+
+            if (window.caches) {
+                const keys = await caches.keys();
+                await Promise.all(keys.map((key) => caches.delete(key)));
+            }
+
+            showNiceAlert(
+                "Cached files cleared. They'll be downloaded fresh next time you open the app.",
+                { title: "Storage and data", icon: "fa-broom" }
+            );
+
+        } catch (error) {
+
+            showNiceAlert(
+                "Couldn't clear cached files on this device.",
+                { title: "Storage and data", icon: "fa-triangle-exclamation" }
+            );
+
+        } finally {
+
+            clearBtn.disabled = false;
+            clearBtn.innerHTML = `<i class="fa-solid fa-broom"></i> Clear cached files`;
+
+        }
+    });
+
+    block.appendChild(clearBtn);
+    accountPanelBody.appendChild(block);
+}
+
+
+// ============================================================
+// HELP PANEL (WhatsApp Settings > Help)
+// ============================================================
+
+function renderHelpPanel() {
+
+    if (!accountPanelBody) return;
+
+    accountPanelBody.innerHTML = "";
+
+    const block = document.createElement("div");
+    block.className = "settings-block";
+    block.innerHTML = `
+        <h4 class="settings-heading">Site Chat</h4>
+        <p class="settings-hint">
+            Site Chat is built for connecting and chatting with people online -
+            direct messages, groups, communities, channels, status updates and
+            voice/video calls.
+        </p>
+        <p class="settings-hint">
+            Having trouble? Try Storage and data &gt; Clear cached files, or
+            log out and back in. If something still looks wrong, use your
+            device's feedback option to report it.
+        </p>
+    `;
+    accountPanelBody.appendChild(block);
+}
+
+
+// ============================================================
+// INVITE A FRIEND
+// ============================================================
+
+const inviteFriendBtn = document.getElementById("inviteFriendBtn");
+
+if (inviteFriendBtn) {
+
+    inviteFriendBtn.addEventListener("click", async () => {
+
+        if (accountMenu) accountMenu.classList.add("hidden");
+
+        const shareData = {
+            title: "Site Chat",
+            text: "Come chat with me on Site Chat!",
+            url: PUBLIC_SITE_URL
+        };
+
+        try {
+
+            if (navigator.share) {
+                await navigator.share(shareData);
+                return;
+            }
+
+            await navigator.clipboard.writeText(shareData.url);
+            showNiceAlert(
+                "Invite link copied - share it with a friend.",
+                { title: "Invite a friend", icon: "fa-user-plus" }
+            );
+
+        } catch (error) {
+
+            // AbortError just means they closed the native share sheet -
+            // not a real failure, so don't show an error for it
+            if (error && error.name === "AbortError") return;
+
+            showNiceAlert(
+                "Couldn't share an invite link on this device.",
+                { title: "Invite a friend", icon: "fa-triangle-exclamation" }
+            );
+        }
+    });
+
 }
 
 
@@ -5551,7 +6899,7 @@ if (logoutBtn) {
             );
 
             localStorage.removeItem(
-                "siteChatEmail"
+                "siteChatPhone"
             );
 
 
@@ -5611,7 +6959,7 @@ if (deleteAccountBtn) {
 socket.on("account-deleted", () => {
 
     localStorage.removeItem("siteChatName");
-    localStorage.removeItem("siteChatEmail");
+    localStorage.removeItem("siteChatPhone");
 
     // a fresh reload is the simplest way to drop every bit of
     // in-memory session state and land back on a clean join screen

@@ -5,6 +5,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <!-- Tells the browser this page provides its own light AND dark
+         styling (the Settings > Dark theme toggle), so Android
+         Chrome/WebView's "auto dark theme" doesn't try to repaint
+         anything itself. -->
+    <meta name="color-scheme" content="light dark">
+
     <!-- Font Awesome -->
     <link
         rel="stylesheet"
@@ -33,6 +39,14 @@
     <link rel="stylesheet" href="nodi.css">
 
     <script src="/socket.io/socket.io.js"></script>
+
+    <!-- QR code generation: Settings > Linked devices > "Generate QR
+         to link a device", and the join screen's "Show QR to link" -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <!-- QR code camera scanning: Settings > Linked devices > "Scan to
+         link a device", and the join screen's "Scan QR to sign in" -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.0.11/html5-qrcode.min.js"></script>
 </head>
 
 <body>
@@ -62,9 +76,9 @@
         <div id="joinFormFields">
 
             <input
-                id="emailInput"
-                type="email"
-                placeholder="Enter your email"
+                id="phoneInput"
+                type="tel"
+                placeholder="Enter your Safaricom or Airtel number"
                 autocomplete="off"
             >
 
@@ -88,6 +102,18 @@
             <button id="forgotNameBtn" type="button" class="forgot-name-btn">
                 Forgot your name?
             </button>
+
+            <div class="join-qr-links">
+
+                <button id="joinShowQrBtn" type="button" class="forgot-name-btn">
+                    <i class="fa-solid fa-qrcode"></i> Show QR to link
+                </button>
+
+                <button id="joinScanQrBtn" type="button" class="forgot-name-btn">
+                    <i class="fa-solid fa-camera"></i> Scan QR to sign in
+                </button>
+
+            </div>
 
         </div>
 
@@ -115,12 +141,12 @@
         </div>
 
         <h2>Forgot your name?</h2>
-        <p>Enter the email you used before and we'll fill it in for you.</p>
+        <p>Enter the phone number you used before and we'll fill it in for you.</p>
 
         <input
-            id="forgotEmailInput"
-            type="email"
-            placeholder="Enter your email"
+            id="forgotPhoneInput"
+            type="tel"
+            placeholder="Enter your Safaricom or Airtel number"
             autocomplete="off"
         >
 
@@ -154,7 +180,7 @@
         </div>
 
         <h2>Create your account</h2>
-        <p>Save your name against your email so you can sign back in later.</p>
+        <p>Save your name against your Safaricom or Airtel number so you can sign back in later.</p>
 
         <input
             id="createAccountNameInput"
@@ -164,9 +190,9 @@
         >
 
         <input
-            id="createAccountEmailInput"
-            type="email"
-            placeholder="Enter your email"
+            id="createAccountPhoneInput"
+            type="tel"
+            placeholder="Enter your Safaricom or Airtel number"
             autocomplete="off"
         >
 
@@ -175,6 +201,107 @@
         <button id="createAccountSubmit" class="forgot-modal-submit">
             Create account
         </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     TWO-STEP VERIFICATION PIN PROMPT (shown at login when the
+     account being signed into has a PIN set)
+========================================================= -->
+
+<div id="twoStepPinModal" class="forgot-modal-overlay hidden">
+
+    <div id="twoStepPinBackdrop" class="forgot-modal-backdrop"></div>
+
+    <div class="forgot-modal">
+
+        <button id="closeTwoStepPinModal" class="forgot-modal-close" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="forgot-modal-icon">
+            <i class="fa-solid fa-lock"></i>
+        </div>
+
+        <h2>Enter your PIN</h2>
+        <p>This account is protected with two-step verification. Enter your 6-digit PIN to finish signing in.</p>
+
+        <input
+            id="twoStepPinInput"
+            type="password"
+            inputmode="numeric"
+            maxlength="6"
+            placeholder="6-digit PIN"
+            autocomplete="off"
+        >
+
+        <div id="twoStepPinMsg" class="forgot-modal-msg hidden"></div>
+
+        <button id="twoStepPinSubmit" class="forgot-modal-submit">
+            Verify
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     LINK A DEVICE — SHOW QR CODE
+     (join screen's "Show QR to link", and Settings > Linked
+     devices > "Generate QR to link a device")
+========================================================= -->
+
+<div id="deviceLinkQrModal" class="forgot-modal-overlay hidden">
+
+    <div id="deviceLinkQrBackdrop" class="forgot-modal-backdrop"></div>
+
+    <div class="forgot-modal">
+
+        <button id="closeDeviceLinkQrModal" class="forgot-modal-close" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="forgot-modal-icon">
+            <i class="fa-solid fa-qrcode"></i>
+        </div>
+
+        <h2 id="deviceLinkQrTitle">Link a device</h2>
+        <p id="deviceLinkQrHint">Scan this with a camera on the other device.</p>
+
+        <div id="deviceLinkQrBox" class="device-link-qr-box"></div>
+
+        <div id="deviceLinkQrStatus" class="device-link-status"></div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     LINK A DEVICE — SCAN QR CODE
+     (join screen's "Scan QR to sign in", and Settings > Linked
+     devices > "Scan to link a device")
+========================================================= -->
+
+<div id="deviceLinkScanModal" class="forgot-modal-overlay hidden">
+
+    <div id="deviceLinkScanBackdrop" class="forgot-modal-backdrop"></div>
+
+    <div class="forgot-modal">
+
+        <button id="closeDeviceLinkScanModal" class="forgot-modal-close" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <h2 id="deviceLinkScanTitle">Scan a QR code</h2>
+
+        <div id="deviceLinkScanReader" class="device-link-scan-reader"></div>
+
+        <div id="deviceLinkScanStatus" class="device-link-status"></div>
 
     </div>
 
@@ -887,15 +1014,67 @@
                 </button>
 
 
-                <button data-account-view="settings">
+                <button data-account-view="account">
 
                     <span>
-                        <i class="fa-solid fa-gear"></i>
-                        Notifications &amp; calls
+                        <i class="fa-solid fa-user-gear"></i>
+                        Account
                     </span>
 
                     <span>
                         <i class="fa-solid fa-chevron-right"></i>
+                    </span>
+
+                </button>
+
+
+                <button data-account-view="settings">
+
+                    <span>
+                        <i class="fa-solid fa-gear"></i>
+                        Chats &amp; notifications
+                    </span>
+
+                    <span>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </span>
+
+                </button>
+
+
+                <button data-account-view="storage-data">
+
+                    <span>
+                        <i class="fa-solid fa-database"></i>
+                        Storage and data
+                    </span>
+
+                    <span>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </span>
+
+                </button>
+
+
+                <button data-account-view="help">
+
+                    <span>
+                        <i class="fa-solid fa-circle-question"></i>
+                        Help
+                    </span>
+
+                    <span>
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </span>
+
+                </button>
+
+
+                <button id="inviteFriendBtn">
+
+                    <span>
+                        <i class="fa-solid fa-user-plus"></i>
+                        Invite a friend
                     </span>
 
                 </button>
@@ -988,6 +1167,20 @@
                 id="headerActions"
                 class="header-actions"
                 hidden>
+
+                <!-- Home -->
+
+                <a
+                    id="chatHomeBtn"
+                    href="/"
+                    class="call-btn"
+                    title="Home"
+                    aria-label="Back to home">
+
+                    <i class="fa-solid fa-house"></i>
+
+                </a>
+
 
                 <!-- Audio Call -->
 

@@ -1192,6 +1192,10 @@ button {
     transform: scale(1.05);
 }
 
+#chatHomeBtn {
+    text-decoration: none;
+}
+
 
 /* =========================================================
    DISAPPEARING MESSAGES MENU
@@ -3298,6 +3302,46 @@ img.twemoji {
     background: rgba(220, 38, 38, 0.28);
 }
 
+.panel-action-full {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+
+    margin-bottom: 8px;
+    padding: 12px 14px;
+
+    border: none;
+    border-radius: 10px;
+
+    background: #1e293b;
+    color: #e2e8f0;
+
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+
+    transition: background 0.2s ease;
+}
+
+.panel-action-full:hover {
+    background: #334155;
+}
+
+.panel-action-full:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.panel-action-full.danger {
+    background: rgba(220, 38, 38, 0.15);
+    color: #f87171;
+}
+
+.panel-action-full.danger:hover {
+    background: rgba(220, 38, 38, 0.28);
+}
+
 /* On phones the account panel is narrower, and rows with action
    buttons (friend requests: Confirm/Decline) don't leave enough
    room for the name next to two fixed-width buttons - it used to
@@ -4829,10 +4873,10 @@ img.twemoji {
 
 
 /* =========================================================
-   JOIN SCREEN: email field + forgot-name link + auto sign-in
+   JOIN SCREEN: phone field + forgot-name link + auto sign-in
 ========================================================= */
 
-#emailInput {
+#phoneInput {
     width: 100%;
     height: 52px;
 
@@ -4852,7 +4896,7 @@ img.twemoji {
     transition: 0.2s;
 }
 
-#emailInput:focus {
+#phoneInput:focus {
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
@@ -4875,8 +4919,61 @@ img.twemoji {
     text-decoration: underline;
 }
 
+.join-qr-links {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    margin-top: 2px;
+}
+
+.join-qr-links .forgot-name-btn {
+    width: auto;
+    margin-top: 6px;
+}
+
 #joinFormFields.hidden {
     display: none;
+}
+
+/* ---- Link a device: QR show/scan modals ---- */
+
+.device-link-qr-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+    margin: 16px auto;
+}
+
+.device-link-qr-box img,
+.device-link-qr-box canvas,
+.device-link-qr-box table {
+    background: #fff;
+    padding: 8px;
+    border-radius: 8px;
+}
+
+.device-link-scan-reader {
+    width: 100%;
+    max-width: 280px;
+    margin: 12px auto;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.device-link-status {
+    min-height: 18px;
+    margin-top: 8px;
+
+    font-size: 13px;
+    text-align: center;
+    color: var(--wa-text-secondary, #667781);
+}
+
+.device-link-status.error {
+    color: #e53935;
 }
 
 .auto-signin {
@@ -5035,7 +5132,7 @@ img.twemoji {
     line-height: 1.5;
 }
 
-#forgotEmailInput {
+#forgotPhoneInput {
     width: 100%;
     height: 48px;
 
@@ -5055,13 +5152,13 @@ img.twemoji {
     transition: 0.2s;
 }
 
-#forgotEmailInput:focus {
+#forgotPhoneInput:focus {
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
 
 #createAccountNameInput,
-#createAccountEmailInput {
+#createAccountPhoneInput {
     width: 100%;
     height: 48px;
 
@@ -5082,7 +5179,7 @@ img.twemoji {
 }
 
 #createAccountNameInput:focus,
-#createAccountEmailInput:focus {
+#createAccountPhoneInput:focus {
     border-color: #3b82f6;
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
 }
@@ -5095,6 +5192,107 @@ img.twemoji {
 }
 
 .forgot-modal-msg.hidden {
+    display: none;
+}
+
+#twoStepPinInput {
+    width: 100%;
+    height: 48px;
+
+    padding: 0 15px;
+    margin-bottom: 10px;
+
+    border: 1px solid #334155;
+    border-radius: 12px;
+
+    outline: none;
+
+    background: #0b1220;
+    color: white;
+
+    font-size: 18px;
+    letter-spacing: 6px;
+    text-align: center;
+
+    transition: 0.2s;
+}
+
+#twoStepPinInput:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+/* =========================================================
+   TWO-STEP VERIFICATION PANEL
+   (Settings > Account > Two-step verification, built by
+   renderTwoStepPanel() in client.js)
+========================================================= */
+
+.two-step-status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    margin-bottom: 16px;
+    padding: 12px 14px;
+
+    border-radius: 10px;
+    background: #1e293b;
+}
+
+.two-step-status-row i {
+    font-size: 16px;
+    color: #64748b;
+}
+
+.two-step-status-row.on i {
+    color: #22c55e;
+}
+
+.two-step-status-row strong {
+    display: block;
+    color: #e2e8f0;
+    font-size: 14px;
+}
+
+.two-step-status-row small {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.panel-text-input {
+    width: 100%;
+    height: 44px;
+
+    padding: 0 14px;
+    margin-bottom: 10px;
+
+    border: 1px solid #334155;
+    border-radius: 10px;
+
+    outline: none;
+
+    background: #0b1220;
+    color: white;
+
+    font-size: 14.5px;
+    letter-spacing: 3px;
+
+    transition: 0.2s;
+}
+
+.panel-text-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.panel-inline-msg {
+    margin: -2px 0 10px;
+    color: #fbbf24;
+    font-size: 12.5px;
+}
+
+.panel-inline-msg.hidden {
     display: none;
 }
 
@@ -5687,6 +5885,13 @@ img.twemoji {
     flex-shrink: 0;
     width: 38px;
     height: 22px;
+    accent-color: #2563eb;
+}
+
+.group-info-toggle-row input[type="radio"] {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
     accent-color: #2563eb;
 }
 
@@ -6620,19 +6825,19 @@ html, body {
     color: transparent;
 }
 
-#emailInput,
+#phoneInput,
 #nameInput,
-#forgotEmailInput,
+#forgotPhoneInput,
 #createAccountNameInput,
-#createAccountEmailInput {
+#createAccountPhoneInput {
     transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), background 0.2s var(--ease);
 }
 
-#emailInput:focus,
+#phoneInput:focus,
 #nameInput:focus,
-#forgotEmailInput:focus,
+#forgotPhoneInput:focus,
 #createAccountNameInput:focus,
-#createAccountEmailInput:focus {
+#createAccountPhoneInput:focus {
     border-color: var(--accent-1) !important;
     background: #0d1a16 !important;
     box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.16) !important;
@@ -7007,6 +7212,8 @@ button {
 ========================================================================= */
 
 :root {
+    color-scheme: light;
+
     --wa-panel-header: #f0f2f5;
     --wa-panel-bg: #ffffff;
     --wa-chat-bg: #efeae2;
@@ -7024,10 +7231,50 @@ button {
     --wa-blue-tick: #53bdeb;
 }
 
+/* =========================================================
+   DARK THEME (WhatsApp Settings > Chats > Theme)
+
+   The "Dark theme" toggle already existed in the Settings
+   panel (client.js sets document.documentElement.dataset.theme
+   and remembers it in localStorage) but nothing in this file
+   ever responded to [data-theme="dark"], so flipping the
+   switch didn't change anything on screen. Since the whole
+   re-skin above is already built on the --wa-* custom
+   properties, redefining them here for [data-theme="dark"] is
+   enough to re-theme the entire app - chat list, chat bubbles,
+   modals, join screen, inputs - to WhatsApp's own dark palette.
+========================================================= */
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --wa-panel-header: #202c33;
+    --wa-panel-bg: #111b21;
+    --wa-chat-bg: #0b141a;
+    --wa-green: #00a884;
+    --wa-green-dark: #005c4b;
+    --wa-teal-text: #00a884;
+    --wa-bubble-out: #005c4b;
+    --wa-bubble-in: #202c33;
+    --wa-text-primary: #e9edef;
+    --wa-text-secondary: #8696a0;
+    --wa-border: #2a3942;
+    --wa-hover: #202c33;
+    --wa-selected: #2a3942;
+    --wa-icon: #aebac1;
+    --wa-blue-tick: #53bdeb;
+}
+
 html, body {
     background: var(--wa-chat-bg) !important;
     font-family: "Segoe UI", "Helvetica Neue", Helvetica, Arial, "Inter", sans-serif !important;
     color: var(--wa-text-primary);
+    color-scheme: inherit;
+}
+
+#phoneInput, #nameInput, #forgotPhoneInput,
+#createAccountNameInput, #createAccountPhoneInput {
+    color-scheme: inherit;
 }
 
 /* ---------- app shell ---------- */
@@ -7305,7 +7552,7 @@ html, body {
 .modal-head { border-bottom: 1px solid var(--wa-border) !important; color: var(--wa-text-primary) !important; }
 .modal-hint, .forgot-modal p, .nice-alert p { color: var(--wa-text-secondary) !important; }
 
-.modal-text-input, #forgotEmailInput, #createAccountNameInput, #createAccountEmailInput {
+.modal-text-input, #forgotPhoneInput, #createAccountNameInput, #createAccountPhoneInput {
     background: var(--wa-panel-header) !important;
     color: var(--wa-text-primary) !important;
     border: 1px solid var(--wa-border) !important;
@@ -7439,4 +7686,144 @@ html, body {
     border-radius: 10px;
     padding: 12px 10px;
     margin: 8px 0;
+}
+
+
+/* =========================================================
+   FIX: restore the mobile single-panel chat toggle
+
+   The "WhatsApp theme" block further up sets
+   .sidebar { display: grid !important; width: 400px !important; }
+   with no media query around it, so it applies on phones too
+   and beats the phone media query's plain (non-!important)
+   .app.chat-open .sidebar { display: none } rule further up the
+   file. Net effect: tapping a friend/group never actually hides
+   the friends list, so the chat (and its composer) is pushed off
+   -screen and unreachable. Restated here, after that block, with
+   matching or higher specificity so it always wins on phones.
+========================================================= */
+
+@media (max-width: 650px) {
+
+    .sidebar {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .chat-area {
+        display: none !important;
+    }
+
+    .app.chat-open .sidebar {
+        display: none !important;
+    }
+
+    .app.chat-open .chat-area {
+        display: flex !important;
+        width: 100% !important;
+    }
+
+}
+
+
+/* =========================================================
+   FIX: black background on phone/name fields while typing
+   or after autofill.
+
+   Chrome/WebView paints its own background over an
+   autofilled (or in-progress-autofill) field, and with no
+   :-webkit-autofill override anywhere in this file that
+   paint shows up as solid black on top of our dark inputs,
+   hiding the text. Force the same colors we already use for
+   these fields onto the autofill state so it never turns
+   black, in the join screen, forgot-name modal, and create
+   -account modal.
+========================================================= */
+
+#phoneInput:-webkit-autofill,
+#nameInput:-webkit-autofill,
+#forgotPhoneInput:-webkit-autofill,
+#createAccountNameInput:-webkit-autofill,
+#createAccountPhoneInput:-webkit-autofill,
+#phoneInput:-webkit-autofill:hover,
+#nameInput:-webkit-autofill:hover,
+#forgotPhoneInput:-webkit-autofill:hover,
+#createAccountNameInput:-webkit-autofill:hover,
+#createAccountPhoneInput:-webkit-autofill:hover,
+#phoneInput:-webkit-autofill:focus,
+#nameInput:-webkit-autofill:focus,
+#forgotPhoneInput:-webkit-autofill:focus,
+#createAccountNameInput:-webkit-autofill:focus,
+#createAccountPhoneInput:-webkit-autofill:focus,
+#phoneInput:-webkit-autofill:active,
+#nameInput:-webkit-autofill:active,
+#forgotPhoneInput:-webkit-autofill:active,
+#createAccountNameInput:-webkit-autofill:active,
+#createAccountPhoneInput:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--wa-text-primary) !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--wa-panel-header) inset !important;
+    box-shadow: 0 0 0 1000px var(--wa-panel-header) inset !important;
+    caret-color: var(--wa-text-primary) !important;
+    border: 1px solid var(--wa-border) !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* =========================================================
+   FIX: text unreadable WHILE TYPING (dark-on-near-black)
+
+   #phoneInput:focus / #nameInput:focus / etc. further up this
+   file force a near-black background (#0d1a16) the moment a
+   field is focused, but don't set a text colour - so it falls
+   through to the light re-skin's dark text colour. Dark text
+   on a near-black field is unreadable for as long as the field
+   is focused (i.e. the whole time you're typing); it only
+   looks fine again once you tap away and the field goes back
+   to its normal light resting state. Restated last, with the
+   same selectors, so background and colour always match while
+   typing too.
+========================================================= */
+
+#phoneInput:focus,
+#nameInput:focus,
+#forgotPhoneInput:focus,
+#createAccountNameInput:focus,
+#createAccountPhoneInput:focus {
+    background: var(--wa-panel-header) !important;
+    color: var(--wa-text-primary) !important;
+    border-color: var(--wa-green) !important;
+    box-shadow: 0 0 0 2px rgba(0, 168, 132, 0.15) !important;
+}
+/* ============================================================
+   SYSTEM TOAST (join/leave notices broadcast by the server,
+   e.g. "X joined the chat" / "X left the chat")
+   ============================================================ */
+
+.system-toast {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-16px);
+
+    background: #111827;
+    color: #cbd5e1;
+    border: 1px solid #263244;
+    padding: 8px 18px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+
+    z-index: 500;
+    max-width: 90vw;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.system-toast.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
 }

@@ -167,9 +167,19 @@ body.hsc-banner-open {
     var reshowTimer = null;
     var RESHOW_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
+    // Belt-and-suspenders flag alongside the display-mode check
+    // below: some browsers/WebViews are briefly unreliable about
+    // reporting "standalone" right after an install, so once we've
+    // ever seen an appinstalled event we also remember it here and
+    // keep the banner gone for good, even across future visits made
+    // outside the installed app (e.g. someone opens the site link
+    // again in a normal browser tab).
+    var INSTALLED_FLAG_KEY = "hscAppInstalled";
+
     function isStandalone() {
         return window.matchMedia("(display-mode: standalone)").matches ||
-               window.navigator.standalone === true;
+               window.navigator.standalone === true ||
+               localStorage.getItem(INSTALLED_FLAG_KEY) === "1";
     }
 
     function showBanner() {
@@ -238,6 +248,7 @@ body.hsc-banner-open {
        again unless the app is uninstalled, so the banner stays
        gone until that happens. */
     window.addEventListener("appinstalled", function () {
+        try { localStorage.setItem(INSTALLED_FLAG_KEY, "1"); } catch (e) {}
         deferredPrompt = null;
         stopReshowing();
         hideBanner();
