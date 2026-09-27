@@ -2078,6 +2078,7 @@ socket.on(
         refreshPeopleList();
 
         maybeShowJoinGroupInviteModal();
+        maybeOpenChatFromLink();
 
     }
 );
@@ -5876,6 +5877,74 @@ socket.on("change-number-error", ({ message } = {}) => {
 // STORAGE AND DATA PANEL (WhatsApp Settings > Storage and data)
 // ============================================================
 
+function humanFileSize(bytes) {
+    if (!bytes || bytes <= 0) return "0 KB";
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${Math.max(1, Math.round(kb))} KB`;
+    const mb = kb / 1024;
+    if (mb < 1024) return `${mb.toFixed(mb < 10 ? 2 : 1)} MB`;
+    return `${(mb / 1024).toFixed(2)} GB`;
+}
+
+// Walks every conversation this device knows about and totals up the
+// size of its media attachments (images/video/audio/files carry a
+// `size` in bytes, set by the /upload endpoint). Mirrors WhatsApp's
+// Settings > Storage and data > Manage storage screen.
+function computeChatStorageBreakdown() {
+
+    const rows = [];
+
+    Object.keys(conversations || {}).forEach((chatId) => {
+
+        const msgs = conversations[chatId] || [];
+        let bytes = 0;
+        let mediaCount = 0;
+
+        msgs.forEach((m) => {
+            const att = m.attachment;
+            if (!att || att.deletedForEveryone) return;
+            if (typeof att.size === "number" && att.size > 0) {
+                bytes += att.size;
+                mediaCount += 1;
+            }
+        });
+
+        if (mediaCount === 0) return;
+
+        const group = myGroups.get(chatId);
+        const name =
+            (group && group.name) ||
+            (friendProfiles[chatId] && friendProfiles[chatId].name) ||
+            (usersOnline[chatId] && usersOnline[chatId].name) ||
+            "Chat";
+
+        rows.push({ chatId, name, bytes, mediaCount });
+
+    });
+
+    rows.sort((a, b) => b.bytes - a.bytes);
+
+    return rows;
+}
+
+function clearMediaForChat(chatId) {
+
+    const msgs = conversations[chatId] || [];
+
+    conversations[chatId] = msgs.filter((m) => {
+        // keep plain text and already-deleted placeholders; drop
+        // messages whose only content was a sized attachment
+        if (!m.attachment) return true;
+        if (typeof m.attachment.size !== "number") return true;
+        return false;
+    });
+
+    if (activeChat && activeChat.id === chatId && typeof renderMessages === "function") {
+        renderMessages();
+    }
+
+}
+
 function renderStorageDataPanel() {
 
     if (!accountPanelBody) return;
@@ -5928,6 +5997,69 @@ function renderStorageDataPanel() {
 
     block.appendChild(clearBtn);
     accountPanelBody.appendChild(block);
+
+    // ---- Manage storage: per-chat media breakdown ----
+    const rows = computeChatStorageBreakdown();
+    const totalBytes = rows.reduce((sum, r) => sum + r.bytes, 0);
+
+    const manageBlock = document.createElement("div");
+    manageBlock.className = "settings-block";
+    manageBlock.innerHTML = `
+        <h4 class="settings-heading">Manage storage</h4>
+        <p class="settings-hint">${rows.length ? `${humanFileSize(totalBytes)} of media across ${rows.length} chat${rows.length === 1 ? "" : "s"}.` : "No media stored on this device yet."}</p>
+    `;
+
+    const list = document.createElement("div");
+    list.className = "storage-chat-list";
+
+    const maxBytes = rows.length ? rows[0].bytes : 1;
+
+    rows.forEach((row) => {
+
+        const item = document.createElement("div");
+        item.className = "storage-chat-row";
+
+        const barPct = Math.max(4, Math.round((row.bytes / maxBytes) * 100));
+
+        item.innerHTML = `
+            <div class="storage-chat-row-top">
+                <span class="storage-chat-name">${escapeHtml(row.name)}</span>
+                <span class="storage-chat-size">${humanFileSize(row.bytes)}</span>
+            </div>
+            <div class="storage-chat-bar-track">
+                <div class="storage-chat-bar-fill" style="width:${barPct}%"></div>
+            </div>
+            <div class="storage-chat-row-meta">
+                <span>${row.mediaCount} media file${row.mediaCount === 1 ? "" : "s"}</span>
+                <button type="button" class="storage-chat-clear-btn" data-chat-id="${escapeHtml(row.chatId)}">Clear media</button>
+            </div>
+        `;
+
+        list.appendChild(item);
+
+    });
+
+    manageBlock.appendChild(list);
+    accountPanelBody.appendChild(manageBlock);
+
+    list.querySelectorAll(".storage-chat-clear-btn").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+
+            const chatId = btn.dataset.chatId;
+            const row = rows.find(r => r.chatId === chatId);
+
+            const ok = await showNiceConfirm(
+                `Delete ${row ? row.mediaCount : "these"} media file${row && row.mediaCount === 1 ? "" : "s"} from ${row ? row.name : "this chat"}? Text messages are kept.`,
+                { title: "Clear media", icon: "fa-broom", confirmText: "Clear media" }
+            );
+
+            if (!ok) return;
+
+            clearMediaForChat(chatId);
+            renderStorageDataPanel();
+
+        });
+    });
 }
 
 
@@ -5957,6 +6089,120 @@ function renderHelpPanel() {
         </p>
     `;
     accountPanelBody.appendChild(block);
+}
+
+
+// ============================================================
+// CLICK-TO-CHAT LINKS (?startChat=NAME in the URL — like
+// wa.me/<number>, but built around this app's own identity: the
+// person's display name, which is what actually looks people up
+// here). Opened either by pasting the link in a browser, or by
+// someone else's "My chat link" share.
+// ============================================================
+
+let pendingStartChatName = null;
+
+(function checkForStartChatLinkInUrl() {
+    const params = new URLSearchParams(location.search);
+    const name = params.get("startChat");
+    if (name) pendingStartChatName = name;
+})();
+
+function findUserIdByName(name) {
+
+    const target = name.trim().toLowerCase();
+    if (!target) return null;
+
+    for (const [id, user] of Object.entries(usersOnline || {})) {
+        if (user && user.name && user.name.toLowerCase() === target) return id;
+    }
+
+    for (const [id, profile] of Object.entries(friendProfiles || {})) {
+        if (profile && profile.name && profile.name.toLowerCase() === target) return id;
+    }
+
+    return null;
+}
+
+function maybeOpenChatFromLink() {
+
+    if (!pendingStartChatName || !me) return;
+
+    const name = pendingStartChatName;
+    pendingStartChatName = null;
+
+    // clean the param out of the url either way, so a refresh doesn't
+    // re-trigger this
+    history.replaceState(null, "", location.pathname);
+
+    if (name.toLowerCase() === me.name.toLowerCase()) return;
+
+    const id = findUserIdByName(name);
+
+    if (id) {
+
+        if (!friendIds.has(id) && getFriendRelation(id) === "none") {
+            handleFriendAction({ id, name: (usersOnline[id] && usersOnline[id].name) || name });
+            showNiceAlert(
+                `Friend request sent to ${name}. You'll be able to chat once they accept.`,
+                { title: "Chat link", icon: "fa-link" }
+            );
+        }
+
+        openChat(id, (usersOnline[id] && usersOnline[id].name) || name);
+
+        const chatsTabBtn = document.querySelector('[data-sidebar-view="chats"]');
+        if (chatsTabBtn) chatsTabBtn.click();
+
+        return;
+    }
+
+    showNiceAlert(
+        `Couldn't find "${name}" — they may be offline or no longer using Site Chat.`,
+        { title: "Chat link", icon: "fa-triangle-exclamation" }
+    );
+
+}
+
+const myChatLinkBtn = document.getElementById("myChatLinkBtn");
+
+if (myChatLinkBtn) {
+
+    myChatLinkBtn.addEventListener("click", async () => {
+
+        if (accountMenu) accountMenu.classList.add("hidden");
+
+        if (!me) return;
+
+        const link = `${PUBLIC_SITE_URL}/?startChat=${encodeURIComponent(me.name)}`;
+
+        try {
+
+            if (navigator.share) {
+                await navigator.share({
+                    title: "Chat with me on Site Chat",
+                    text: `Chat with ${me.name} on Site Chat`,
+                    url: link
+                });
+                return;
+            }
+
+            await navigator.clipboard.writeText(link);
+            showNiceAlert(
+                "Your chat link was copied. Anyone who opens it will start a chat with you.",
+                { title: "My chat link", icon: "fa-link" }
+            );
+
+        } catch (error) {
+
+            if (error && error.name === "AbortError") return;
+
+            showNiceAlert(link, { title: "My chat link", icon: "fa-link" });
+
+        }
+
+    });
+
 }
 
 
@@ -7277,6 +7523,72 @@ if (textInput) {
 }
 
 
+// ============================================================
+// TEXT FORMATTING SHORTCUTS (bold / italic / strikethrough /
+// monospace) — same keys as WhatsApp Desktop: wraps the current
+// selection (or inserts empty markers at the caret) with the
+// WhatsApp-style markdown characters, which appendFormattedText()
+// then renders as real <b>/<i>/<s>/<code> when the message shows up.
+// ============================================================
+
+function wrapComposerSelection(marker) {
+
+    if (!textInput) return;
+
+    const start = textInput.selectionStart ?? textInput.value.length;
+    const end = textInput.selectionEnd ?? textInput.value.length;
+    const value = textInput.value;
+
+    const selected = value.slice(start, end);
+
+    textInput.value =
+        value.slice(0, start) +
+        marker + selected + marker +
+        value.slice(end);
+
+    textInput.focus();
+
+    if (selected) {
+        // keep the (now wrapped) text selected so repeating the
+        // shortcut un-wraps it, like WhatsApp Desktop does
+        textInput.setSelectionRange(start + marker.length, end + marker.length);
+    } else {
+        const caret = start + marker.length;
+        textInput.setSelectionRange(caret, caret);
+    }
+
+    if (typeof renderMentionDropdown === "function") renderMentionDropdown();
+
+}
+
+if (textInput) {
+
+    textInput.addEventListener("keydown", (e) => {
+
+        const ctrlOrCmd = e.ctrlKey || e.metaKey;
+        if (!ctrlOrCmd) return;
+
+        const key = e.key.toLowerCase();
+
+        if (key === "b") {
+            e.preventDefault();
+            wrapComposerSelection("*");
+        } else if (key === "i") {
+            e.preventDefault();
+            wrapComposerSelection("_");
+        } else if (e.shiftKey && key === "x") {
+            e.preventDefault();
+            wrapComposerSelection("~");
+        } else if (e.shiftKey && key === "m") {
+            e.preventDefault();
+            wrapComposerSelection("```");
+        }
+
+    });
+
+}
+
+
 // ---- @mentions (group chats only) ----
 
 const currentMentionIds = new Set();
@@ -8034,8 +8346,61 @@ function messageMentionsMe(msg) {
     return !!(msg.text && /@(everyone|all)\b/i.test(msg.text));
 }
 
+// ------------------------------------------------------------
+// INLINE TEXT FORMATTING (WhatsApp-style *bold*, _italic_,
+// ~strikethrough~, ```monospace```) — parsed into real elements,
+// never via innerHTML, so it's exactly as safe as plain text.
+// ------------------------------------------------------------
+
+// Matches a run wrapped in one of the four marker styles. WhatsApp's
+// own rule (delimiter must hug its text, not be surrounded by
+// whitespace on the inside) is approximated here: no leading/trailing
+// space just inside the markers, and markers can't span blank lines.
+const FORMATTING_RE =
+    /```([^`\n]+)```|\*([^\s*][^*\n]*[^\s*]|[^\s*])\*|_([^\s_][^_\n]*[^\s_]|[^\s_])_|~([^\s~][^~\n]*[^\s~]|[^\s~])~/g;
+
+// Appends `text` into `container` as a mix of plain text nodes and
+// formatted (<b>/<i>/<s>/<code>) elements. Safe against HTML injection
+// because every piece of text is set via textContent, never innerHTML.
+function appendFormattedText(container, text) {
+
+    if (!text) return;
+
+    FORMATTING_RE.lastIndex = 0;
+
+    let lastIndex = 0;
+    let match;
+
+    while ((match = FORMATTING_RE.exec(text))) {
+
+        if (match.index > lastIndex) {
+            container.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+        }
+
+        let tag = "span";
+        let inner = "";
+
+        if (match[1] !== undefined) { tag = "code"; inner = match[1]; }
+        else if (match[2] !== undefined) { tag = "b"; inner = match[2]; }
+        else if (match[3] !== undefined) { tag = "i"; inner = match[3]; }
+        else if (match[4] !== undefined) { tag = "s"; inner = match[4]; }
+
+        const el = document.createElement(tag);
+        if (tag === "code") el.className = "msg-inline-code";
+        el.textContent = inner;
+        container.appendChild(el);
+
+        lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+        container.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+}
+
 // highlights "@Name" (for anyone in msg.mentions) and "@everyone"/"@all"
-// inside a message, without ever using innerHTML on the raw text
+// inside a message, and renders *bold*/_italic_/~strike~/```mono```
+// formatting — without ever using innerHTML on the raw text
 function renderMessageTextWithMentions(textSpan, msg) {
 
     const text = msg.text;
@@ -8053,7 +8418,7 @@ function renderMessageTextWithMentions(textSpan, msg) {
     }
 
     if (!patterns.length) {
-        textSpan.textContent = text;
+        appendFormattedText(textSpan, text);
         return;
     }
 
@@ -8073,7 +8438,7 @@ function renderMessageTextWithMentions(textSpan, msg) {
     while ((match = re.exec(text))) {
 
         if (match.index > lastIndex) {
-            textSpan.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+            appendFormattedText(textSpan, text.slice(lastIndex, match.index));
         }
 
         const tag = document.createElement("span");
@@ -8095,7 +8460,7 @@ function renderMessageTextWithMentions(textSpan, msg) {
     }
 
     if (lastIndex < text.length) {
-        textSpan.appendChild(document.createTextNode(text.slice(lastIndex)));
+        appendFormattedText(textSpan, text.slice(lastIndex));
     }
 }
 
@@ -14206,10 +14571,34 @@ if ($id("chatSearchPrevBtn")) $id("chatSearchPrevBtn").addEventListener("click",
         const msgId = findMsgId(msgEl);
         const msg = msgId && activeChat ? findMessageInConversation(activeChat.id, msgId) : null;
         menu.innerHTML = itemsFor(msgEl, msg);
+        menu.dataset.forMsg = msgId || "";
+
+        // Position first (off-hidden state is fine to measure), then
+        // clamp so the menu never renders partly off-screen — with a
+        // long item list (reply/edit/forward/star/pin/copy/delete) a
+        // click near the bottom or right edge of the window would
+        // otherwise push part of the menu past the viewport.
+        menu.classList.remove("hidden");
         menu.style.left = `${x}px`;
         menu.style.top = `${y}px`;
-        menu.dataset.forMsg = msgId || "";
-        menu.classList.remove("hidden");
+
+        const margin = 8;
+        const rect = menu.getBoundingClientRect();
+
+        let left = x;
+        let top = y;
+
+        if (left + rect.width > window.innerWidth - margin) {
+            left = Math.max(margin, window.innerWidth - rect.width - margin);
+        }
+
+        if (top + rect.height > window.innerHeight - margin) {
+            // flip so the menu grows upward from the click point instead
+            top = Math.max(margin, y - rect.height);
+        }
+
+        menu.style.left = `${left}px`;
+        menu.style.top = `${top}px`;
     }
 
     const messagesEl = $id("messages");

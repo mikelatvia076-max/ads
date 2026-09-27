@@ -1080,6 +1080,16 @@
                 </button>
 
 
+                <button id="myChatLinkBtn">
+
+                    <span>
+                        <i class="fa-solid fa-link"></i>
+                        My chat link
+                    </span>
+
+                </button>
+
+
                 <button
                     id="logoutBtn"
                     class="logout-menu-btn">
@@ -2249,6 +2259,29 @@
 
         </div>
 
+        <!-- Admin approval for new joins via invite link -->
+        <label id="groupApprovalRow" class="group-info-toggle-row hidden">
+
+            <span>
+                <strong>Approve new members</strong>
+                <small>People joining via the invite link need an admin to let them in</small>
+            </span>
+
+            <input type="checkbox" id="groupApprovalToggle">
+
+        </label>
+
+        <!-- Pending join requests (admins only) -->
+        <div id="groupJoinRequestsSection" class="group-join-requests-section hidden">
+
+            <div class="modal-hint">
+                Waiting for approval
+            </div>
+
+            <div id="groupJoinRequestsList" class="group-join-requests-list"></div>
+
+        </div>
+
         <div class="modal-hint">
             Members
         </div>
@@ -2488,6 +2521,15 @@
         <button id="chatLockSubmitBtn" class="modal-primary-btn">
             Continue
         </button>
+
+        <button id="chatLockBiometricBtn" class="modal-secondary-btn chat-lock-biometric-btn hidden">
+            <i class="fa-solid fa-fingerprint"></i> Unlock with fingerprint / Face ID
+        </button>
+
+        <label id="chatLockBiometricEnableRow" class="chat-lock-biometric-enable hidden">
+            <input type="checkbox" id="chatLockBiometricEnableToggle">
+            <span>Also allow unlocking with this device's fingerprint / Face ID</span>
+        </label>
 
     </div>
 

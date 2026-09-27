@@ -3714,6 +3714,26 @@ io.on("connection", (socket) => {
         socket.emit("group-invite", { groupId: group.id, code: group.inviteCode });
     });
 
+    // admins can require new joiners (via the invite link) to be
+    // approved before they're actually added to the group
+    socket.on("set-group-join-approval", ({ groupId, required } = {}) => {
+
+        if (!groupId || !chatUserId) return;
+
+        const group = groupsStore.get(groupId);
+        if (!group || !group.adminIds.includes(chatUserId)) {
+            socket.emit("group-error", { message: "Only admins can change this." });
+            return;
+        }
+
+        group.requireAdminApproval = !!required;
+        if (!group.requireAdminApproval) group.pendingJoinRequests = [];
+
+        persistGroups();
+
+        io.to(group.id).emit("group-updated", group);
+    });
+
     // joining a group via a shared invite link/code
     socket.on("join-group-via-invite", ({ code } = {}) => {
 
@@ -3728,14 +3748,90 @@ io.on("connection", (socket) => {
             return;
         }
 
-        if (!group.memberIds.includes(chatUserId)) {
-            group.memberIds.push(chatUserId);
-            persistGroups();
+        if (group.memberIds.includes(chatUserId)) {
+            joinGroupRoomForMembers(group);
+            io.to(group.id).emit("group-updated", group);
+            return;
         }
+
+        if (group.requireAdminApproval) {
+
+            if (!Array.isArray(group.pendingJoinRequests)) group.pendingJoinRequests = [];
+
+            const already = group.pendingJoinRequests.find(r => r.userId === chatUserId);
+
+            if (!already) {
+                group.pendingJoinRequests.push({
+                    userId: chatUserId,
+                    name: socket.data.name,
+                    requestedAt: Date.now()
+                });
+                persistGroups();
+
+                // let every admin know someone is waiting, so any of
+                // them (whichever is online) can approve/decline
+                group.adminIds.forEach((adminId) => {
+                    io.to(adminId).emit("group-join-request", {
+                        groupId: group.id,
+                        groupName: group.name,
+                        userId: chatUserId,
+                        name: socket.data.name
+                    });
+                });
+            }
+
+            socket.emit("group-join-pending", { groupId: group.id, groupName: group.name });
+            return;
+        }
+
+        group.memberIds.push(chatUserId);
+        persistGroups();
 
         joinGroupRoomForMembers(group);
 
         io.to(group.id).emit("group-updated", group);
+    });
+
+    // an admin approving or declining someone on the pending list
+    socket.on("respond-group-join-request", ({ groupId, userId, approve } = {}) => {
+
+        if (!groupId || !userId || !chatUserId) return;
+
+        const group = groupsStore.get(groupId);
+        if (!group || !group.adminIds.includes(chatUserId)) {
+            socket.emit("group-error", { message: "Only admins can approve join requests." });
+            return;
+        }
+
+        if (!Array.isArray(group.pendingJoinRequests)) group.pendingJoinRequests = [];
+
+        const idx = group.pendingJoinRequests.findIndex(r => r.userId === userId);
+        if (idx === -1) return;
+
+        const request = group.pendingJoinRequests[idx];
+        group.pendingJoinRequests.splice(idx, 1);
+
+        if (approve) {
+
+            if (!group.memberIds.includes(userId)) group.memberIds.push(userId);
+            persistGroups();
+
+            joinGroupRoomForMembers(group);
+
+            io.to(userId).emit("group-join-approved", { groupId: group.id, groupName: group.name });
+            io.to(group.id).emit("group-updated", group);
+
+        } else {
+
+            persistGroups();
+            io.to(userId).emit("group-join-declined", { groupId: group.id, groupName: group.name });
+
+        }
+
+        // refresh every admin's pending list
+        group.adminIds.forEach((adminId) => {
+            io.to(adminId).emit("group-updated", group);
+        });
     });
 
 
