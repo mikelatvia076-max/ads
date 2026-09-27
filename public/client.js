@@ -288,6 +288,21 @@ const autoSigninText =
 // out. This forces it back to the normal form after a timeout.
 let autoSigninTimeout = null;
 
+// True only while we're mid the automatic "sign back in" attempt that
+// fires on page load using a saved name/phone - never during a manual
+// tap of the Join button. Used below to decide whether a "no account
+// found" rejection is safe to quietly paper over (see
+// pendingSilentAutoRecreate).
+let isAutoSigninAttempt = false;
+
+// True only while we're silently re-registering this device's own
+// account after the server rejected it as "not found" - guards
+// against looping and tells the account-created/-exists/-error
+// handlers below to finish signing in quietly instead of showing the
+// normal "Create new account" UI.
+let pendingSilentAutoRecreate = false;
+let autoRecreateAttempted = false;
+
 const forgotNameBtn =
     document.getElementById("forgotNameBtn");
 
@@ -1156,7 +1171,10 @@ if (joinBtn) {
 
     joinBtn.addEventListener(
         "click",
-        join
+        () => {
+            isAutoSigninAttempt = false;
+            join();
+        }
     );
 
 }
@@ -1169,6 +1187,7 @@ if (nameInput) {
         (e) => {
 
             if (e.key === "Enter") {
+                isAutoSigninAttempt = false;
                 join();
             }
 
@@ -1185,6 +1204,7 @@ if (phoneInput) {
         (e) => {
 
             if (e.key === "Enter") {
+                isAutoSigninAttempt = false;
                 join();
             }
 
@@ -1255,6 +1275,7 @@ if (
         }
     }
 
+    isAutoSigninAttempt = true;
     join();
 
     autoSigninTimeout = setTimeout(() => {
@@ -1553,6 +1574,34 @@ socket.on(
     ({ reason, phone, name } = {}) => {
 
         resetJoinButton();
+
+        const savedNameNow = localStorage.getItem("siteChatName") || "";
+        const savedPhoneNow = localStorage.getItem("siteChatPhone") || "";
+
+        // The server's own record of this account can be reset without
+        // anything the user did - e.g. a free hosting tier that wipes
+        // its disk whenever the server cold-starts after idling. If
+        // this device still remembers the exact name/phone it signed
+        // in with last time, and this was the automatic "sign back in"
+        // attempt (not someone manually typing into the Join form),
+        // quietly re-register that same account instead of sending a
+        // returning user back to "create an account" for one they
+        // already made.
+        if (
+            reason === "not-found" &&
+            isAutoSigninAttempt &&
+            !autoRecreateAttempted &&
+            savedNameNow &&
+            savedPhoneNow
+        ) {
+
+            autoRecreateAttempted = true;
+            pendingSilentAutoRecreate = true;
+
+            socket.emit("create-account", { name: savedNameNow, phone: savedPhoneNow });
+            return;
+
+        }
 
         localStorage.removeItem("siteChatName");
         localStorage.removeItem("siteChatPhone");
@@ -1952,6 +2001,22 @@ if (createAccountPhoneInput) {
 
 socket.on("account-created", ({ name, phone } = {}) => {
 
+    if (pendingSilentAutoRecreate) {
+
+        pendingSilentAutoRecreate = false;
+
+        // this device's account just got quietly re-registered after
+        // the server lost its copy - finish signing in the same way
+        // the original auto sign-in would have, with none of the
+        // "account created" UI for something the user didn't ask to do
+        if (name) localStorage.setItem("siteChatName", name);
+        if (phone) localStorage.setItem("siteChatPhone", phone);
+
+        join();
+        return;
+
+    }
+
     resetCreateAccountSubmit();
     closeCreateAccountModal();
 
@@ -1975,6 +2040,20 @@ socket.on("account-created", ({ name, phone } = {}) => {
 
 socket.on("account-exists", ({ name, phone } = {}) => {
 
+    if (pendingSilentAutoRecreate) {
+
+        // rare race: the account reappeared (another request recreated
+        // it) between our "not found" and now - just sign in with it
+        pendingSilentAutoRecreate = false;
+
+        if (name) localStorage.setItem("siteChatName", name);
+        if (phone) localStorage.setItem("siteChatPhone", phone);
+
+        join();
+        return;
+
+    }
+
     resetCreateAccountSubmit();
     closeCreateAccountModal();
 
@@ -1991,6 +2070,28 @@ socket.on("account-exists", ({ name, phone } = {}) => {
 });
 
 socket.on("account-create-error", ({ message } = {}) => {
+
+    if (pendingSilentAutoRecreate) {
+
+        // couldn't even silently recreate it - give up quietly-trying
+        // and fall back to the normal manual "account needed" flow
+        pendingSilentAutoRecreate = false;
+
+        resetJoinButton();
+        localStorage.removeItem("siteChatName");
+        localStorage.removeItem("siteChatPhone");
+
+        if (joinScreen) joinScreen.classList.remove("hidden");
+        if (app) app.classList.add("hidden");
+
+        showNiceAlert(
+            "We couldn't automatically sign you back in. Please create a new account or check your phone number.",
+            { title: "Account needed", icon: "fa-user-lock" }
+        );
+
+        return;
+
+    }
 
     resetCreateAccountSubmit();
 
@@ -10396,6 +10497,46 @@ function mediaDevicesAvailable() {
 }
 
 
+// Installed as a standalone app (added to home screen / installed
+// PWA) rather than open in a normal browser tab. These don't have
+// an address bar, so "check the site permission there" is wrong
+// advice — the permission lives in the OS/device settings instead.
+function isStandaloneApp() {
+    return Boolean(
+        (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) ||
+        (window.matchMedia && window.matchMedia("(display-mode: window-controls-overlay)").matches) ||
+        window.navigator.standalone === true // iOS "Add to Home Screen"
+    );
+}
+
+function blockedPermissionMessage() {
+
+    if (!isStandaloneApp()) {
+        return "Microphone/camera access was blocked. Check the camera/mic permission for this site in your browser's address-bar settings, then try again.";
+    }
+
+    const ua = navigator.userAgent || "";
+
+    if (/android/i.test(ua)) {
+        return "Microphone/camera access was blocked for this installed app. Open your device Settings > Apps, find this app, open Permissions, and turn on Camera and Microphone, then try again.";
+    }
+
+    if (/iphone|ipad|ipod/i.test(ua)) {
+        return "Microphone/camera access was blocked. iOS doesn't show a separate permission switch for apps added to the Home Screen — try opening the site in Safari itself and allowing camera/mic there, or remove this app from your Home Screen and add it again so it can re-ask for permission.";
+    }
+
+    if (/macintosh|mac os x/i.test(ua)) {
+        return "Microphone/camera access was blocked for this installed app. Open System Settings > Privacy & Security > Camera (and Microphone), find this app in the list, and turn it on, then try again.";
+    }
+
+    if (/windows/i.test(ua)) {
+        return "Microphone/camera access was blocked for this installed app. Open Settings > Privacy & security > Camera (and Microphone), find this app in the list, and turn access on, then try again.";
+    }
+
+    return "Microphone/camera access was blocked for this installed app. Since it's installed as an app rather than open in a browser tab, look for its camera/mic permission in your device's system settings rather than a browser address bar, then try again.";
+
+}
+
 function mediaErrorMessage(err) {
 
     if (!mediaDevicesAvailable()) {
@@ -10407,7 +10548,7 @@ function mediaErrorMessage(err) {
 
     if (err && err.name === "NotAllowedError") {
 
-        return "Microphone/camera access was blocked. Check the camera/mic permission for this site in your browser's address-bar settings, then try again.";
+        return blockedPermissionMessage();
 
     }
 
@@ -13977,6 +14118,111 @@ function getSecretCode() {
 
 let chatLockModalMode = "set"; // "set" | "unlock-folder"
 
+// ------------------------------------------------------------
+// Biometric app lock (WebAuthn platform authenticator)
+//
+// This is purely local: there's no server involved. Enrolling a
+// credential here just lets this device's fingerprint / Face ID
+// prompt stand in for typing the PIN on THIS device — it's a
+// shortcut for the PIN, not a replacement for having one, and it
+// carries the same "client-side lock" security level as the PIN
+// already does.
+// ------------------------------------------------------------
+
+function webAuthnAvailable() {
+    return Boolean(window.PublicKeyCredential && navigator.credentials);
+}
+
+function getBiometricCredentialId() {
+    return localStorage.getItem("siteChatBiometricCredId") || "";
+}
+
+function saveBiometricCredentialId(id) {
+    localStorage.setItem("siteChatBiometricCredId", id);
+}
+
+function clearBiometricCredential() {
+    localStorage.removeItem("siteChatBiometricCredId");
+}
+
+function hasBiometricUnlock() {
+    return Boolean(getBiometricCredentialId());
+}
+
+function bufToBase64(buf) {
+    return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+
+function base64ToBuf(b64) {
+    return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+}
+
+async function enrollBiometricUnlock() {
+
+    if (!webAuthnAvailable()) return false;
+
+    try {
+
+        const credential = await navigator.credentials.create({
+            publicKey: {
+                challenge: crypto.getRandomValues(new Uint8Array(32)),
+                rp: { name: "Site Chat" },
+                user: {
+                    id: crypto.getRandomValues(new Uint8Array(16)),
+                    name: "site-chat-lock",
+                    displayName: "Site Chat App Lock"
+                },
+                pubKeyCredParams: [
+                    { type: "public-key", alg: -7 },   // ES256
+                    { type: "public-key", alg: -257 }  // RS256
+                ],
+                authenticatorSelection: {
+                    authenticatorAttachment: "platform",
+                    userVerification: "required"
+                },
+                timeout: 60000
+            }
+        });
+
+        if (!credential) return false;
+
+        saveBiometricCredentialId(bufToBase64(credential.rawId));
+        return true;
+
+    } catch (err) {
+        return false;
+    }
+
+}
+
+async function unlockWithBiometric() {
+
+    const credId = getBiometricCredentialId();
+    if (!webAuthnAvailable() || !credId) return false;
+
+    try {
+
+        const assertion = await navigator.credentials.get({
+            publicKey: {
+                challenge: crypto.getRandomValues(new Uint8Array(32)),
+                allowCredentials: [{
+                    type: "public-key",
+                    id: base64ToBuf(credId),
+                    transports: ["internal"]
+                }],
+                userVerification: "required",
+                timeout: 60000
+            }
+        });
+
+        return Boolean(assertion);
+
+    } catch (err) {
+        return false;
+    }
+
+}
+
 function openChatLockModal(mode) {
 
     chatLockModalMode = mode;
@@ -13986,13 +14232,21 @@ function openChatLockModal(mode) {
     const text = $id("chatLockModalText");
     const pinInput = $id("chatLockPinInput");
     const err = $id("chatLockError");
+    const bioBtn = $id("chatLockBiometricBtn");
+    const bioEnableRow = $id("chatLockBiometricEnableRow");
+    const bioEnableToggle = $id("chatLockBiometricEnableToggle");
+    const bioEnableLabel = bioEnableRow ? bioEnableRow.querySelector("span") : null;
 
     if (!modal) return;
 
     if (pinInput) pinInput.value = "";
-    if (err) err.classList.add("hidden");
+    if (err) {
+        err.textContent = "Incorrect PIN, try again.";
+        err.classList.add("hidden");
+    }
 
     const hasPin = !!getChatLockPin();
+    const bioEnrolled = hasBiometricUnlock();
 
     if (mode === "set") {
         if (title) title.textContent = activeChat && isChatLocked(activeChat.id) ? "Unlock this chat" : "Lock this chat";
@@ -14004,34 +14258,71 @@ function openChatLockModal(mode) {
         if (text) text.textContent = "Enter your PIN or secret code to view locked chats.";
     }
 
+    // Quick-unlock button: only once a PIN exists and a biometric
+    // credential has already been enrolled on this device.
+    if (bioBtn) {
+        bioBtn.classList.toggle("hidden", !(hasPin && webAuthnAvailable() && bioEnrolled));
+    }
+
+    // Enable/disable row: lets the user opt in (or out) of biometric
+    // unlock the next time they correctly enter their PIN. Hidden
+    // entirely if this device/browser has no platform authenticator.
+    if (bioEnableRow) {
+        bioEnableRow.classList.toggle("hidden", !webAuthnAvailable());
+    }
+    if (bioEnableToggle) bioEnableToggle.checked = bioEnrolled;
+    if (bioEnableLabel) {
+        bioEnableLabel.textContent = bioEnrolled
+            ? "Unlock with fingerprint / Face ID is on for this device (uncheck to turn off)"
+            : "Also allow unlocking with this device's fingerprint / Face ID";
+    }
+
     openModal(modal);
     if (pinInput) pinInput.focus();
 
 }
 
-function submitChatLockPin() {
+async function submitChatLockPin() {
 
     const pinInput = $id("chatLockPinInput");
     const err = $id("chatLockError");
+    const bioEnableToggle = $id("chatLockBiometricEnableToggle");
     const pin = pinInput ? pinInput.value.trim() : "";
 
     if (!pin) return;
 
     const storedPin = getChatLockPin();
+    const wantsBiometric = Boolean(bioEnableToggle && bioEnableToggle.checked);
+
+    const syncBiometricEnrollment = async () => {
+        if (wantsBiometric && !hasBiometricUnlock()) {
+            const enrolled = await enrollBiometricUnlock();
+            if (!enrolled) {
+                showNiceAlert("Couldn't set up fingerprint / Face ID unlock on this device.", { title: "Biometric unlock", icon: "fa-fingerprint" });
+            }
+        } else if (!wantsBiometric && hasBiometricUnlock()) {
+            clearBiometricCredential();
+        }
+    };
 
     if (!storedPin) {
         // first time - this PIN becomes the lock PIN
         localStorage.setItem("siteChatLockPin", pin);
+        await syncBiometricEnrollment();
         finishChatLockAction();
         return;
     }
 
     if (pin === storedPin || (chatLockModalMode === "unlock-folder" && pin === getSecretCode() && getSecretCode())) {
+        await syncBiometricEnrollment();
         finishChatLockAction();
         return;
     }
 
-    if (err) err.classList.remove("hidden");
+    if (err) {
+        err.textContent = "Incorrect PIN, try again.";
+        err.classList.remove("hidden");
+    }
 
 }
 
@@ -14091,6 +14382,25 @@ function renderLockedChatsFolder(revealed) {
 if ($id("closeChatLockModal")) $id("closeChatLockModal").addEventListener("click", () => closeModal($id("chatLockModal")));
 if ($id("chatLockSubmitBtn")) $id("chatLockSubmitBtn").addEventListener("click", submitChatLockPin);
 if ($id("chatLockPinInput")) $id("chatLockPinInput").addEventListener("keydown", (e) => { if (e.key === "Enter") submitChatLockPin(); });
+
+if ($id("chatLockBiometricBtn")) {
+    $id("chatLockBiometricBtn").addEventListener("click", async () => {
+
+        const ok = await unlockWithBiometric();
+
+        if (ok) {
+            finishChatLockAction();
+            return;
+        }
+
+        const err = $id("chatLockError");
+        if (err) {
+            err.textContent = "Fingerprint / Face ID unlock failed or was cancelled. Enter your PIN instead.";
+            err.classList.remove("hidden");
+        }
+
+    });
+}
 
 if ($id("chatLockOption")) {
     $id("chatLockOption").addEventListener("click", () => {
