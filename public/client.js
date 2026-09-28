@@ -3007,6 +3007,30 @@ socket.on("group-invite", ({ groupId, code } = {}) => {
     pendingInviteAction = null;
 });
 
+// opened from a link-a-device QR scanned with the phone's own camera
+// app (?linkdevice=CODE): a signed-out device redeems the code and
+// signs straight in, same as scanning it inside the app
+(function checkForLinkDeviceInUrl() {
+
+    const params = new URLSearchParams(location.search);
+    const raw = params.get("linkdevice");
+    if (!raw) return;
+
+    const code = raw.trim().toUpperCase();
+
+    // clean it out of the address bar so a refresh doesn't reuse it
+    window.history.replaceState({}, "", window.location.pathname);
+
+    // signed-in devices are handled from Settings > Linked devices
+    if (localStorage.getItem("siteChatName") && localStorage.getItem("siteChatPhone")) return;
+
+    const redeem = () => socket.emit("redeem-device-link-code", { code });
+
+    if (socket.connected) redeem();
+    else socket.once("connect", redeem);
+
+})();
+
 // joining via a shared invite link (?invite=CODE in the URL)
 let pendingInviteCode = null;
 
@@ -5357,7 +5381,32 @@ function extractDeviceLinkCode(text) {
     return /^[A-Z0-9]{6,12}$/i.test(trimmed) ? trimmed.toUpperCase() : null;
 }
 
-function openDeviceLinkScanner(confirmEvent, { title }) {
+// Shared by the live camera scan and the "scan from a photo" fallback
+function handleDeviceLinkDecoded(decodedText, confirmEvent) {
+
+    if (deviceLinkScanBusy) return;
+
+    const code = extractDeviceLinkCode(decodedText);
+
+    if (!code) {
+        if (deviceLinkScanStatus) {
+            deviceLinkScanStatus.textContent = "That isn't a Site Chat link code.";
+            deviceLinkScanStatus.classList.add("error");
+        }
+        return;
+    }
+
+    deviceLinkScanBusy = true;
+
+    if (deviceLinkScanStatus) {
+        deviceLinkScanStatus.textContent = "Linking\u2026";
+        deviceLinkScanStatus.classList.remove("error");
+    }
+
+    socket.emit(confirmEvent, { code });
+}
+
+async function openDeviceLinkScanner(confirmEvent, { title }) {
 
     if (!deviceLinkScanModal || !window.Html5Qrcode) {
         showNiceAlert(
@@ -5367,40 +5416,131 @@ function openDeviceLinkScanner(confirmEvent, { title }) {
         return;
     }
 
+    // a leftover scanner from an earlier open would fight the new one
+    stopDeviceLinkScanner();
+
     if (deviceLinkScanTitle) deviceLinkScanTitle.textContent = title;
 
     if (deviceLinkScanStatus) {
-        deviceLinkScanStatus.textContent = "Point your camera at the QR code.";
+        deviceLinkScanStatus.textContent = "Starting camera\u2026";
         deviceLinkScanStatus.classList.remove("error");
     }
 
     deviceLinkScanModal.classList.remove("hidden");
     deviceLinkScanBusy = false;
 
-    deviceLinkScanner = new Html5Qrcode("deviceLinkScanReader");
+    deviceLinkScanConfirmEvent = confirmEvent;
 
-    deviceLinkScanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 220 },
-        (decodedText) => {
+    // 1) make sure the camera is actually allowed - if it isn't, pop
+    // the same "Allow" prompt used for calls instead of failing quietly
+    if (mediaDevicesAvailable()) {
 
-            if (deviceLinkScanBusy) return;
+        const askCamera = () => navigator.mediaDevices.getUserMedia({ video: true });
 
-            const code = extractDeviceLinkCode(decodedText);
-            if (!code) return;
+        let permStream = null;
 
-            deviceLinkScanBusy = true;
-            if (deviceLinkScanStatus) deviceLinkScanStatus.textContent = "Linking…";
-
-            socket.emit(confirmEvent, { code });
-        },
-        () => {} // fires on every frame with nothing found - not an error, ignore it
-    ).catch(() => {
-        if (deviceLinkScanStatus) {
-            deviceLinkScanStatus.textContent = "Couldn't access the camera. Check permissions and try again.";
-            deviceLinkScanStatus.classList.add("error");
+        try {
+            permStream = await askCamera();
+        } catch (err) {
+            permStream = await promptUnblockMedia(askCamera);
         }
+
+        if (permStream) {
+            permStream.getTracks().forEach(t => t.stop());
+        } else {
+            if (deviceLinkScanStatus) {
+                deviceLinkScanStatus.textContent =
+                    "Camera is blocked. Use \"Scan from a photo\" below instead.";
+                deviceLinkScanStatus.classList.add("error");
+            }
+            return;
+        }
+
+    }
+
+    // the modal may have been closed while the prompt was up
+    if (deviceLinkScanModal.classList.contains("hidden")) return;
+
+    // 2) start the live scan - rear camera first, any camera as a fallback
+    const scanner = new Html5Qrcode("deviceLinkScanReader");
+    deviceLinkScanner = scanner;
+
+    const onDecoded = (decodedText) => handleDeviceLinkDecoded(decodedText, confirmEvent);
+    const config = { fps: 10, qrbox: 220 };
+    const ignore = () => {}; // fires on every frame with nothing found
+
+    try {
+        await scanner.start({ facingMode: "environment" }, config, onDecoded, ignore);
+    } catch (firstErr) {
+        try {
+            await scanner.start({ facingMode: "user" }, config, onDecoded, ignore);
+        } catch (secondErr) {
+            deviceLinkScanner = null;
+            if (deviceLinkScanStatus) {
+                deviceLinkScanStatus.textContent =
+                    "Couldn't start the camera. Use \"Scan from a photo\" below instead.";
+                deviceLinkScanStatus.classList.add("error");
+            }
+            return;
+        }
+    }
+
+    if (deviceLinkScanStatus) {
+        deviceLinkScanStatus.textContent = "Point your camera at the QR code.";
+    }
+}
+
+let deviceLinkScanConfirmEvent = null;
+
+// Fallback that needs no live camera permission at all: on a phone the
+// file picker opens the phone's own camera app, and the photo of the
+// QR gets decoded here.
+const deviceLinkScanPhotoBtn = document.getElementById("deviceLinkScanPhotoBtn");
+const deviceLinkScanPhotoInput = document.getElementById("deviceLinkScanPhotoInput");
+
+if (deviceLinkScanPhotoBtn && deviceLinkScanPhotoInput) {
+
+    deviceLinkScanPhotoBtn.addEventListener("click", () => deviceLinkScanPhotoInput.click());
+
+    deviceLinkScanPhotoInput.addEventListener("change", async () => {
+
+        const file = deviceLinkScanPhotoInput.files && deviceLinkScanPhotoInput.files[0];
+        deviceLinkScanPhotoInput.value = "";
+
+        if (!file || !window.Html5Qrcode || !deviceLinkScanConfirmEvent) return;
+
+        // a live scan and a file scan can't run at once
+        if (deviceLinkScanner) {
+            try { await deviceLinkScanner.stop(); } catch (e) {}
+            try { deviceLinkScanner.clear(); } catch (e) {}
+            deviceLinkScanner = null;
+        }
+
+        if (deviceLinkScanStatus) {
+            deviceLinkScanStatus.textContent = "Reading photo\u2026";
+            deviceLinkScanStatus.classList.remove("error");
+        }
+
+        try {
+
+            const reader = new Html5Qrcode("deviceLinkScanReader");
+            const text = await reader.scanFile(file, false);
+            try { reader.clear(); } catch (e) {}
+
+            handleDeviceLinkDecoded(text, deviceLinkScanConfirmEvent);
+
+        } catch (err) {
+
+            if (deviceLinkScanStatus) {
+                deviceLinkScanStatus.textContent =
+                    "Couldn't find a QR code in that photo. Try again, closer and in good light.";
+                deviceLinkScanStatus.classList.add("error");
+            }
+
+        }
+
     });
+
 }
 
 // only fires on the device that scanned (Linked devices > "Scan to
