@@ -2622,15 +2622,12 @@ io.on("connection", (socket) => {
         // history/friend list keeps working.
         const userKey = safeName.toLowerCase();
 
-        if (onlineChatUsers.has(userKey) && hasActiveSocket(userKey)) {
-            // Someone else is already actively connected under this exact
-            // name — don't let a second person collide with them. (If the
-            // name is only "online" because it's sitting in the presence
-            // grace period after a disconnect, this same person
-            // reconnecting is allowed to reclaim it below.)
-            socket.emit("name-taken", { name: safeName });
-            return;
-        }
+        // The same account can be signed in on several devices at once
+        // (phone, laptop, tablet...). By this point the name/phone (and
+        // PIN, if set) already checked out, so a second live socket
+        // under this name is the same person, not a collision. Every
+        // device joins the userKey room below, so messages and calls
+        // reach all of them.
 
         chatUserId = userKey;
 
@@ -4381,6 +4378,20 @@ io.on("connection", (socket) => {
         if (!chatUserId || !onlineChatUsers.has(chatUserId)) return;
 
         const userKey = chatUserId;
+
+        // another device is still connected under this account - they're
+        // still online. Point direct-socket lookups at a remaining one
+        // and don't mark them offline.
+        if (hasActiveSocket(userKey)) {
+
+            const room = io.sockets.adapter.rooms.get(userKey);
+            const remainingId = room ? [...room][0] : null;
+            const entry = onlineChatUsers.get(userKey);
+
+            if (entry && remainingId) entry.socketId = remainingId;
+
+            return;
+        }
 
         // "client namespace disconnect" is what the server sees when the
         // client itself called socket.disconnect() - which our own
