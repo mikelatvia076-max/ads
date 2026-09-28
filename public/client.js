@@ -10683,7 +10683,13 @@ if (micBtn) {
 
             catch (err) {
 
-                showNiceAlert(mediaErrorMessage(err), { title: "Camera & mic", icon: "fa-video" });
+                const retried = await promptUnblockMedia(
+                    () => navigator.mediaDevices.getUserMedia({
+                        audio: HIGH_QUALITY_AUDIO_CONSTRAINTS
+                    })
+                );
+
+                if (retried) startRecording(retried);
 
             }
 
@@ -11210,13 +11216,33 @@ async function getCallAudioStream(callType) {
         return await tryGet({ video: wantVideo });
     } catch (err) { /* fall through to fallbacks */ }
 
-    // 2) camera blocked/missing on a video call -> keep the call, audio only
+    // 2) camera blocked/missing on a video call -> pop the Allow
+    // prompt for the camera; if it still isn't allowed, keep the call
+    // going with audio only
     if (wantVideo) {
+
+        let audioOnly = null;
+
         try {
-            const stream = await tryGet({ video: false });
+            audioOnly = await tryGet({ video: false });
+        } catch (err) { /* mic blocked too - handled in step 3 */ }
+
+        if (audioOnly) {
+
+            const withCamera = await promptUnblockMedia(
+                () => tryGet({ video: true })
+            );
+
+            if (withCamera) {
+                audioOnly.getTracks().forEach(t => t.stop());
+                return withCamera;
+            }
+
             callMediaNotice = "Camera is blocked, so you're on audio only.";
-            return stream;
-        } catch (err) { /* fall through */ }
+            return audioOnly;
+
+        }
+
     }
 
     // 3) mic blocked too -> pop an "Allow mic & camera" prompt first
