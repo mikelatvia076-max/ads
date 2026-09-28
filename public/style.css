@@ -385,6 +385,10 @@ header {
     --accent: var(--purple);
 }
 
+.categories button.alerts-category {
+    --accent: #e11d48;
+}
+
 /* =====================================================
    SHARED SECTION HEADING
    (used by Institutions / Opportunities / Courses /
@@ -546,15 +550,23 @@ header {
     display: block;
     width: fit-content;
     margin: 0 auto;
+    padding: 13px 28px;
 
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--sky);
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
     text-decoration: none;
+
+    background: linear-gradient(135deg, var(--sky), var(--green));
+    border-radius: 50px;
+    box-shadow: 0 8px 18px rgba(11, 94, 215, 0.25);
+
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .institutions-view-all:hover {
-    text-decoration: underline;
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px rgba(11, 94, 215, 0.35);
 }
 
 .institutions-results-grid {

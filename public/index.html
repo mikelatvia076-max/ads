@@ -781,6 +781,16 @@ document.addEventListener("click", function () {
         </button>
 
 
+        <button
+            type="button"
+            class="alerts-category"
+            onclick="location.href='category.html?type=university-alerts'"
+        >
+            <span class="cat-icon">🚨</span>
+            <span>University Alerts</span>
+        </button>
+
+
     </div>
 
 </section>
@@ -791,65 +801,6 @@ document.addEventListener("click", function () {
 ===================================================== -->
 
 <section class="institutions-section" id="institutionsSection">
-
-    <div class="section-heading">
-        <h2>Find Your Institution</h2>
-        <p>
-            Search by name, or filter by type and county to
-            browse universities, TVETs and colleges.
-        </p>
-    </div>
-
-    <div class="institutions-search">
-
-        <input
-            type="search"
-            id="institutionSearchInput"
-            placeholder="Search university, college, TVET..."
-            autocomplete="off"
-        >
-
-        <button type="button" onclick="goToInstitutionSearch()">
-            Search
-        </button>
-
-    </div>
-
-    <div class="institutions-filters" id="institutionsFilters">
-
-        <button type="button" class="filter-chip active" data-filter="all" onclick="setInstitutionFilter('all', this)">
-            All
-        </button>
-
-        <button type="button" class="filter-chip" data-filter="university" onclick="setInstitutionFilter('university', this)">
-            Universities
-        </button>
-
-        <button type="button" class="filter-chip" data-filter="tvet" onclick="setInstitutionFilter('tvet', this)">
-            TVET
-        </button>
-
-        <button type="button" class="filter-chip" data-filter="college" onclick="setInstitutionFilter('college', this)">
-            Colleges
-        </button>
-
-    </div>
-
-    <div class="institutions-county">
-
-        <label for="countyFilter">Filter by county</label>
-
-        <select id="countyFilter" onchange="setCountyFilter(this.value)">
-            <option value="">All Counties</option>
-            <option value="nairobi">Nairobi</option>
-            <option value="mombasa">Mombasa</option>
-            <option value="kisumu">Kisumu</option>
-            <option value="nakuru">Nakuru</option>
-            <option value="uasin-gishu">Uasin Gishu</option>
-            <option value="kiambu">Kiambu</option>
-        </select>
-
-    </div>
 
     <a href="institutions.html" class="institutions-view-all">
         View All Institutions →
