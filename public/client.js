@@ -5201,7 +5201,7 @@ function renderLinkedDevicesPanel() {
     const note = document.createElement("p");
     note.className = "settings-hint";
     note.style.padding = "0 4px";
-    note.textContent = "Signing in elsewhere will use this same account, but only one session can be active at a time.";
+    note.textContent = "You can sign in to this same account on other devices at the same time, and messages and calls reach all of them.";
     accountPanelBody.appendChild(note);
 
     // ---- link another device (QR code) ----
@@ -5450,7 +5450,7 @@ async function openDeviceLinkScanner(confirmEvent, { title }) {
         } else {
             if (deviceLinkScanStatus) {
                 deviceLinkScanStatus.textContent =
-                    "Camera is blocked. Use \"Scan from a photo\" below instead.";
+                    "Camera is off. Use \"Scan from a photo\" below instead.";
                 deviceLinkScanStatus.classList.add("error");
             }
             return;
@@ -10651,29 +10651,7 @@ function isStandaloneApp() {
 
 function blockedPermissionMessage() {
 
-    if (!isStandaloneApp()) {
-        return "Microphone/camera access was blocked. Check the camera/mic permission for this site in your browser's address-bar settings, then try again.";
-    }
-
-    const ua = navigator.userAgent || "";
-
-    if (/android/i.test(ua)) {
-        return "Microphone/camera access was blocked for this installed app. Open your device Settings > Apps, find this app, open Permissions, and turn on Camera and Microphone, then try again.";
-    }
-
-    if (/iphone|ipad|ipod/i.test(ua)) {
-        return "Microphone/camera access was blocked. iOS doesn't show a separate permission switch for apps added to the Home Screen — try opening the site in Safari itself and allowing camera/mic there, or remove this app from your Home Screen and add it again so it can re-ask for permission.";
-    }
-
-    if (/macintosh|mac os x/i.test(ua)) {
-        return "Microphone/camera access was blocked for this installed app. Open System Settings > Privacy & Security > Camera (and Microphone), find this app in the list, and turn it on, then try again.";
-    }
-
-    if (/windows/i.test(ua)) {
-        return "Microphone/camera access was blocked for this installed app. Open Settings > Privacy & security > Camera (and Microphone), find this app in the list, and turn access on, then try again.";
-    }
-
-    return "Microphone/camera access was blocked for this installed app. Since it's installed as an app rather than open in a browser tab, look for its camera/mic permission in your device's system settings rather than a browser address bar, then try again.";
+    return "Mic/camera are off for this app right now. You can still use everything else, and turn them on any time in your browser's site settings.";
 
 }
 
@@ -10723,6 +10701,38 @@ function mediaErrorMessage(err) {
 // ------------------------------------------------------------
 let mediaUpfrontRequested = false;
 
+function showMediaPrimer() {
+
+    return new Promise((resolve) => {
+
+        const overlay = document.createElement("div");
+        overlay.className = "forgot-modal-overlay";
+        overlay.style.zIndex = "99999";
+
+        overlay.innerHTML = `
+            <div class="forgot-modal">
+                <h2>Ready for calls?</h2>
+                <p>Allow your mic and camera so friends can hear and see you on calls. You'll get one quick prompt from your browser \u2014 tap Allow.</p>
+                <button class="forgot-modal-submit primer-yes">Continue</button>
+                <button class="modal-secondary-btn primer-no">Not now</button>
+            </div>`;
+
+        document.body.appendChild(overlay);
+
+        overlay.querySelector(".primer-yes").addEventListener("click", () => {
+            overlay.remove();
+            resolve(true);
+        });
+
+        overlay.querySelector(".primer-no").addEventListener("click", () => {
+            overlay.remove();
+            resolve(false);
+        });
+
+    });
+
+}
+
 async function requestMediaAccessUpfront() {
 
     if (mediaUpfrontRequested || !mediaDevicesAvailable()) return;
@@ -10731,6 +10741,7 @@ async function requestMediaAccessUpfront() {
 
     try {
 
+        // already decided (allowed, or blocked) -> nothing useful to ask
         if (navigator.permissions && navigator.permissions.query) {
 
             const states = await Promise.all(
@@ -10741,23 +10752,26 @@ async function requestMediaAccessUpfront() {
                 )
             );
 
-            // both already allowed -> nothing to do; any denied -> the
-            // browser won't show a prompt, so don't waste a request
             if (states.every(st => st === "granted")) return;
             if (states.includes("denied")) return;
 
         }
+
+        // only ever show our own explainer once; after "Not now" calls
+        // still ask at the moment they're needed
+        if (localStorage.getItem("siteChatMediaPrimerSeen")) return;
+        localStorage.setItem("siteChatMediaPrimerSeen", "1");
+
+        if (!(await showMediaPrimer())) return;
 
         let stream;
 
         try {
             stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
         } catch (err) {
-            // no camera (or camera refused) - still try just the mic
             stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         }
 
-        // we only wanted the permission, not to keep the devices on
         stream.getTracks().forEach(track => track.stop());
 
     } catch (err) {
@@ -10820,6 +10834,8 @@ if (enableMediaBtn) {
             if (stream) {
                 stream.getTracks().forEach(t => t.stop());
                 showNiceAlert("Camera and mic are on. Calls will open with them ready.", { title: "Camera & mic", icon: "fa-video" });
+            } else {
+                showNiceAlert(blockedPermissionMessage(), { title: "Camera & mic", icon: "fa-video" });
             }
 
         }
@@ -11423,7 +11439,7 @@ async function getCallAudioStream(callType) {
                 return withCamera;
             }
 
-            callMediaNotice = "Camera is blocked, so you're on audio only.";
+            callMediaNotice = "Your camera is off, so this call is audio only.";
             return audioOnly;
 
         }
@@ -11446,47 +11462,9 @@ async function getCallAudioStream(callType) {
     if (retried) return retried;
 
     callMediaNotice =
-        "Mic/camera are blocked, so others can't hear or see you yet. You can still hear them.";
+        "Your mic is off, so others can't hear you yet. You can still hear them.";
 
     return new MediaStream();
-
-}
-
-// Works out WHY the phone refused, so the pop-up can say the right
-// thing instead of always saying "blocked".
-async function explainMediaFailure(err) {
-
-    const name = (err && err.name) || "Error";
-    const msg = ((err && err.message) || "").toLowerCase();
-
-    const states = {};
-    for (const dev of ["microphone", "camera"]) {
-        try {
-            states[dev] = (await navigator.permissions.query({ name: dev })).state;
-        } catch (e) {
-            states[dev] = "unknown";
-        }
-    }
-
-    const detail = ` (${name}; mic: ${states.microphone}, camera: ${states.camera})`;
-
-    if (name === "NotReadableError" || name === "AbortError") {
-        return "Your mic/camera is being used by another app. Close other apps that use them (calls, camera, recorders), then tap Try again." + detail;
-    }
-
-    if (name === "NotFoundError" || name === "OverconstrainedError") {
-        return "No working mic/camera was found on this device." + detail;
-    }
-
-    if (msg.includes("system")) {
-        return "Android itself is blocking Chrome. Open Settings \u2192 Apps \u2192 Chrome \u2192 Permissions and allow Camera and Microphone, then tap Try again." + detail;
-    }
-
-    if (states.microphone === "denied" || states.camera === "denied") {
-        return "This site is set to Block in Chrome, so the phone won't show the Allow prompt. Open Chrome \u2192 \u22EE \u2192 Settings \u2192 Site settings \u2192 All sites, tap this site, choose Clear & reset (or set Camera and Microphone to Allow), then come back and tap Try again." + detail;
-    }
-
-    return blockedPermissionMessage() + " Then tap Try again." + detail;
 
 }
 
@@ -11495,9 +11473,32 @@ async function explainMediaFailure(err) {
 // (this is what makes the browser show its Allow prompt again when
 // it's allowed to), plus the exact steps if the phone still refuses.
 // Resolves with a stream if it worked, or null to continue without.
+async function mediaIsBlockedInBrowser() {
+
+    if (!navigator.permissions || !navigator.permissions.query) return false;
+
+    for (const name of ["microphone", "camera"]) {
+        try {
+            const result = await navigator.permissions.query({ name });
+            if (result.state === "denied") return true;
+        } catch (e) { /* not supported for this one - treat as not blocked */ }
+    }
+
+    return false;
+
+}
+
 function promptUnblockMedia(requestOnce) {
 
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
+
+        // If the browser has this stored as Block, it will never show the
+        // Allow prompt again, so a pop-up would only be a dead end. Skip
+        // it and let the caller carry on (audio-only / listen-only).
+        if (await mediaIsBlockedInBrowser()) {
+            resolve(null);
+            return;
+        }
 
         const overlay = document.createElement("div");
         overlay.className = "forgot-modal-overlay";
@@ -11505,10 +11506,10 @@ function promptUnblockMedia(requestOnce) {
 
         overlay.innerHTML = `
             <div class="forgot-modal">
-                <h2>Mic &amp; camera are off</h2>
-                <p class="unblock-text">Tap Allow so people can hear and see you on this call.</p>
-                <button class="forgot-modal-submit unblock-allow">Allow mic &amp; camera</button>
-                <button class="modal-secondary-btn unblock-skip">Continue without</button>
+                <h2>Turn on mic &amp; camera</h2>
+                <p class="unblock-text">So people can hear and see you on this call.</p>
+                <button class="forgot-modal-submit unblock-allow">Allow</button>
+                <button class="modal-secondary-btn unblock-skip">Not now</button>
             </div>`;
 
         document.body.appendChild(overlay);
@@ -11530,15 +11531,12 @@ function promptUnblockMedia(requestOnce) {
 
             try {
 
-                const stream = await requestOnce();
-                finish(stream);
+                finish(await requestOnce());
 
             } catch (err) {
 
-                allowBtn.disabled = false;
-                allowBtn.textContent = "Try again";
-
-                text.textContent = await explainMediaFailure(err);
+                // declined or unavailable - no lecture, just carry on
+                finish(null);
 
             }
 
