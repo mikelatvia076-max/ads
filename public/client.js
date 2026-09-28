@@ -11267,6 +11267,44 @@ async function getCallAudioStream(callType) {
 
 }
 
+// Works out WHY the phone refused, so the pop-up can say the right
+// thing instead of always saying "blocked".
+async function explainMediaFailure(err) {
+
+    const name = (err && err.name) || "Error";
+    const msg = ((err && err.message) || "").toLowerCase();
+
+    const states = {};
+    for (const dev of ["microphone", "camera"]) {
+        try {
+            states[dev] = (await navigator.permissions.query({ name: dev })).state;
+        } catch (e) {
+            states[dev] = "unknown";
+        }
+    }
+
+    const detail = ` (${name}; mic: ${states.microphone}, camera: ${states.camera})`;
+
+    if (name === "NotReadableError" || name === "AbortError") {
+        return "Your mic/camera is being used by another app. Close other apps that use them (calls, camera, recorders), then tap Try again." + detail;
+    }
+
+    if (name === "NotFoundError" || name === "OverconstrainedError") {
+        return "No working mic/camera was found on this device." + detail;
+    }
+
+    if (msg.includes("system")) {
+        return "Android itself is blocking Chrome. Open Settings \u2192 Apps \u2192 Chrome \u2192 Permissions and allow Camera and Microphone, then tap Try again." + detail;
+    }
+
+    if (states.microphone === "denied" || states.camera === "denied") {
+        return "This site is set to Block in Chrome, so the phone won't show the Allow prompt. Open Chrome \u2192 \u22EE \u2192 Settings \u2192 Site settings \u2192 All sites, tap this site, choose Clear & reset (or set Camera and Microphone to Allow), then come back and tap Try again." + detail;
+    }
+
+    return blockedPermissionMessage() + " Then tap Try again." + detail;
+
+}
+
 // Pop-up shown when a call can't get the mic: an "Allow" button that
 // re-runs the browser's permission request the moment it's tapped
 // (this is what makes the browser show its Allow prompt again when
@@ -11315,9 +11353,7 @@ function promptUnblockMedia(requestOnce) {
                 allowBtn.disabled = false;
                 allowBtn.textContent = "Try again";
 
-                text.textContent =
-                    blockedPermissionMessage() +
-                    " Then come back and tap Try again.";
+                text.textContent = await explainMediaFailure(err);
 
             }
 
