@@ -23,6 +23,7 @@
         href="style.css"
     >
     <link href="load.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#0b7d5b">
@@ -149,7 +150,7 @@ body.hsc-banner-open {
 
 <div id="hscInstallBanner" role="dialog" aria-label="Install HigherSpace Connect app">
     <div class="hsc-install-left">
-        <span class="hsc-install-icon">🎓</span>
+        <span class="hsc-install-icon"><i class="fa-solid fa-graduation-cap"></i></span>
         <span class="hsc-install-text">Install HigherSpace Connect for quick, app-like access.</span>
     </div>
     <div class="hsc-install-actions">
@@ -508,7 +509,7 @@ body.hsc-banner-open {
     <div class="loader-content">
 
         <div class="loader-logo">
-            🎓
+            <i class="fa-solid fa-graduation-cap"></i>
         </div>
 
         <h1>HigherSpace Connect</h1>
@@ -576,14 +577,14 @@ body.hsc-banner-open {
 <header>
 
     <div class="logo">
-        🎓 HigherSpace Connect
+        <i class="fa-solid fa-graduation-cap"></i> HigherSpace Connect
     </div>
 
 
     <div class="nav-more">
 
         <button class="nav-more-btn" onclick="toggleMoreMenu(event)" aria-label="Menu">
-            ☰
+            <i class="fa-solid fa-bars"></i>
         </button>
 
         <div class="nav-more-dropdown" id="navMoreDropdown">
@@ -713,7 +714,7 @@ document.addEventListener("click", function () {
     <div class="information-section-title">
 
         <span class="information-title-icon">
-            📰
+            <i class="fa-solid fa-newspaper"></i>
         </span>
 
         <div>
@@ -739,7 +740,7 @@ document.addEventListener("click", function () {
             type="button"
             onclick="location.href='category.html?type=helb'"
         >
-            <span class="cat-icon">🎓</span>
+            <span class="cat-icon"><i class="fa-solid fa-graduation-cap"></i></span>
             <span>HELB</span>
         </button>
 
@@ -748,7 +749,7 @@ document.addEventListener("click", function () {
             type="button"
             onclick="location.href='category.html?type=scholarships'"
         >
-            <span class="cat-icon">💰</span>
+            <span class="cat-icon"><i class="fa-solid fa-sack-dollar"></i></span>
             <span>Scholarships</span>
         </button>
 
@@ -757,7 +758,7 @@ document.addEventListener("click", function () {
             type="button"
             onclick="location.href='category.html?type=jobs'"
         >
-            <span class="cat-icon">💼</span>
+            <span class="cat-icon"><i class="fa-solid fa-briefcase"></i></span>
             <span>Jobs</span>
         </button>
 
@@ -766,7 +767,7 @@ document.addEventListener("click", function () {
             type="button"
             onclick="location.href='category.html?type=kuccps'"
         >
-            <span class="cat-icon">🏫</span>
+            <span class="cat-icon"><i class="fa-solid fa-school"></i></span>
             <span>KUCCPS</span>
         </button>
 
@@ -776,7 +777,7 @@ document.addEventListener("click", function () {
             class="rumours-category"
             onclick="location.href='category.html?type=rumours'"
         >
-            <span class="cat-icon">🗣️</span>
+            <span class="cat-icon"><i class="fa-solid fa-comments"></i></span>
             <span>University Rumours</span>
         </button>
 
@@ -786,7 +787,7 @@ document.addEventListener("click", function () {
             class="alerts-category"
             onclick="location.href='category.html?type=university-alerts'"
         >
-            <span class="cat-icon">🚨</span>
+            <span class="cat-icon"><i class="fa-solid fa-triangle-exclamation"></i></span>
             <span>University Alerts</span>
         </button>
 
@@ -833,31 +834,31 @@ document.addEventListener("click", function () {
     <div class="opportunities-grid">
 
         <a href="category.html?type=scholarships" class="opportunity-card cat-scholarships">
-            <span class="opportunity-icon">💰</span>
+            <span class="opportunity-icon"><i class="fa-solid fa-sack-dollar"></i></span>
             <h3>Scholarships</h3>
             <p>Funding opportunities for Kenyan students.</p>
         </a>
 
         <a href="category.html?type=internships" class="opportunity-card cat-internships">
-            <span class="opportunity-icon">🧑‍💻</span>
+            <span class="opportunity-icon"><i class="fa-solid fa-laptop-code"></i></span>
             <h3>Internships</h3>
             <p>Gain hands-on experience with internship listings.</p>
         </a>
 
         <a href="category.html?type=attachments" class="opportunity-card cat-attachments">
-            <span class="opportunity-icon">🛠️</span>
+            <span class="opportunity-icon"><i class="fa-solid fa-screwdriver-wrench"></i></span>
             <h3>Attachments</h3>
             <p>Industrial attachment placements for students.</p>
         </a>
 
         <a href="category.html?type=jobs" class="opportunity-card cat-jobs">
-            <span class="opportunity-icon">💼</span>
+            <span class="opportunity-icon"><i class="fa-solid fa-briefcase"></i></span>
             <h3>Jobs</h3>
             <p>Entry-level and graduate job openings.</p>
         </a>
 
         <a href="category.html?type=competitions" class="opportunity-card cat-competitions">
-            <span class="opportunity-icon">🏆</span>
+            <span class="opportunity-icon"><i class="fa-solid fa-trophy"></i></span>
             <h3>Competitions</h3>
             <p>Hackathons, contests and challenges to enter.</p>
         </a>
@@ -925,7 +926,7 @@ document.addEventListener("click", function () {
 
         <div class="trending-col">
 
-            <h3>🔥 Most Searched Institutions</h3>
+            <h3><i class="fa-solid fa-fire"></i> Most Searched Institutions</h3>
 
             <ol id="trendingInstitutions">
                 <li><a href="#" data-institution="University of Nairobi">University of Nairobi</a></li>
@@ -939,7 +940,7 @@ document.addEventListener("click", function () {
 
         <div class="trending-col">
 
-            <h3>📈 Most Viewed Updates</h3>
+            <h3><i class="fa-solid fa-chart-line"></i> Most Viewed Updates</h3>
 
             <ol id="trendingArticles">
                 <li><a href="category.html?type=kuccps">KUCCPS Second Revision Window</a></li>
@@ -963,7 +964,7 @@ document.addEventListener("click", function () {
 <section class="my-campus-section" id="myCampusSection">
 
     <div class="section-heading">
-        <h2>🎓 My Campus</h2>
+        <h2><i class="fa-solid fa-graduation-cap"></i> My Campus</h2>
         <p>
             Choose your institution to see news, announcements
             and opportunities picked for you.
@@ -979,15 +980,15 @@ document.addEventListener("click", function () {
             <div class="my-campus-level-chips">
 
                 <button type="button" class="filter-chip" data-level="university" onclick="setMyCampusLevel('university', this)">
-                    🎓 University
+                    <i class="fa-solid fa-graduation-cap"></i> University
                 </button>
 
                 <button type="button" class="filter-chip" data-level="tvet" onclick="setMyCampusLevel('tvet', this)">
-                    🛠️ TVET
+                    <i class="fa-solid fa-screwdriver-wrench"></i> TVET
                 </button>
 
                 <button type="button" class="filter-chip" data-level="college" onclick="setMyCampusLevel('college', this)">
-                    📘 College
+                    <i class="fa-solid fa-book"></i> College
                 </button>
 
             </div>
@@ -1071,7 +1072,7 @@ document.addEventListener("click", function () {
         <div>
 
             <h3>
-                🎓 HigherSpace Connect
+                <i class="fa-solid fa-graduation-cap"></i> HigherSpace Connect
             </h3>
 
             <p>
