@@ -71,6 +71,14 @@ MAIN SERVER
 
 const app = express();
 
+// Explicitly allow this site (and only this site) to use the camera
+// and microphone, so nothing in the response can make browsers treat
+// them as policy-blocked for calls.
+app.use((req, res, next) => {
+    res.setHeader("Permissions-Policy", "camera=(self), microphone=(self)");
+    next();
+});
+
 // Wrap the Express app in a raw HTTP server so Socket.io (used by the
 // chat feature below) can attach to the same server and port.
 const server = http.createServer(app);
