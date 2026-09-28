@@ -10645,6 +10645,51 @@ function armUpfrontMediaRequest() {
 armUpfrontMediaRequest();
 
 
+// Settings > "Turn on camera & mic": lets someone enable them any
+// time, without having to start a call first.
+const enableMediaBtn = document.getElementById("enableMediaBtn");
+
+if (enableMediaBtn) {
+
+    enableMediaBtn.addEventListener("click", async () => {
+
+        if (!mediaDevicesAvailable()) {
+            showNiceAlert(mediaErrorMessage(null), { title: "Camera & mic", icon: "fa-video" });
+            return;
+        }
+
+        const request = async () => {
+            try {
+                return await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+            } catch (err) {
+                return await navigator.mediaDevices.getUserMedia({ audio: true });
+            }
+        };
+
+        try {
+
+            const stream = await request();
+            stream.getTracks().forEach(t => t.stop());
+
+            showNiceAlert("Camera and mic are on. Calls will open with them ready.", { title: "Camera & mic", icon: "fa-video" });
+
+        } catch (err) {
+
+            const stream = await promptUnblockMedia(request);
+
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+                showNiceAlert("Camera and mic are on. Calls will open with them ready.", { title: "Camera & mic", icon: "fa-video" });
+            }
+
+        }
+
+    });
+
+}
+
+
+
 if (micBtn) {
 
     micBtn.addEventListener(
