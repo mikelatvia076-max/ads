@@ -11219,12 +11219,85 @@ async function getCallAudioStream(callType) {
         } catch (err) { /* fall through */ }
     }
 
-    // 3) mic blocked too -> still let the call connect, listen-only,
-    // instead of refusing the call outright
+    // 3) mic blocked too -> pop an "Allow mic & camera" prompt first
+    // (retries the browser permission request right when tapped); only
+    // if that doesn't work do we let the call connect listen-only
+    // instead of refusing it outright
+    const retried = await promptUnblockMedia(async () => {
+        try {
+            return await tryGet({ video: wantVideo });
+        } catch (err) {
+            if (wantVideo) return await tryGet({ video: false });
+            throw err;
+        }
+    });
+
+    if (retried) return retried;
+
     callMediaNotice =
         "Mic/camera are blocked, so others can't hear or see you yet. You can still hear them.";
 
     return new MediaStream();
+
+}
+
+// Pop-up shown when a call can't get the mic: an "Allow" button that
+// re-runs the browser's permission request the moment it's tapped
+// (this is what makes the browser show its Allow prompt again when
+// it's allowed to), plus the exact steps if the phone still refuses.
+// Resolves with a stream if it worked, or null to continue without.
+function promptUnblockMedia(requestOnce) {
+
+    return new Promise((resolve) => {
+
+        const overlay = document.createElement("div");
+        overlay.className = "forgot-modal-overlay";
+        overlay.style.zIndex = "99999";
+
+        overlay.innerHTML = `
+            <div class="forgot-modal">
+                <h2>Mic &amp; camera are off</h2>
+                <p class="unblock-text">Tap Allow so people can hear and see you on this call.</p>
+                <button class="forgot-modal-submit unblock-allow">Allow mic &amp; camera</button>
+                <button class="modal-secondary-btn unblock-skip">Continue without</button>
+            </div>`;
+
+        document.body.appendChild(overlay);
+
+        const text = overlay.querySelector(".unblock-text");
+        const allowBtn = overlay.querySelector(".unblock-allow");
+        const skipBtn = overlay.querySelector(".unblock-skip");
+
+        const finish = (stream) => {
+            overlay.remove();
+            resolve(stream || null);
+        };
+
+        skipBtn.addEventListener("click", () => finish(null));
+
+        allowBtn.addEventListener("click", async () => {
+
+            allowBtn.disabled = true;
+
+            try {
+
+                const stream = await requestOnce();
+                finish(stream);
+
+            } catch (err) {
+
+                allowBtn.disabled = false;
+                allowBtn.textContent = "Try again";
+
+                text.textContent =
+                    blockedPermissionMessage() +
+                    " Then come back and tap Try again.";
+
+            }
+
+        });
+
+    });
 
 }
 
