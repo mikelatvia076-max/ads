@@ -10572,6 +10572,79 @@ function mediaErrorMessage(err) {
 }
 
 
+// ------------------------------------------------------------
+// Ask for mic + camera up front (one-time, on the first tap after
+// signing in) so the browser's permission prompt appears right away
+// and calls open with everything already allowed. Browsers only show
+// the prompt from a real tap, and once someone taps Block (or
+// dismisses it a few times) Chrome stops asking - so asking at a
+// friendly moment, before any call, avoids ending up "blocked".
+// It can't override a block that's already set; it skips those.
+// ------------------------------------------------------------
+let mediaUpfrontRequested = false;
+
+async function requestMediaAccessUpfront() {
+
+    if (mediaUpfrontRequested || !mediaDevicesAvailable()) return;
+
+    mediaUpfrontRequested = true;
+
+    try {
+
+        if (navigator.permissions && navigator.permissions.query) {
+
+            const states = await Promise.all(
+                ["microphone", "camera"].map(name =>
+                    navigator.permissions.query({ name })
+                        .then(r => r.state)
+                        .catch(() => "unknown")
+                )
+            );
+
+            // both already allowed -> nothing to do; any denied -> the
+            // browser won't show a prompt, so don't waste a request
+            if (states.every(st => st === "granted")) return;
+            if (states.includes("denied")) return;
+
+        }
+
+        let stream;
+
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        } catch (err) {
+            // no camera (or camera refused) - still try just the mic
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+
+        // we only wanted the permission, not to keep the devices on
+        stream.getTracks().forEach(track => track.stop());
+
+    } catch (err) {
+        // blocked/dismissed - calls fall back gracefully (see getCallAudioStream)
+    }
+
+}
+
+function armUpfrontMediaRequest() {
+
+    const handler = () => {
+
+        // wait until the user is actually signed in
+        if (typeof me === "undefined" || !me) return;
+
+        document.removeEventListener("pointerdown", handler, true);
+        requestMediaAccessUpfront();
+
+    };
+
+    document.addEventListener("pointerdown", handler, true);
+
+}
+
+armUpfrontMediaRequest();
+
+
 if (micBtn) {
 
     micBtn.addEventListener(
@@ -11092,44 +11165,83 @@ const STRICT_AUDIO_CONSTRAINTS = {
 // that requirement if the device can't actually provide it.
 async function getCallAudioStream(callType) {
 
-    const video =
+    const wantVideo =
         callType === "video";
 
-    try {
+    const tryGet = async (constraints) => {
 
-        return await navigator
-            .mediaDevices
-            .getUserMedia({
+        try {
+
+            return await navigator.mediaDevices.getUserMedia({
                 audio: STRICT_AUDIO_CONSTRAINTS,
-                video
+                ...constraints
             });
 
-    } catch (err) {
+        } catch (err) {
 
-        // exact echoCancellation/noiseSuppression/autoGainControl
-        // isn't something this particular mic/browser can guarantee -
-        // fall back to asking for it as a soft preference instead of
-        // failing the call entirely
-        if (
-            err &&
-            (
-                err.name === "OverconstrainedError" ||
-                err.name === "ConstraintNotSatisfiedError"
-            )
-        ) {
+            // exact echoCancellation/noiseSuppression/autoGainControl
+            // isn't something this particular mic/browser can guarantee -
+            // relax to a soft preference instead of failing
+            if (
+                err &&
+                (
+                    err.name === "OverconstrainedError" ||
+                    err.name === "ConstraintNotSatisfiedError"
+                )
+            ) {
 
-            return await navigator
-                .mediaDevices
-                .getUserMedia({
+                return await navigator.mediaDevices.getUserMedia({
                     audio: HIGH_QUALITY_AUDIO_CONSTRAINTS,
-                    video
+                    ...constraints
                 });
+
+            }
+
+            throw err;
 
         }
 
-        throw err;
+    };
 
+    callMediaNotice = "";
+
+    // 1) full request (mic, plus camera for video calls)
+    try {
+        return await tryGet({ video: wantVideo });
+    } catch (err) { /* fall through to fallbacks */ }
+
+    // 2) camera blocked/missing on a video call -> keep the call, audio only
+    if (wantVideo) {
+        try {
+            const stream = await tryGet({ video: false });
+            callMediaNotice = "Camera is blocked, so you're on audio only.";
+            return stream;
+        } catch (err) { /* fall through */ }
     }
+
+    // 3) mic blocked too -> still let the call connect, listen-only,
+    // instead of refusing the call outright
+    callMediaNotice =
+        "Mic/camera are blocked, so others can't hear or see you yet. You can still hear them.";
+
+    return new MediaStream();
+
+}
+
+// Set by getCallAudioStream when it had to fall back; shown once the
+// call screen is up (see notifyCallMediaLimited).
+let callMediaNotice = "";
+
+function notifyCallMediaLimited() {
+
+    if (!callMediaNotice) return;
+
+    const msg = callMediaNotice;
+    callMediaNotice = "";
+
+    setTimeout(() => {
+        showNiceAlert(msg, { title: "Call connected", icon: "fa-microphone-slash" });
+    }, 600);
 
 }
 
@@ -11408,7 +11520,7 @@ async function connectToGroupPeer(peerId, peerName, callId) {
         }
     };
 
-    const offer = await conn.createOffer();
+    const offer = await conn.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: currentCallType === "video" });
     await conn.setLocalDescription(boostAudioQuality(offer));
 
     socket.emit("group-peer-offer", { toId: peerId, callId, offer: conn.localDescription });
@@ -11692,6 +11804,7 @@ async function acceptGroupInvite() {
 
     try {
         localStream = await getCallAudioStream(callType);
+        notifyCallMediaLimited();
     } catch (err) {
         showNiceAlert(mediaErrorMessage(err), { title: "Camera & mic", icon: "fa-video" });
         socket.emit("call-add-decline", { toId: fromId, callId });
@@ -11920,6 +12033,7 @@ async function startGroupCallFromGroup(callType) {
 
     try {
         localStream = await getCallAudioStream(callType);
+        notifyCallMediaLimited();
     } catch (err) {
         showNiceAlert(mediaErrorMessage(err), { title: "Camera & mic", icon: "fa-video" });
         return;
@@ -11978,6 +12092,7 @@ async function startCall(
             await getCallAudioStream(
                 callType
             );
+        notifyCallMediaLimited();
 
     }
 
@@ -12022,7 +12137,10 @@ async function startCall(
 
 
     const offer =
-        await pc.createOffer();
+        await pc.createOffer({
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: callType === "video"
+        });
 
 
     await pc.setLocalDescription(
@@ -13314,6 +13432,7 @@ if (acceptCallBtn) {
                     await getCallAudioStream(
                         callType
                     );
+        notifyCallMediaLimited();
 
             }
 
