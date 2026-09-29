@@ -121,7 +121,10 @@ function openChatFromNotification(chatId) {
         return;
     }
 
-    const name = (usersOnline[chatId] && usersOnline[chatId].name) || chatId;
+    const name =
+        (usersOnline[chatId] && usersOnline[chatId].name) ||
+        (friendProfiles[chatId] && friendProfiles[chatId].name) ||
+        chatId;
     openChat(chatId, name);
 }
 
@@ -239,11 +242,299 @@ function cacheFriendProfile(u) {
 
     friendProfiles[u.id] = {
         name: u.name,
-        avatar: u.avatar || null
+        avatar: u.avatar || null,
+        phone: u.phone || (friendProfiles[u.id] && friendProfiles[u.id].phone) || null
     };
 
     saveFriendProfiles();
 
+}
+
+// ------------------------------------------------------------
+// Phone numbers, chat-list previews and new-message alerts
+// ------------------------------------------------------------
+
+// last message of each chat as the server reports it, so the list can
+// show it before that chat has been opened: { [chatId]: {...} }
+const chatPreviews = {};
+
+const baseDocumentTitle = document.title;
+
+// 0722123456 -> "0722 123 456", 254722123456 -> "+254 722 123 456"
+function formatPhoneDisplay(raw) {
+
+    const digits = String(raw || "").replace(/\D/g, "");
+
+    if (!digits) return "";
+
+    if (digits.length === 10 && digits[0] === "0") {
+        return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`;
+    }
+
+    if (digits.length === 12 && digits.startsWith("254")) {
+        return `+254 ${digits.slice(3, 6)} ${digits.slice(6, 9)} ${digits.slice(9)}`;
+    }
+
+    return String(raw);
+}
+
+function getPersonPhone(id) {
+
+    const live = usersOnline[id];
+    if (live && live.phone) return live.phone;
+
+    const cached = friendProfiles[id];
+    return (cached && cached.phone) || "";
+}
+
+// shows the person's number next to their name in the open chat's header
+function syncChatHeaderPhone() {
+
+    if (typeof chatWith === "undefined" || !chatWith) return;
+
+    const phone =
+        activeChat && !activeChat.isGroup
+            ? formatPhoneDisplay(getPersonPhone(activeChat.id))
+            : "";
+
+    if (phone) chatWith.dataset.phone = phone;
+    else delete chatWith.dataset.phone;
+}
+
+function updateDocumentTitleBadge() {
+
+    const total =
+        Object.values(unreadCounts).reduce((sum, n) => sum + (n || 0), 0);
+
+    document.title = total ? `(${total}) ${baseDocumentTitle}` : baseDocumentTitle;
+}
+
+// WhatsApp-style time: today -> 14:05, yesterday -> "Yesterday",
+// this week -> weekday, older -> 03/09/2026
+function formatChatListTime(ts) {
+
+    if (!ts) return "";
+
+    const d = new Date(ts);
+    const now = new Date();
+
+    const dayStart = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const days = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+
+    if (days <= 0) return formatTime(ts);
+    if (days === 1) return "Yesterday";
+    if (days < 7) return d.toLocaleDateString([], { weekday: "long" });
+
+    return d.toLocaleDateString([], { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function previewTextFromServer(p) {
+
+    if (p.deletedForEveryone) return "This message was deleted";
+    if (p.text) return p.text;
+
+    return messagePreviewText({
+        attachment: p.attachmentKind
+            ? { kind: p.attachmentKind, name: p.attachmentName }
+            : null
+    });
+}
+
+// the newest message of a chat: from the loaded conversation if we
+// have it, otherwise from what the server told us at sign-in
+function getChatPreview(id) {
+
+    const convo = conversations[id];
+    const last = convo && convo.length ? convo[convo.length - 1] : null;
+
+    if (last) {
+        return {
+            text: messagePreviewText(last),
+            at: last.at,
+            fromId: last.from && last.from.id,
+            fromName: last.from && last.from.name
+        };
+    }
+
+    const p = chatPreviews[id];
+
+    if (!p) return null;
+
+    return {
+        text: previewTextFromServer(p),
+        at: p.at,
+        fromId: p.fromId,
+        fromName: p.fromName
+    };
+}
+
+function chatListPreviewText(id, isGroup) {
+
+    const p = getChatPreview(id);
+
+    if (!p || !p.text) return null;
+
+    if (me && p.fromId === me.id) return `You: ${p.text}`;
+    if (isGroup && p.fromName) return `${p.fromName}: ${p.text}`;
+
+    return p.text;
+}
+
+function chatLastActivityAt(id) {
+    const p = getChatPreview(id);
+    return (p && p.at) || 0;
+}
+
+let previewRequestTimer = null;
+
+function requestChatPreviews() {
+
+    clearTimeout(previewRequestTimer);
+
+    previewRequestTimer = setTimeout(() => {
+
+        if (!me) return;
+
+        const ids = [...friendIds, ...Array.from(myGroups.keys())];
+
+        if (ids.length) socket.emit("get-chat-previews", { ids });
+
+    }, 150);
+}
+
+socket.on("chat-previews", ({ previews } = {}) => {
+
+    if (!previews) return;
+
+    Object.entries(previews).forEach(([id, p]) => {
+
+        chatPreviews[id] = p;
+
+        // the server knows what was read on any device, so its unread
+        // count wins for 1:1 chats (group unread is only tracked live)
+        if (!isGroupChatId(id) && !(activeChat && activeChat.id === id)) {
+            if (p.unread) unreadCounts[id] = p.unread;
+            else delete unreadCounts[id];
+        }
+    });
+
+    renderFriendsList();
+    renderGroupsList();
+});
+
+// ---- new message alerts ----
+
+let messageBannerTimer = null;
+
+function showMessageBanner(convoKey, title, body) {
+
+    let banner = document.getElementById("messageBanner");
+
+    if (!banner) {
+        banner = document.createElement("div");
+        banner.id = "messageBanner";
+        banner.className = "message-banner";
+        document.body.appendChild(banner);
+    }
+
+    banner.innerHTML = "<strong></strong><span></span>";
+    banner.children[0].textContent = title;
+    banner.children[1].textContent = body;
+
+    banner.onclick = () => {
+        banner.classList.remove("visible");
+        openChatFromNotification(convoKey);
+    };
+
+    banner.classList.add("visible");
+
+    clearTimeout(messageBannerTimer);
+    messageBannerTimer = setTimeout(() => banner.classList.remove("visible"), 4500);
+}
+
+// a system notification for when this tab is open but in the
+// background (the server only pushes to people with no live socket)
+async function showSystemMessageNotification(convoKey, title, body, icon) {
+
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+
+    const data = {
+        type: "message",
+        title,
+        body,
+        chatId: convoKey,
+        chatName: title,
+        icon: icon || null
+    };
+
+    try {
+
+        const reg =
+            "serviceWorker" in navigator
+                ? await navigator.serviceWorker.getRegistration()
+                : null;
+
+        if (reg) {
+            await reg.showNotification(title, {
+                body,
+                icon: icon || undefined,
+                tag: `chat-${convoKey}`,
+                renotify: true,
+                data
+            });
+            return;
+        }
+
+    } catch (error) { /* fall through to the plain notification */ }
+
+    try {
+
+        const n = new Notification(title, { body, icon: icon || undefined, tag: `chat-${convoKey}` });
+
+        n.onclick = () => {
+            window.focus();
+            openChatFromNotification(convoKey);
+            n.close();
+        };
+
+    } catch (error) { /* notifications not available here */ }
+}
+
+function notifyIncomingMessage(msg, convoKey) {
+
+    const inView = !document.hidden && document.hasFocus();
+
+    // already looking at that very chat - nothing to announce
+    if (inView && activeChat && activeChat.id === convoKey) return;
+
+    const group = isGroupChatId(convoKey) ? myGroups.get(convoKey) : null;
+    const senderName = (msg.from && msg.from.name) || "New message";
+    const title = group ? group.name : senderName;
+    const preview = messagePreviewText(msg) || "New message";
+    const body = group ? `${senderName}: ${preview}` : preview;
+
+    if (inView) {
+        showMessageBanner(convoKey, title, body);
+    } else {
+        showSystemMessageNotification(convoKey, title, body, msg.from && msg.from.avatar);
+    }
+}
+
+// browsers only allow the permission prompt from a tap/click
+let notificationPromptArmed = false;
+
+function armNotificationPermissionPrompt() {
+
+    if (notificationPromptArmed) return;
+    if (!("Notification" in window) || Notification.permission !== "default") return;
+
+    notificationPromptArmed = true;
+
+    document.addEventListener("click", () => {
+        if (Notification.permission === "default") {
+            try { Notification.requestPermission(); } catch (error) { /* ignore */ }
+        }
+    }, { once: true });
 }
 
 const pendingSent = new Set(
@@ -2668,6 +2959,9 @@ function renderFriendsList() {
 
     if (!userListEl) return;
 
+    syncChatHeaderPhone();
+    updateDocumentTitleBadge();
+
     userListEl.innerHTML = "";
 
     // Show every friend we know about - online friends use the live
@@ -2716,6 +3010,10 @@ function renderFriendsList() {
     const allFriends =
         [...onlineList, ...offlineList];
 
+    // most recent conversation first, like WhatsApp; chats with no
+    // messages yet keep the online-first order underneath
+    allFriends.sort((a, b) => chatLastActivityAt(b.id) - chatLastActivityAt(a.id));
+
 
     allFriends.forEach(
         (u) => {
@@ -2732,6 +3030,13 @@ function renderFriendsList() {
             item.dataset.id =
                 u.id;
 
+
+            const phone = formatPhoneDisplay(u.phone || getPersonPhone(u.id));
+            const previewText = chatListPreviewText(u.id, false);
+            const previewInfo = getChatPreview(u.id);
+            const unread = unreadCounts[u.id] || 0;
+
+            item.classList.toggle("has-unread", !!unread);
 
             item.innerHTML = `
 
@@ -2753,23 +3058,25 @@ function renderFriendsList() {
 
                 <div class="friend-details">
 
-                    <strong class="friend-name">
-                        ${escapeHtml(
-                            u.name
-                        )}
-                    </strong>
+                    <div class="chat-row-top">
 
-                    <span class="friend-status${u.online ? " online" : ""}">
-                        ${u.online ? "Online" : "Offline"}
-                    </span>
+                        <strong class="friend-name">${escapeHtml(u.name)}</strong>
+
+                        ${phone ? `<span class="friend-phone">${escapeHtml(phone)}</span>` : ""}
+
+                        <span class="chat-row-time${unread ? " unread" : ""}">${previewInfo ? escapeHtml(formatChatListTime(previewInfo.at)) : ""}</span>
+
+                    </div>
+
+                    <div class="chat-row-bottom">
+
+                        <span class="friend-status chat-row-preview${previewText ? "" : (u.online ? " online" : "")}${unread ? " unread" : ""}">${previewText ? escapeHtml(previewText) : (u.online ? "Online" : "Offline")}</span>
+
+                        ${unread ? `<span class="unread-badge">${unread > 99 ? "99+" : unread}</span>` : ""}
+
+                    </div>
 
                 </div>
-
-                ${
-                    unreadCounts[u.id]
-                        ? `<span class="unread-badge">${unreadCounts[u.id]}</span>`
-                        : ""
-                }
 
             `;
 
@@ -2846,7 +3153,11 @@ function renderGroupsList() {
 
     groupsListEl.innerHTML = "";
 
-    Array.from(myGroups.values()).forEach(group => {
+    updateDocumentTitleBadge();
+
+    Array.from(myGroups.values())
+        .sort((a, b) => chatLastActivityAt(b.id) - chatLastActivityAt(a.id))
+        .forEach(group => {
 
         const item = document.createElement("div");
         item.className = "friend-item group-item";
@@ -2854,6 +3165,12 @@ function renderGroupsList() {
 
         const onlineCount =
             group.memberIds.filter(id => id === (me && me.id) || usersOnline[id]).length;
+
+        const gPreviewText = chatListPreviewText(group.id, true);
+        const gPreviewInfo = getChatPreview(group.id);
+        const gUnread = unreadCounts[group.id] || 0;
+
+        item.classList.toggle("has-unread", !!gUnread);
 
         item.innerHTML = `
 
@@ -2863,21 +3180,25 @@ function renderGroupsList() {
 
             <div class="friend-details">
 
-                <strong class="friend-name">
-                    ${escapeHtml(group.name)}
-                </strong>
+                <div class="chat-row-top">
 
-                <span class="friend-status">
-                    ${group.memberIds.length} members${onlineCount > 1 ? ` · ${onlineCount} online` : ""}
-                </span>
+                    <strong class="friend-name">${escapeHtml(group.name)}</strong>
+
+                    <span class="chat-row-time${gUnread ? " unread" : ""}">${gPreviewInfo ? escapeHtml(formatChatListTime(gPreviewInfo.at)) : ""}</span>
+
+                </div>
+
+                <div class="chat-row-bottom">
+
+                    <span class="friend-status chat-row-preview${gUnread ? " unread" : ""}">${gPreviewText
+                        ? escapeHtml(gPreviewText)
+                        : `${group.memberIds.length} members${onlineCount > 1 ? ` · ${onlineCount} online` : ""}`}</span>
+
+                    ${gUnread ? `<span class="unread-badge">${gUnread > 99 ? "99+" : gUnread}</span>` : ""}
+
+                </div>
 
             </div>
-
-            ${
-                unreadCounts[group.id]
-                    ? `<span class="unread-badge">${unreadCounts[group.id]}</span>`
-                    : ""
-            }
 
         `;
 
@@ -2921,6 +3242,11 @@ socket.on("my-groups", (groups) => {
     myGroups.clear();
     (groups || []).forEach(g => myGroups.set(g.id, g));
     renderGroupsList();
+
+    // right after sign-in: fetch each chat's last message + unread count
+    // and get ready to ask for notification permission
+    requestChatPreviews();
+    armNotificationPermissionPrompt();
 
 });
 
@@ -3859,9 +4185,13 @@ function renderAllUsers(
                     return true;
                 }
 
+                const digits = search.replace(/\D/g, "");
+
                 return user.name
                     .toLowerCase()
-                    .includes(search);
+                    .includes(search) ||
+                    (digits.length > 0 &&
+                        String(user.phone || "").replace(/\D/g, "").includes(digits));
 
             }
         );
@@ -3927,7 +4257,7 @@ function renderAllUsers(
                     </strong>
 
                     <span class="friend-status online">
-                        Online
+                        Online${user.phone ? ` · ${escapeHtml(formatPhoneDisplay(user.phone))}` : ""}
                     </span>
 
                 </div>
@@ -8818,6 +9148,9 @@ function applyMessageEdited({ messageId, fromId, toId, text, editedAt }) {
     if (activeChat && activeChat.id === convoKey) {
         renderMessages();
     }
+
+    renderFriendsList();
+    renderGroupsList();
 }
 
 socket.on("message-edited", (payload) => {
@@ -8881,6 +9214,7 @@ socket.on(
         if (msg.from.id !== me.id && !isChatMuted(convoKey)) {
 
             playNotificationSound();
+            notifyIncomingMessage(msg, convoKey);
 
         }
 
@@ -8898,10 +9232,11 @@ socket.on(
             unreadCounts[convoKey] =
                 (unreadCounts[convoKey] || 0) + 1;
 
-            if (isGroupChatId(convoKey)) renderGroupsList();
-            else renderFriendsList();
-
         }
+
+        // new last message / time / badge on the chat list
+        renderFriendsList();
+        renderGroupsList();
 
 
         if (
@@ -8941,6 +9276,12 @@ socket.on("chat-history", ({ toId, messages, disappearing, pinnedMessageId, last
     // older) saved copy
     if (!conversations[toId] || !conversations[toId].length) {
         conversations[toId] = messages || [];
+    } else {
+        // messages that arrived while this chat was closed are already
+        // here; add the saved earlier ones in front instead of dropping them
+        const seen = new Set(conversations[toId].map(m => m.id));
+        const older = (messages || []).filter(m => !seen.has(m.id));
+        conversations[toId] = [...older, ...conversations[toId]].sort((a, b) => a.at - b.at);
     }
 
     disappearingSettings[toId] = disappearing || { enabled: false, seconds: 0 };
@@ -8987,6 +9328,10 @@ socket.on("group-history", ({ groupId, messages, disappearing, pinnedMessageId }
 
     if (!conversations[groupId] || !conversations[groupId].length) {
         conversations[groupId] = messages || [];
+    } else {
+        const seen = new Set(conversations[groupId].map(m => m.id));
+        const older = (messages || []).filter(m => !seen.has(m.id));
+        conversations[groupId] = [...older, ...conversations[groupId]].sort((a, b) => a.at - b.at);
     }
 
     disappearingSettings[groupId] = disappearing || { enabled: false, seconds: 0 };
@@ -9766,6 +10111,9 @@ function applyMessageDeleted({ messageId, fromId, toId }) {
     if (activeChat && activeChat.id === convoKey) {
         renderMessages();
     }
+
+    renderFriendsList();
+    renderGroupsList();
 }
 
 socket.on("message-deleted", (payload) => {

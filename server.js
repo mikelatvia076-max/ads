@@ -2760,7 +2760,7 @@ function broadcastChatUserList() {
 
     const publicList = allEntries
         .filter(([id]) => isOnlineVisibleToOthers(id))
-        .map(([id, u]) => ({ id, name: u.name, avatar: u.avatar || null }));
+        .map(([id, u]) => ({ id, name: u.name, phone: u.phone || null, avatar: u.avatar || null }));
 
     const publicIds = new Set(publicList.map(entry => entry.id));
 
@@ -2773,7 +2773,7 @@ function broadcastChatUserList() {
         // even if they've hidden it from everyone else
         const list = publicIds.has(id)
             ? publicList
-            : [...publicList, { id, name: u.name, avatar: u.avatar || null }];
+            : [...publicList, { id, name: u.name, phone: u.phone || null, avatar: u.avatar || null }];
 
         targetSocket.emit("user-list", list);
     });
@@ -2971,7 +2971,12 @@ io.on("connection", (socket) => {
 
         onlineChatUsers.set(
             chatUserId,
-            { name: safeName, socketId: socket.id, avatar: existingAvatar }
+            {
+                name: safeName,
+                socketId: socket.id,
+                avatar: existingAvatar,
+                phone: normalizeKenyanPhone(safePhone)
+            }
         );
 
         socket.data.name = safeName;
@@ -3462,6 +3467,13 @@ io.on("connection", (socket) => {
         // second change right after this one uses the new number
         socket.data.phone = newPhoneKey;
 
+        // everyone's list shows this person's number, so refresh it
+        const liveEntry = onlineChatUsers.get(chatUserId);
+        if (liveEntry) {
+            liveEntry.phone = newPhoneKey;
+            broadcastChatUserList();
+        }
+
         socket.emit("change-number-done", { phone: safeNewPhone });
     });
 
@@ -3633,6 +3645,73 @@ io.on("connection", (socket) => {
                 theirs: convo.lastRead[toId] || null
             }
         });
+    });
+
+    // what the chat list shows under each name before a chat is opened
+    // (WhatsApp-style): the last message, when it was sent, and how many
+    // messages from the other person haven't been read yet. Only ever
+    // reads conversations this user is part of.
+    socket.on("get-chat-previews", ({ ids } = {}) => {
+
+        if (!chatUserId || !Array.isArray(ids)) return;
+
+        const store = readChatHistoryStore();
+        const now = Date.now();
+        const previews = {};
+
+        ids.slice(0, 500).forEach((rawId) => {
+
+            const id = String(rawId || "");
+            if (!id) return;
+
+            const group = isGroupId(id);
+
+            if (group) {
+                const g = groupsStore.get(id);
+                if (!g || !g.memberIds.includes(chatUserId)) return;
+            }
+
+            const convo = store[group ? id : conversationKey(chatUserId, id)];
+
+            if (!convo || !Array.isArray(convo.messages)) return;
+
+            const live = convo.messages.filter(m => !m.expiresAt || m.expiresAt > now);
+
+            if (!live.length) return;
+
+            const last = live[live.length - 1];
+
+            let unread = 0;
+
+            if (!group) {
+
+                const readId = convo.lastRead && convo.lastRead[chatUserId];
+                const readIdx = readId ? live.findIndex(m => m.id === readId) : -1;
+
+                // a saved pointer that's no longer in the list (trimmed or
+                // expired) counts as "read" rather than showing a false badge
+                if (!readId || readIdx !== -1) {
+                    unread = live
+                        .slice(readIdx + 1)
+                        .filter(m => m.from && m.from.id !== chatUserId && !m.deletedForEveryone)
+                        .length;
+                }
+            }
+
+            previews[id] = {
+                id: last.id,
+                text: last.text ? String(last.text).slice(0, 120) : null,
+                attachmentKind: last.attachment ? (last.attachment.kind || "file") : null,
+                attachmentName: last.attachment ? (last.attachment.name || null) : null,
+                deletedForEveryone: !!last.deletedForEveryone,
+                fromId: last.from ? last.from.id : null,
+                fromName: last.from ? last.from.name : null,
+                at: last.at,
+                unread
+            };
+        });
+
+        socket.emit("chat-previews", { previews });
     });
 
     // same idea as get-history, but for a group: one shared

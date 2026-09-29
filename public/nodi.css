@@ -7930,3 +7930,119 @@ html, body {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
 }
+
+/* ---------- WhatsApp-style chat list rows ---------- */
+
+.chat-row-top,
+.chat-row-bottom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.chat-row-top .friend-name {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+/* the person's number, shown next to their name */
+.friend-phone {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--wa-text-secondary);
+}
+
+.chat-row-time {
+    flex-shrink: 0;
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--wa-text-secondary);
+}
+
+.chat-row-time.unread {
+    color: var(--wa-green);
+    font-weight: 600;
+}
+
+.chat-row-preview {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13.5px;
+}
+
+.chat-row-preview.unread {
+    color: var(--wa-text-primary) !important;
+    font-weight: 500;
+}
+
+.friend-item.has-unread .friend-name {
+    font-weight: 700 !important;
+}
+
+.chat-row-bottom .unread-badge {
+    align-self: center !important;
+    margin-left: auto;
+}
+
+/* the number beside the name in the open chat's header */
+#chatWith[data-phone]::after {
+    content: attr(data-phone);
+    margin-left: 10px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--wa-text-secondary);
+}
+
+/* ---------- new message banner ---------- */
+
+.message-banner {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 0px));
+    left: 50%;
+    z-index: 10000;
+
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    width: min(92vw, 360px);
+    padding: 10px 14px;
+
+    border-radius: 12px;
+    background: #111b21;
+    color: #e9edef;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35);
+
+    cursor: pointer;
+
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -16px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.message-banner.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, 0);
+}
+
+.message-banner strong {
+    font-size: 14px;
+}
+
+.message-banner span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    color: #aebac1;
+}
