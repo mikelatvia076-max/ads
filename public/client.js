@@ -1773,6 +1773,264 @@ if (twoStepPinBackdrop) {
 
 
 // ============================================================
+// FINGERPRINT LOCK (asked for at login when the account has it on)
+//
+// Uses the device's own fingerprint sensor through WebAuthn. The
+// server sends a one-time challenge, the device signs it after a
+// successful fingerprint check, and the server verifies that
+// signature (see "join-verify-fingerprint" in server.js). The
+// fingerprint itself never leaves the device.
+// ============================================================
+
+const fingerprintModal =
+    document.getElementById("fingerprintModal");
+
+const fingerprintBackdrop =
+    document.getElementById("fingerprintBackdrop");
+
+const closeFingerprintModalBtn =
+    document.getElementById("closeFingerprintModal");
+
+const fingerprintMsg =
+    document.getElementById("fingerprintMsg");
+
+const fingerprintSubmit =
+    document.getElementById("fingerprintSubmit");
+
+// { phone, challenge, rpId, credentialIds } for the sign-in that's
+// waiting on a fingerprint; cleared once the modal closes
+let pendingFingerprint = null;
+
+function fpBufToB64url(buf) {
+
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+
+    for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+
+    return btoa(binary)
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+}
+
+function fpB64urlToBuf(str) {
+
+    const padded =
+        String(str) + "=".repeat((4 - (String(str).length % 4)) % 4);
+
+    const binary =
+        atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
+
+    const bytes = new Uint8Array(binary.length);
+
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+
+    return bytes.buffer;
+}
+
+function fingerprintErrorMessage(err) {
+
+    const name = err && err.name;
+
+    if (name === "NotAllowedError") {
+        return "The fingerprint check was cancelled or timed out. Try again.";
+    }
+
+    if (name === "InvalidStateError") {
+        return "This device already has a fingerprint set up.";
+    }
+
+    if (name === "NotSupportedError") {
+        return "This device or browser doesn't support fingerprint sign-in.";
+    }
+
+    if (name === "SecurityError") {
+        return "Fingerprint sign-in needs a secure (https) connection.";
+    }
+
+    return "Something went wrong with the fingerprint check. Try again.";
+}
+
+function showFingerprintMsg(text) {
+
+    if (!fingerprintMsg) return;
+
+    fingerprintMsg.textContent = text;
+    fingerprintMsg.classList.remove("hidden");
+}
+
+function resetFingerprintSubmit() {
+
+    if (!fingerprintSubmit) return;
+
+    fingerprintSubmit.disabled = false;
+    fingerprintSubmit.textContent = "Use fingerprint";
+}
+
+function openFingerprintModal() {
+
+    if (!fingerprintModal) return;
+
+    if (fingerprintMsg) {
+        fingerprintMsg.classList.add("hidden");
+        fingerprintMsg.textContent = "";
+    }
+
+    resetFingerprintSubmit();
+
+    fingerprintModal.classList.remove("hidden");
+}
+
+function closeFingerprintModal() {
+
+    if (!fingerprintModal) return;
+
+    fingerprintModal.classList.add("hidden");
+    pendingFingerprint = null;
+}
+
+// isAuto = the prompt we open by ourselves the moment the modal
+// appears. Some browsers (Safari) only allow the sensor prompt from
+// a tap, so a refusal there stays quiet and the button is still
+// right there to tap.
+async function runFingerprintLogin(isAuto) {
+
+    if (!pendingFingerprint) return;
+
+    if (!webAuthnAvailable()) {
+        showFingerprintMsg(
+            "This browser can't do fingerprint sign-in. Try another browser, " +
+            "or link this device with a QR code from one that's already signed in."
+        );
+        return;
+    }
+
+    if (fingerprintMsg) {
+        fingerprintMsg.classList.add("hidden");
+        fingerprintMsg.textContent = "";
+    }
+
+    if (fingerprintSubmit) {
+        fingerprintSubmit.disabled = true;
+        fingerprintSubmit.textContent = "Waiting for fingerprint…";
+    }
+
+    const request = pendingFingerprint;
+
+    try {
+
+        const credential =
+            await navigator.credentials.get({
+                publicKey: {
+                    challenge: fpB64urlToBuf(request.challenge),
+                    rpId: request.rpId,
+                    allowCredentials:
+                        (request.credentialIds || []).map(id => ({
+                            type: "public-key",
+                            id: fpB64urlToBuf(id),
+                            transports: ["internal"]
+                        })),
+                    userVerification: "required",
+                    timeout: 60000
+                }
+            });
+
+        if (!credential) throw new Error("no credential");
+
+        if (fingerprintSubmit) {
+            fingerprintSubmit.textContent = "Verifying…";
+        }
+
+        socket.emit(
+            "join-verify-fingerprint",
+            {
+                phone: request.phone,
+                assertion: {
+                    credentialId: fpBufToB64url(credential.rawId),
+                    authenticatorData: fpBufToB64url(credential.response.authenticatorData),
+                    clientDataJSON: fpBufToB64url(credential.response.clientDataJSON),
+                    signature: fpBufToB64url(credential.response.signature)
+                }
+            }
+        );
+
+    } catch (err) {
+
+        resetFingerprintSubmit();
+
+        const cancelled = err && err.name === "NotAllowedError";
+
+        if (!(isAuto && cancelled)) {
+            showFingerprintMsg(fingerprintErrorMessage(err));
+        }
+    }
+}
+
+socket.on(
+    "two-step-fingerprint-required",
+    (options = {}) => {
+
+        resetJoinButton();
+
+        // if the PIN was just asked for, that step is done
+        closeTwoStepPinModal();
+
+        pendingFingerprint = options;
+
+        openFingerprintModal();
+        runFingerprintLogin(true);
+    }
+);
+
+socket.on(
+    "two-step-fingerprint-incorrect",
+    ({ reason, challenge } = {}) => {
+
+        // the server spent the old challenge and sent a fresh one
+        if (pendingFingerprint && challenge) {
+            pendingFingerprint.challenge = challenge;
+        }
+
+        resetFingerprintSubmit();
+
+        if (reason === "unknown-device") {
+            showFingerprintMsg(
+                "This device isn't set up for this account's fingerprint lock. " +
+                "Sign in from a device you set it up on, or link this one with a QR code."
+            );
+        } else if (reason === "expired") {
+            showFingerprintMsg("That took too long. Tap the button to try again.");
+        } else {
+            showFingerprintMsg("That fingerprint didn't check out. Try again.");
+        }
+    }
+);
+
+if (fingerprintSubmit) {
+    fingerprintSubmit.addEventListener("click", () => runFingerprintLogin(false));
+}
+
+if (closeFingerprintModalBtn) {
+    closeFingerprintModalBtn.addEventListener("click", () => {
+        closeFingerprintModal();
+        resetJoinButton();
+    });
+}
+
+if (fingerprintBackdrop) {
+    fingerprintBackdrop.addEventListener("click", () => {
+        closeFingerprintModal();
+        resetJoinButton();
+    });
+}
+
+
+// ============================================================
 // FORGOT NAME (looks up the name saved against a phone number)
 // ============================================================
 
@@ -2118,6 +2376,7 @@ socket.on(
         }
 
         closeTwoStepPinModal();
+        closeFingerprintModal();
 
         me = payload;
 
@@ -4636,6 +4895,11 @@ function renderAccountPanel(
             "Require a PIN alongside your phone number when signing in"
         ],
 
+        fingerprint: [
+            "Fingerprint lock",
+            "Ask for your fingerprint when signing in"
+        ],
+
         "change-number": [
             "Change number",
             "Move your account to a new phone number"
@@ -4913,6 +5177,15 @@ function renderAccountPanel(
 
     if (view === "two-step") {
         renderTwoStepPanel();
+    }
+
+
+    // --------------------------------------------------------
+    // FINGERPRINT LOCK
+    // --------------------------------------------------------
+
+    if (view === "fingerprint") {
+        renderFingerprintPanel();
     }
 
 
@@ -5661,6 +5934,15 @@ function renderAccountInfoPanel() {
     });
     block.appendChild(twoStepBtn);
 
+    const fingerprintBtn = document.createElement("button");
+    fingerprintBtn.type = "button";
+    fingerprintBtn.className = "panel-action-full";
+    fingerprintBtn.innerHTML = `<i class="fa-solid fa-fingerprint"></i> Fingerprint lock`;
+    fingerprintBtn.addEventListener("click", () => {
+        renderAccountPanel("fingerprint");
+    });
+    block.appendChild(fingerprintBtn);
+
     const changeNumberBtn = document.createElement("button");
     changeNumberBtn.type = "button";
     changeNumberBtn.className = "panel-action-full";
@@ -5715,6 +5997,275 @@ socket.on("account-info-error", ({ message } = {}) => {
         message || "Couldn't fetch your account info.",
         { title: "Request account info", icon: "fa-file-export" }
     );
+});
+
+
+// ============================================================
+// FINGERPRINT LOCK PANEL (Settings > Account > Fingerprint lock)
+//
+// Turning it on registers this device's fingerprint sensor with
+// the account. From then on, signing in asks for it (after the
+// PIN, if there is one). Turning it off has to be confirmed with
+// a fingerprint from a device that was set up.
+// ============================================================
+
+let fingerprintEnabled = false;
+let fingerprintPanelBusy = false;
+
+function renderFingerprintPanel() {
+
+    if (!accountPanelBody) return;
+
+    accountPanelBody.innerHTML = `<div class="empty-panel">Loading…</div>`;
+
+    fingerprintPanelBusy = false;
+
+    socket.emit("get-fingerprint-status");
+}
+
+socket.on("fingerprint-status", ({ enabled, justChanged } = {}) => {
+
+    fingerprintEnabled = !!enabled;
+    fingerprintPanelBusy = false;
+
+    if (currentAccountView !== "fingerprint") return;
+
+    drawFingerprintPanel(
+        null,
+        justChanged
+            ? (fingerprintEnabled
+                ? "Fingerprint lock is on."
+                : "Fingerprint lock is off.")
+            : null
+    );
+});
+
+socket.on("fingerprint-error", ({ message } = {}) => {
+
+    fingerprintPanelBusy = false;
+
+    if (currentAccountView !== "fingerprint") return;
+
+    drawFingerprintPanel(message || "Something went wrong. Please try again.");
+});
+
+function drawFingerprintPanel(errorMessage, infoMessage) {
+
+    if (!accountPanelBody) return;
+
+    accountPanelBody.innerHTML = "";
+
+    const status = document.createElement("div");
+    status.className = "two-step-status-row" + (fingerprintEnabled ? " on" : "");
+    status.innerHTML = `
+        <i class="fa-solid fa-fingerprint"></i>
+        <span>
+            <strong>${fingerprintEnabled ? "Fingerprint lock is on" : "Fingerprint lock is off"}</strong>
+            <small>${fingerprintEnabled
+                ? "You'll be asked for your fingerprint whenever you sign in."
+                : "Ask for your fingerprint whenever someone signs into your account."}</small>
+        </span>
+    `;
+    accountPanelBody.appendChild(status);
+
+    const messageText = errorMessage || infoMessage;
+
+    if (messageText) {
+        const msg = document.createElement("p");
+        msg.className = "panel-inline-msg";
+        msg.textContent = messageText;
+        accountPanelBody.appendChild(msg);
+    }
+
+    if (!webAuthnAvailable()) {
+
+        const unsupported = document.createElement("p");
+        unsupported.className = "settings-hint";
+        unsupported.style.padding = "12px 4px 0";
+        unsupported.textContent =
+            "This browser doesn't support fingerprint sign-in. Try an up-to-date Chrome, Safari or Edge, over https.";
+        accountPanelBody.appendChild(unsupported);
+
+        return;
+    }
+
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "panel-action-full";
+    addBtn.disabled = fingerprintPanelBusy;
+    addBtn.innerHTML = fingerprintEnabled
+        ? `<i class="fa-solid fa-plus"></i> Add this device`
+        : `<i class="fa-solid fa-fingerprint"></i> Turn on`;
+    addBtn.addEventListener("click", startFingerprintRegistration);
+    accountPanelBody.appendChild(addBtn);
+
+    if (fingerprintEnabled) {
+
+        const offBtn = document.createElement("button");
+        offBtn.type = "button";
+        offBtn.className = "panel-action-full danger";
+        offBtn.disabled = fingerprintPanelBusy;
+        offBtn.innerHTML = `<i class="fa-solid fa-lock-open"></i> Turn off`;
+        offBtn.addEventListener("click", startFingerprintDisable);
+        accountPanelBody.appendChild(offBtn);
+    }
+
+    const note = document.createElement("p");
+    note.className = "settings-hint";
+    note.style.padding = "12px 4px 0";
+    note.textContent = fingerprintEnabled
+        ? "It only works on devices you've set up. To use another device, sign in there with a QR code from this one, then tap \"Add this device\"."
+        : "Your device checks your fingerprint with its own sensor - your fingerprint is never sent to us. It only works on the device you set it up on, so if you use other devices, add each one after signing in.";
+    accountPanelBody.appendChild(note);
+}
+
+async function startFingerprintRegistration() {
+
+    if (fingerprintPanelBusy) return;
+
+    let available = false;
+
+    try {
+        available =
+            webAuthnAvailable() &&
+            await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    } catch (err) {
+        available = false;
+    }
+
+    if (!available) {
+        drawFingerprintPanel(
+            "This device has no fingerprint sensor or screen lock set up, so it can't be used for this."
+        );
+        return;
+    }
+
+    fingerprintPanelBusy = true;
+    drawFingerprintPanel(null, "Waiting for your fingerprint…");
+
+    socket.emit("fingerprint-register-begin");
+}
+
+socket.on("fingerprint-register-options", async (o = {}) => {
+
+    try {
+
+        const credential =
+            await navigator.credentials.create({
+                publicKey: {
+                    challenge: fpB64urlToBuf(o.challenge),
+                    rp: { id: o.rpId, name: o.rpName },
+                    user: {
+                        id: fpB64urlToBuf(o.userId),
+                        name: o.userName,
+                        displayName: o.displayName
+                    },
+                    pubKeyCredParams: [
+                        { type: "public-key", alg: -7 },   // ES256
+                        { type: "public-key", alg: -257 }  // RS256
+                    ],
+                    authenticatorSelection: {
+                        authenticatorAttachment: "platform",
+                        userVerification: "required",
+                        residentKey: "discouraged"
+                    },
+                    excludeCredentials:
+                        (o.excludeIds || []).map(id => ({
+                            type: "public-key",
+                            id: fpB64urlToBuf(id),
+                            transports: ["internal"]
+                        })),
+                    attestation: "none",
+                    timeout: 60000
+                }
+            });
+
+        const response = credential && credential.response;
+
+        const publicKey =
+            response && typeof response.getPublicKey === "function"
+                ? response.getPublicKey()
+                : null;
+
+        if (!publicKey) {
+
+            fingerprintPanelBusy = false;
+
+            if (currentAccountView === "fingerprint") {
+                drawFingerprintPanel(
+                    "This browser can't finish fingerprint setup. Try an up-to-date Chrome, Safari or Edge."
+                );
+            }
+
+            return;
+        }
+
+        socket.emit("fingerprint-register-finish", {
+            credentialId: fpBufToB64url(credential.rawId),
+            publicKey: fpBufToB64url(publicKey),
+            alg: response.getPublicKeyAlgorithm(),
+            clientDataJSON: fpBufToB64url(response.clientDataJSON)
+        });
+
+    } catch (err) {
+
+        fingerprintPanelBusy = false;
+
+        if (currentAccountView === "fingerprint") {
+            drawFingerprintPanel(fingerprintErrorMessage(err));
+        }
+    }
+});
+
+function startFingerprintDisable() {
+
+    if (fingerprintPanelBusy) return;
+
+    fingerprintPanelBusy = true;
+    drawFingerprintPanel(null, "Confirm with your fingerprint to turn this off…");
+
+    socket.emit("fingerprint-disable-begin");
+}
+
+socket.on("fingerprint-disable-options", async (o = {}) => {
+
+    try {
+
+        const credential =
+            await navigator.credentials.get({
+                publicKey: {
+                    challenge: fpB64urlToBuf(o.challenge),
+                    rpId: o.rpId,
+                    allowCredentials:
+                        (o.credentialIds || []).map(id => ({
+                            type: "public-key",
+                            id: fpB64urlToBuf(id),
+                            transports: ["internal"]
+                        })),
+                    userVerification: "required",
+                    timeout: 60000
+                }
+            });
+
+        if (!credential) throw new Error("no credential");
+
+        socket.emit("fingerprint-disable-finish", {
+            assertion: {
+                credentialId: fpBufToB64url(credential.rawId),
+                authenticatorData: fpBufToB64url(credential.response.authenticatorData),
+                clientDataJSON: fpBufToB64url(credential.response.clientDataJSON),
+                signature: fpBufToB64url(credential.response.signature)
+            }
+        });
+
+    } catch (err) {
+
+        fingerprintPanelBusy = false;
+
+        if (currentAccountView === "fingerprint") {
+            drawFingerprintPanel(fingerprintErrorMessage(err));
+        }
+    }
 });
 
 

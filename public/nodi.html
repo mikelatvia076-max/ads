@@ -250,6 +250,39 @@
 
 
 <!-- =========================================================
+     FINGERPRINT PROMPT (shown at login when the account being
+     signed into has the fingerprint lock turned on)
+========================================================= -->
+
+<div id="fingerprintModal" class="forgot-modal-overlay hidden">
+
+    <div id="fingerprintBackdrop" class="forgot-modal-backdrop"></div>
+
+    <div class="forgot-modal">
+
+        <button id="closeFingerprintModal" class="forgot-modal-close" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="forgot-modal-icon">
+            <i class="fa-solid fa-fingerprint"></i>
+        </div>
+
+        <h2>Confirm your fingerprint</h2>
+        <p>This account has a fingerprint lock. Use your fingerprint to finish signing in.</p>
+
+        <div id="fingerprintMsg" class="forgot-modal-msg hidden"></div>
+
+        <button id="fingerprintSubmit" class="forgot-modal-submit">
+            Use fingerprint
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
      LINK A DEVICE — SHOW QR CODE
      (join screen's "Show QR to link", and Settings > Linked
      devices > "Generate QR to link a device")
@@ -2965,7 +2998,7 @@
 </div>
 
 
-<script src="client.js?v=4"></script>
+<script src="client.js?v=5"></script>
 
 </body>
 </html>

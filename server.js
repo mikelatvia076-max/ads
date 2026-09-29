@@ -385,6 +385,277 @@ function verifyPinHash(pin, stored) {
 
 /*
 =========================================================
+FINGERPRINT LOCK (WebAuthn)
+=========================================================
+An optional extra login step, off by default. An account that has
+turned it on (Settings > Account > Fingerprint lock) keeps one or
+more WebAuthn "platform authenticator" credentials on its entry in
+the users registry (account.fingerprints) - only the credential id
+and public key, never anything biometric. The fingerprint itself
+never leaves the person's device: the phone/laptop's own sensor
+unlocks a private key that signs a one-time challenge from this
+server, and the signature is checked here against the stored
+public key.
+
+Login order for an account that has both: phone+name -> PIN ->
+fingerprint. QR device-linking still skips both, exactly as it
+already skipped the PIN.
+
+WebAuthn only works on https (or http://localhost). Optional env
+overrides if you're behind a proxy that rewrites the host:
+  WEBAUTHN_RP_ID   e.g. "example.com"
+  WEBAUTHN_ORIGIN  e.g. "https://example.com"
+=========================================================
+*/
+
+const FINGERPRINT_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const FINGERPRINT_RP_NAME = "HigherSpace Connect";
+const MAX_FINGERPRINTS_PER_ACCOUNT = 5;
+const BASE64URL_RE = /^[A-Za-z0-9_-]+$/;
+
+function accountHasFingerprint(account) {
+    return !!(
+        account &&
+        Array.isArray(account.fingerprints) &&
+        account.fingerprints.length > 0
+    );
+}
+
+// The "relying party id" credentials are bound to - just this
+// site's hostname, so a credential made here can never be used by
+// a look-alike site.
+function getWebAuthnRpId(socket) {
+
+    if (process.env.WEBAUTHN_RP_ID) return process.env.WEBAUTHN_RP_ID;
+
+    const h = (socket.handshake && socket.handshake.headers) || {};
+    const host =
+        String(h["x-forwarded-host"] || h.host || "")
+            .split(",")[0]
+            .trim();
+
+    return host.replace(/:\d+$/, "").toLowerCase();
+}
+
+// The browser signs the page's origin into every response. It has
+// to be this site: https on our hostname (or plain http on
+// localhost for development).
+function isAcceptableWebAuthnOrigin(origin, rpId) {
+
+    if (process.env.WEBAUTHN_ORIGIN) {
+        return origin === process.env.WEBAUTHN_ORIGIN;
+    }
+
+    let url;
+    try {
+        url = new URL(String(origin));
+    } catch (error) {
+        return false;
+    }
+
+    if (url.hostname !== rpId) return false;
+
+    return url.protocol === "https:" || url.hostname === "localhost";
+}
+
+// One challenge per socket at a time, single use, short lived.
+function newFingerprintChallenge(socket, purpose, phoneKey) {
+
+    const value = crypto.randomBytes(32).toString("base64url");
+
+    socket.data.fpChallenge = {
+        value,
+        purpose,
+        phoneKey,
+        expiresAt: Date.now() + FINGERPRINT_CHALLENGE_TTL_MS
+    };
+
+    return value;
+}
+
+function takeFingerprintChallenge(socket, purpose, phoneKey) {
+
+    const c = socket.data.fpChallenge;
+
+    // consumed whether or not the attempt succeeds, so a challenge
+    // can never be replayed
+    socket.data.fpChallenge = null;
+
+    if (!c) return null;
+    if (c.purpose !== purpose || c.phoneKey !== phoneKey) return null;
+    if (Date.now() > c.expiresAt) return null;
+
+    return c.value;
+}
+
+function parseClientDataJSON(b64url) {
+
+    const buf = Buffer.from(String(b64url || ""), "base64url");
+
+    try {
+        return { buf, data: JSON.parse(buf.toString("utf8")) };
+    } catch (error) {
+        return null;
+    }
+}
+
+// Checks a fingerprint sign-in (or turn-off) response from the
+// browser. Returns { ok: true } or { ok: false, reason }.
+function verifyFingerprintAssertion(socket, account, purpose, phoneKey, assertion) {
+
+    const expected = takeFingerprintChallenge(socket, purpose, phoneKey);
+
+    if (!expected) return { ok: false, reason: "expired" };
+
+    if (!assertion || typeof assertion !== "object") {
+        return { ok: false, reason: "invalid" };
+    }
+
+    const credential =
+        (account.fingerprints || [])
+            .find(f => f.id === assertion.credentialId);
+
+    if (!credential) return { ok: false, reason: "unknown-device" };
+
+    const rpId = getWebAuthnRpId(socket);
+
+    const client = parseClientDataJSON(assertion.clientDataJSON);
+
+    if (
+        !client ||
+        !client.data ||
+        client.data.type !== "webauthn.get" ||
+        client.data.challenge !== expected ||
+        !isAcceptableWebAuthnOrigin(client.data.origin, rpId)
+    ) {
+        return { ok: false, reason: "invalid" };
+    }
+
+    const authData =
+        Buffer.from(String(assertion.authenticatorData || ""), "base64url");
+
+    // 32-byte rpIdHash + 1 flags byte + 4-byte counter
+    if (authData.length < 37) return { ok: false, reason: "invalid" };
+
+    const rpIdHash =
+        crypto.createHash("sha256").update(rpId).digest();
+
+    if (!crypto.timingSafeEqual(authData.subarray(0, 32), rpIdHash)) {
+        return { ok: false, reason: "invalid" };
+    }
+
+    // bit 0 = user present, bit 2 = user VERIFIED (the fingerprint /
+    // screen-lock check actually happened on the device)
+    const flags = authData[32];
+
+    if (!(flags & 0x01) || !(flags & 0x04)) {
+        return { ok: false, reason: "invalid" };
+    }
+
+    try {
+
+        const key =
+            crypto.createPublicKey({
+                key: Buffer.from(credential.publicKey, "base64url"),
+                format: "der",
+                type: "spki"
+            });
+
+        const signedData =
+            Buffer.concat([
+                authData,
+                crypto.createHash("sha256").update(client.buf).digest()
+            ]);
+
+        const valid =
+            crypto.verify(
+                "sha256",
+                signedData,
+                key,
+                Buffer.from(String(assertion.signature || ""), "base64url")
+            );
+
+        return valid ? { ok: true } : { ok: false, reason: "invalid" };
+
+    } catch (error) {
+
+        return { ok: false, reason: "invalid" };
+    }
+}
+
+// Checks the response from the browser when a fingerprint is first
+// set up. Returns { ok: true, entry } to store, or { ok: false, message }.
+function verifyFingerprintRegistration(socket, phoneKey, payload) {
+
+    const expected = takeFingerprintChallenge(socket, "register", phoneKey);
+
+    if (!expected) {
+        return { ok: false, message: "That took too long. Please try again." };
+    }
+
+    const bad = { ok: false, message: "We couldn't set up your fingerprint. Please try again." };
+
+    if (!payload || typeof payload !== "object") return bad;
+
+    const id = typeof payload.credentialId === "string" ? payload.credentialId : "";
+    const publicKey = typeof payload.publicKey === "string" ? payload.publicKey : "";
+    const alg = Number(payload.alg);
+
+    if (!id || id.length > 1024 || !BASE64URL_RE.test(id)) return bad;
+    if (!publicKey || publicKey.length > 2048 || !BASE64URL_RE.test(publicKey)) return bad;
+    if (alg !== -7 && alg !== -257) return bad; // ES256 or RS256 only
+
+    const client = parseClientDataJSON(payload.clientDataJSON);
+
+    if (
+        !client ||
+        !client.data ||
+        client.data.type !== "webauthn.create" ||
+        client.data.challenge !== expected ||
+        !isAcceptableWebAuthnOrigin(client.data.origin, getWebAuthnRpId(socket))
+    ) {
+        return bad;
+    }
+
+    // make sure the stored key is one we can actually verify with
+    // later, so a bad key can't lock the account out
+    try {
+
+        const key =
+            crypto.createPublicKey({
+                key: Buffer.from(publicKey, "base64url"),
+                format: "der",
+                type: "spki"
+            });
+
+        const expectedType = alg === -7 ? "ec" : "rsa";
+
+        if (key.asymmetricKeyType !== expectedType) return bad;
+
+    } catch (error) {
+
+        return bad;
+    }
+
+    return { ok: true, entry: { id, publicKey, alg, addedAt: Date.now() } };
+}
+
+// Sends the "confirm your fingerprint" prompt for a sign-in.
+function requestFingerprintLogin(socket, account, safePhone) {
+
+    const phoneKey = normalizeKenyanPhone(safePhone);
+
+    socket.emit("two-step-fingerprint-required", {
+        phone: safePhone,
+        challenge: newFingerprintChallenge(socket, "login", phoneKey),
+        rpId: getWebAuthnRpId(socket),
+        credentialIds: account.fingerprints.map(f => f.id)
+    });
+}
+
+
+/*
+=========================================================
 CHAT HISTORY STORE
 (persists every 1:1 conversation to disk so it survives a
 refresh/reconnect - "where you reached" - plus a per-
@@ -2563,16 +2834,23 @@ io.on("connection", (socket) => {
         // what "join" used to do inline now lives in finishJoin()
         // below, so this path and the PIN-confirmed path can't drift
         // apart from each other.
-        if (account.pin) {
+        if (account.pin || accountHasFingerprint(account)) {
 
             // an already signed-in device just vouched for this socket
             // via QR-code device linking - getting this far already
             // required someone to physically scan a code off a screen,
-            // so let it through without asking for the PIN too
+            // so let it through without asking for the PIN or the
+            // fingerprint too
             if (deviceLinkApprovedSockets.has(socket.id)) {
                 deviceLinkApprovedSockets.delete(socket.id);
-            } else {
+            } else if (account.pin) {
+                // PIN first; if a fingerprint is set too, it's asked
+                // for right after the PIN checks out (see
+                // "join-verify-pin" below)
                 socket.emit("two-step-pin-required", { phone: safePhone });
+                return;
+            } else {
+                requestFingerprintLogin(socket, account, safePhone);
                 return;
             }
         }
@@ -2601,6 +2879,57 @@ io.on("connection", (socket) => {
             socket.emit("two-step-pin-incorrect", { phone: safePhone });
             return;
         }
+
+        // PIN was right - if this account also has a fingerprint lock,
+        // that's the next step instead of signing in straight away
+        if (accountHasFingerprint(account)) {
+            socket.data.pinVerifiedPhone = phoneKey;
+            requestFingerprintLogin(socket, account, safePhone);
+            return;
+        }
+
+        finishJoin(account, safePhone);
+    });
+
+    // Verifies the fingerprint response for an account that has the
+    // fingerprint lock on, then runs the same finishJoin() as every
+    // other sign-in path. The account is re-looked-up from the server's
+    // own registry, never trusted from the client.
+    socket.on("join-verify-fingerprint", ({ phone, assertion } = {}) => {
+
+        const safePhone = String(phone || "").slice(0, 20).trim();
+        const phoneKey = normalizeKenyanPhone(safePhone);
+        const registry = readUsersRegistry();
+        const account = phoneKey ? registry[phoneKey] : null;
+
+        if (!account || !accountHasFingerprint(account)) {
+            socket.emit("account-required", { reason: "not-found", phone: safePhone });
+            return;
+        }
+
+        // an account with a PIN as well must have passed the PIN on
+        // THIS socket first - otherwise this event would be a way to
+        // skip straight past it
+        if (account.pin && socket.data.pinVerifiedPhone !== phoneKey) {
+            socket.emit("two-step-pin-required", { phone: safePhone });
+            return;
+        }
+
+        const result =
+            verifyFingerprintAssertion(socket, account, "login", phoneKey, assertion);
+
+        if (!result.ok) {
+
+            // the old challenge is spent - hand back a fresh one so
+            // "try again" works without starting sign-in over
+            socket.emit("two-step-fingerprint-incorrect", {
+                reason: result.reason,
+                challenge: newFingerprintChallenge(socket, "login", phoneKey)
+            });
+            return;
+        }
+
+        socket.data.pinVerifiedPhone = null;
 
         finishJoin(account, safePhone);
     });
@@ -2893,6 +3222,161 @@ io.on("connection", (socket) => {
         writeUsersRegistry(registry);
 
         socket.emit("two-step-status", { enabled: false });
+    });
+
+
+    // ============================================================
+    // FINGERPRINT LOCK (Settings > Account > Fingerprint lock)
+    // Like the two-step PIN handlers above, these only ever touch the
+    // signed-in socket's own account (socket.data.phone).
+    // ============================================================
+
+    function currentFingerprintAccount() {
+
+        if (!socket.data.phone) return null;
+
+        const phoneKey = normalizeKenyanPhone(socket.data.phone);
+        const registry = readUsersRegistry();
+        const account = phoneKey ? registry[phoneKey] : null;
+
+        return account ? { phoneKey, registry, account } : null;
+    }
+
+    socket.on("get-fingerprint-status", () => {
+
+        const ctx = currentFingerprintAccount();
+        if (!ctx) return;
+
+        socket.emit("fingerprint-status", {
+            enabled: accountHasFingerprint(ctx.account),
+            count: (ctx.account.fingerprints || []).length
+        });
+    });
+
+    // step 1 of turning it on (or adding another device): hand the
+    // browser a challenge + what it needs to create the credential
+    socket.on("fingerprint-register-begin", () => {
+
+        const ctx = currentFingerprintAccount();
+
+        if (!ctx) {
+            socket.emit("fingerprint-error", { message: "You need to be signed in to turn this on." });
+            return;
+        }
+
+        const existing = ctx.account.fingerprints || [];
+
+        if (existing.length >= MAX_FINGERPRINTS_PER_ACCOUNT) {
+            socket.emit("fingerprint-error", {
+                message: `You can register up to ${MAX_FINGERPRINTS_PER_ACCOUNT} devices.`
+            });
+            return;
+        }
+
+        socket.emit("fingerprint-register-options", {
+            challenge: newFingerprintChallenge(socket, "register", ctx.phoneKey),
+            rpId: getWebAuthnRpId(socket),
+            rpName: FINGERPRINT_RP_NAME,
+            userId: crypto.createHash("sha256").update(ctx.phoneKey).digest().toString("base64url"),
+            userName: ctx.phoneKey,
+            displayName: ctx.account.name,
+            excludeIds: existing.map(f => f.id)
+        });
+    });
+
+    // step 2: the browser made the credential - check it and store it
+    socket.on("fingerprint-register-finish", (payload) => {
+
+        const ctx = currentFingerprintAccount();
+
+        if (!ctx) {
+            socket.emit("fingerprint-error", { message: "You need to be signed in to turn this on." });
+            return;
+        }
+
+        const result = verifyFingerprintRegistration(socket, ctx.phoneKey, payload);
+
+        if (!result.ok) {
+            socket.emit("fingerprint-error", { message: result.message });
+            return;
+        }
+
+        if (!Array.isArray(ctx.account.fingerprints)) ctx.account.fingerprints = [];
+
+        if (ctx.account.fingerprints.some(f => f.id === result.entry.id)) {
+            socket.emit("fingerprint-error", { message: "This device already has a fingerprint set up." });
+            return;
+        }
+
+        if (ctx.account.fingerprints.length >= MAX_FINGERPRINTS_PER_ACCOUNT) {
+            socket.emit("fingerprint-error", {
+                message: `You can register up to ${MAX_FINGERPRINTS_PER_ACCOUNT} devices.`
+            });
+            return;
+        }
+
+        ctx.account.fingerprints.push(result.entry);
+        writeUsersRegistry(ctx.registry);
+
+        socket.emit("fingerprint-status", {
+            enabled: true,
+            count: ctx.account.fingerprints.length,
+            justChanged: true
+        });
+    });
+
+    // turning it off has to be confirmed with a fingerprint, the same
+    // way turning off the PIN has to be confirmed with the PIN
+    socket.on("fingerprint-disable-begin", () => {
+
+        const ctx = currentFingerprintAccount();
+
+        if (!ctx) {
+            socket.emit("fingerprint-error", { message: "You need to be signed in to do this." });
+            return;
+        }
+
+        if (!accountHasFingerprint(ctx.account)) {
+            socket.emit("fingerprint-status", { enabled: false, count: 0 });
+            return;
+        }
+
+        socket.emit("fingerprint-disable-options", {
+            challenge: newFingerprintChallenge(socket, "disable", ctx.phoneKey),
+            rpId: getWebAuthnRpId(socket),
+            credentialIds: ctx.account.fingerprints.map(f => f.id)
+        });
+    });
+
+    socket.on("fingerprint-disable-finish", ({ assertion } = {}) => {
+
+        const ctx = currentFingerprintAccount();
+
+        if (!ctx || !accountHasFingerprint(ctx.account)) {
+            socket.emit("fingerprint-status", { enabled: false, count: 0 });
+            return;
+        }
+
+        const result =
+            verifyFingerprintAssertion(socket, ctx.account, "disable", ctx.phoneKey, assertion);
+
+        if (!result.ok) {
+
+            socket.emit("fingerprint-error", {
+                message:
+                    result.reason === "unknown-device"
+                        ? "This device isn't one of the ones you set up. Turn it off from a device you registered."
+                        : result.reason === "expired"
+                            ? "That took too long. Please try again."
+                            : "That fingerprint didn't match. Please try again."
+            });
+            return;
+        }
+
+        delete ctx.account.fingerprints;
+        writeUsersRegistry(ctx.registry);
+
+        socket.emit("fingerprint-status", { enabled: false, count: 0, justChanged: true });
     });
 
 
