@@ -399,8 +399,43 @@ function requestChatPreviews() {
 
         if (ids.length) socket.emit("get-chat-previews", { ids });
 
+        // numbers for friends we don't have one for yet (e.g. offline)
+        const needPhone = [...friendIds].filter(id => !getPersonPhone(id));
+
+        if (needPhone.length) socket.emit("get-contact-info", { ids: needPhone });
+
     }, 150);
 }
+
+socket.on("contact-info", ({ contacts } = {}) => {
+
+    if (!contacts) return;
+
+    Object.entries(contacts).forEach(([id, c]) => {
+
+        if (!c || !c.phone) return;
+
+        const existing = friendProfiles[id] || {};
+        const live = usersOnline[id];
+
+        friendProfiles[id] = {
+            name: existing.name || (live && live.name) || id,
+            avatar: existing.avatar || (live && live.avatar) || null,
+            phone: c.phone
+        };
+    });
+
+    saveFriendProfiles();
+    renderFriendsList();
+    syncChatHeaderPhone();
+
+    // a "View contact" tap that was waiting on the number
+    if (pendingViewContactId && contacts[pendingViewContactId]) {
+        const id = pendingViewContactId;
+        pendingViewContactId = null;
+        showContactCard(id);
+    }
+});
 
 socket.on("chat-previews", ({ previews } = {}) => {
 
@@ -2728,6 +2763,8 @@ socket.on(
 
         refreshPeopleList();
 
+        requestChatPreviews();
+
         maybeShowJoinGroupInviteModal();
         maybeOpenChatFromLink();
 
@@ -4705,6 +4742,10 @@ socket.on(
         renderFriendsList();
 
         refreshPeopleList();
+
+        // friend list just arrived from the server - now we know whose
+        // last message / number to ask for
+        requestChatPreviews();
 
     }
 );
@@ -8414,6 +8455,12 @@ function openChat(
             false;
 
     }
+
+    if (!activeChat.isGroup && !getPersonPhone(id)) {
+        socket.emit("get-contact-info", { ids: [id] });
+    }
+
+    syncChatHeaderPhone();
 
 
     // on phone, opening a chat takes over the full screen; the
@@ -15997,9 +16044,43 @@ if ($id("viewContactOption")) {
         if (activeChat.isGroup) {
             if (typeof openGroupInfoModal === "function") openGroupInfoModal();
         } else {
-            showNiceAlert(activeChat.name, { title: "Contact", icon: "fa-user" });
+            const id = activeChat.id;
+
+            if (getPersonPhone(id)) {
+                showContactCard(id);
+            } else {
+                // not known yet - ask the server, and show the card
+                // as soon as "contact-info" comes back
+                pendingViewContactId = id;
+                socket.emit("get-contact-info", { ids: [id] });
+
+                setTimeout(() => {
+                    if (pendingViewContactId === id) {
+                        pendingViewContactId = null;
+                        showContactCard(id);
+                    }
+                }, 2500);
+            }
         }
     });
+}
+
+let pendingViewContactId = null;
+
+function showContactCard(id) {
+
+    const name =
+        (usersOnline[id] && usersOnline[id].name) ||
+        (friendProfiles[id] && friendProfiles[id].name) ||
+        (activeChat && activeChat.id === id ? activeChat.name : id);
+
+    const phone = formatPhoneDisplay(getPersonPhone(id));
+    const status = usersOnline[id] ? "Online" : "Offline";
+
+    showNiceAlert(
+        `${name}\n${phone ? `Phone: ${phone}` : "Phone number not available"}\n${status}`,
+        { title: "Contact", icon: "fa-user" }
+    );
 }
 
 if ($id("advancedPrivacyOption")) {

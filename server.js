@@ -4584,6 +4584,41 @@ io.on("connection", (socket) => {
         socket.emit("last-seen", { userId, lastSeen: store[userId] || null });
     });
 
+    // phone numbers for the people in your chat list, so "View contact"
+    // and the chat rows can show a number even while that person is
+    // offline (the online list only carries numbers for people who are
+    // connected right now). Numbers come from the accounts registry,
+    // which is keyed by phone and stores the account name; a user's id
+    // is their lower-cased name.
+    socket.on("get-contact-info", ({ ids } = {}) => {
+
+        if (!chatUserId || !Array.isArray(ids)) return;
+
+        const registry = readUsersRegistry();
+        const phoneByName = {};
+
+        Object.entries(registry).forEach(([phoneKey, entry]) => {
+            if (entry && entry.name) {
+                phoneByName[String(entry.name).toLowerCase()] = phoneKey;
+            }
+        });
+
+        const contacts = {};
+
+        ids.slice(0, 500).forEach((rawId) => {
+
+            const id = String(rawId || "");
+            if (!id || isGroupId(id)) return;
+
+            const live = onlineChatUsers.get(id);
+            const phone = (live && live.phone) || phoneByName[id] || null;
+
+            if (phone) contacts[id] = { phone };
+        });
+
+        socket.emit("contact-info", { contacts });
+    });
+
     socket.on("clear-chat", ({ chatId, deleteStarred } = {}) => {
 
         if (!chatId || !chatUserId) return;

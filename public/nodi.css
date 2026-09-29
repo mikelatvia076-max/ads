@@ -8046,3 +8046,8 @@ html, body {
     font-size: 13px;
     color: #aebac1;
 }
+
+/* "View contact" card: keep the name / phone / status on separate lines */
+#niceAlertMsg {
+    white-space: pre-line;
+}
