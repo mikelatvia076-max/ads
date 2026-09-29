@@ -15106,6 +15106,12 @@ function getSecretCode() {
 
 let chatLockModalMode = "set"; // "set" | "unlock-folder"
 
+// true once the user has switched biometric unlock off and back on
+// inside the open modal, so the next PIN submit enrolls a brand new
+// fingerprint / Face ID credential instead of keeping the saved one
+let chatLockBiometricReenroll = false;
+let chatLockBiometricWasUnchecked = false;
+
 // ------------------------------------------------------------
 // Biometric app lock (WebAuthn platform authenticator)
 //
@@ -15233,6 +15239,9 @@ function openChatLockModal(mode) {
         err.classList.add("hidden");
     }
 
+    chatLockBiometricReenroll = false;
+    chatLockBiometricWasUnchecked = false;
+
     const hasPin = !!getChatLockPin();
     const bioEnrolled = hasBiometricUnlock();
 
@@ -15283,11 +15292,17 @@ async function submitChatLockPin() {
     const wantsBiometric = Boolean(bioEnableToggle && bioEnableToggle.checked);
 
     const syncBiometricEnrollment = async () => {
-        if (wantsBiometric && !hasBiometricUnlock()) {
+        if (wantsBiometric && (!hasBiometricUnlock() || chatLockBiometricReenroll)) {
+            // turning it on: always take a fresh fingerprint / Face ID
+            // check and save a new credential, never reuse the old one
+            const previousId = getBiometricCredentialId();
+            clearBiometricCredential();
             const enrolled = await enrollBiometricUnlock();
             if (!enrolled) {
+                // nothing new was saved; don't leave a stale saved one behind
                 showNiceAlert("Couldn't set up fingerprint / Face ID unlock on this device.", { title: "Biometric unlock", icon: "fa-fingerprint" });
             }
+            chatLockBiometricReenroll = false;
         } else if (!wantsBiometric && hasBiometricUnlock()) {
             clearBiometricCredential();
         }
@@ -15365,6 +15380,18 @@ function renderLockedChatsFolder(revealed) {
 
     };
 
+}
+
+if ($id("chatLockBiometricEnableToggle")) {
+    $id("chatLockBiometricEnableToggle").addEventListener("change", (e) => {
+        // off -> on while a credential is already saved means "turn it on
+        // again", which must take a fresh fingerprint
+        if (e.target.checked) {
+            if (hasBiometricUnlock() && chatLockBiometricWasUnchecked) chatLockBiometricReenroll = true;
+        } else {
+            chatLockBiometricWasUnchecked = true;
+        }
+    });
 }
 
 if ($id("closeChatLockModal")) $id("closeChatLockModal").addEventListener("click", () => closeModal($id("chatLockModal")));
