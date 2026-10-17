@@ -498,10 +498,15 @@ function mapRumourArticle(article) {
         id: article.id || "",
         title: article.title || "University news",
         description: article.description || article.content || "",
-        category: "University Rumours",
+        // The NewsData sweep now files disruption stories under
+        // "University Alerts", so keep the real category instead
+        // of forcing everything to "University Rumours".
+        category: article.category || "University Rumours",
         organization: article.source_name || article.source_id || "",
         publishedDate: article.pubDate || "",
-        externalLink: article.link || ""
+        externalLink: article.link || "",
+        image_url: article.image_url || "",
+        video_url: article.video_url || ""
     };
 }
 
@@ -677,6 +682,95 @@ async function loadCategoryPage() {
 
 /*
 =========================================================
+CARD IMAGE / VIDEO
+Stories that carry an image_url or a video_url (NewsData
+fields, also stored in articles.json) now show a picture at
+the top of their card. A YouTube video_url uses YouTube's own
+thumbnail with a "Video" badge; clicking the card still opens
+the source story, where the video plays. (The "Latest Campus
+Videos" row above the list plays videos directly.)
+=========================================================
+*/
+
+function hsSafeUrl(value) {
+    const url = String(value || "").trim();
+    return /^https?:\/\//i.test(url) ? url : "";
+}
+
+function hsYoutubeId(url) {
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.replace(/^www\./, "");
+        let id = "";
+        if (host === "youtu.be") {
+            id = parsed.pathname.slice(1);
+        } else if (host === "youtube.com" || host === "m.youtube.com") {
+            id = parsed.searchParams.get("v") ||
+                (parsed.pathname.startsWith("/embed/") ? parsed.pathname.split("/embed/")[1] : "") ||
+                (parsed.pathname.startsWith("/shorts/") ? parsed.pathname.split("/shorts/")[1] : "");
+        }
+        id = String(id || "").split(/[?&/]/)[0];
+        return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : "";
+    } catch {
+        return "";
+    }
+}
+
+function hsInjectMediaStyles() {
+    if (document.getElementById("hsCardMediaStyles")) return;
+    const style = document.createElement("style");
+    style.id = "hsCardMediaStyles";
+    style.textContent = `
+        .hs-card-media {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            margin: 0 0 12px;
+            border-radius: 10px;
+            overflow: hidden;
+            background: rgba(127, 127, 127, 0.15);
+        }
+        .hs-card-media img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .hs-card-media .hs-card-badge {
+            position: absolute;
+            left: 8px;
+            bottom: 8px;
+            padding: 3px 9px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function cardMediaHTML(article) {
+    const video = hsSafeUrl(article.video_url);
+    const image = hsSafeUrl(article.image_url);
+    const ytId = video ? hsYoutubeId(video) : "";
+    const picture = ytId ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : image;
+
+    if (!picture && !video) return "";
+
+    return `
+        <div class="hs-card-media">
+            ${picture
+                ? `<img src="${escapeHTML(picture)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.hs-card-media').style.display='none'">`
+                : ""}
+            ${video ? '<span class="hs-card-badge">🎥 Video</span>' : ""}
+        </div>
+    `;
+}
+
+/*
+=========================================================
 RENDER ARTICLES
 =========================================================
 */
@@ -686,6 +780,8 @@ function renderArticles(articles) {
     const container = $("articlesList");
 
     if (!container) return;
+
+    hsInjectMediaStyles();
 
     if (!Array.isArray(articles) || articles.length === 0) {
         container.innerHTML = `
@@ -755,6 +851,8 @@ function renderArticles(articles) {
                     ${externalLink ? 'target="_blank" rel="noopener noreferrer"' : ""}
                 >
                     <div class="article-content">
+
+                        ${cardMediaHTML(article)}
 
                         <div class="card-top">
                             <span class="article-category">${category}</span>

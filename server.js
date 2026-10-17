@@ -2517,6 +2517,439 @@ app.get(
 
 /*
 =========================================================
+UNIVERSITY VIDEOS (YouTube)
+=========================================================
+
+Feeds GET /api/university-videos, which the site's "Latest
+Campus Videos" rail (university-videos.js) reads.
+
+NewsData almost never returns a video_url, so the news cards
+had no videos to show. This pulls real, recent, university-
+related videos from YouTube instead - two ways:
+
+  1. YOUTUBE_API_KEY set in .env (recommended, free, no card):
+     searches YouTube for Kenyan university news directly.
+  2. No key: reads the public RSS feeds of Kenyan news
+     channels (YOUTUBE_CHANNELS, default Citizen TV, NTV, KTN,
+     K24) and keeps only university-related uploads. Each feed
+     only lists a channel's last ~15 uploads, so this finds
+     fewer videos than option 1.
+
+Results are cached for 3 hours (same as the news sweep) so
+visitors never trigger YouTube requests themselves.
+=========================================================
+*/
+
+const YOUTUBE_API_KEY =
+    process.env.YOUTUBE_API_KEY || "";
+
+const YOUTUBE_CHANNELS =
+    (
+        process.env.YOUTUBE_CHANNELS ||
+        "@citizentvkenya,@NTVKenya,@KTNNewsKenya,@K24TV"
+    )
+        .split(",")
+        .map(item => item.trim())
+        .filter(Boolean);
+
+const YOUTUBE_MAX_AGE_DAYS =
+    Number(process.env.YOUTUBE_MAX_AGE_DAYS || 30);
+
+const UNIVERSITY_VIDEOS_CACHE_MS =
+    3 * 60 * 60 * 1000;
+
+// When a refresh finds nothing (or fails), retry sooner than 3 hours.
+const UNIVERSITY_VIDEOS_EMPTY_RETRY_MS =
+    15 * 60 * 1000;
+
+const YOUTUBE_API_QUERIES = [
+    "Kenya university students news",
+    "Kenya lecturers strike UASU",
+    "HELB KUCCPS Kenya students"
+];
+
+const VIDEO_RELEVANCE =
+    /universit|varsit|campus|lecturer|uasu|student|helb|kuccps|tvet|bursar|scholarship|kcse|\bcue\b/i;
+
+let universityVideosCache = {
+    videos: [],
+    updatedAt: 0,
+    retryAfterMs: UNIVERSITY_VIDEOS_CACHE_MS,
+    source: ""
+};
+
+let universityVideosInFlight = null;
+
+const youtubeChannelIdCache = new Map();
+
+function decodeVideoText(text) {
+
+    return String(text || "")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;|&apos;/g, "'")
+        .replace(/&#(\d+);/g, (m, code) => String.fromCharCode(Number(code)))
+        .trim();
+}
+
+function isYoutubeVideoId(value) {
+
+    return /^[A-Za-z0-9_-]{11}$/.test(String(value || ""));
+}
+
+function makeVideoItem({ id, title, channel, published }) {
+
+    return {
+        id,
+        title,
+        channel: channel || "YouTube",
+        published: published || "",
+        url: `https://www.youtube.com/watch?v=${id}`,
+        thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
+    };
+}
+
+async function fetchVideosFromYoutubeApi() {
+
+    const publishedAfter =
+        new Date(
+            Date.now() -
+            YOUTUBE_MAX_AGE_DAYS * 86400000
+        ).toISOString();
+
+    const found = [];
+
+    for (const query of YOUTUBE_API_QUERIES) {
+
+        const url =
+            "https://www.googleapis.com/youtube/v3/search" +
+            "?part=snippet&type=video&order=date&maxResults=10" +
+            "&videoEmbeddable=true&regionCode=KE&relevanceLanguage=en" +
+            `&publishedAfter=${encodeURIComponent(publishedAfter)}` +
+            `&q=${encodeURIComponent(query)}` +
+            `&key=${encodeURIComponent(YOUTUBE_API_KEY)}`;
+
+        try {
+
+            const response =
+                await fetch(
+                    url,
+                    { signal: AbortSignal.timeout(10000) }
+                );
+
+            const data =
+                await response.json();
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data?.error?.message ||
+                    `YouTube API status ${response.status}`
+                );
+            }
+
+            for (const item of data.items || []) {
+
+                const id = item?.id?.videoId;
+
+                if (!isYoutubeVideoId(id)) continue;
+
+                found.push(
+                    makeVideoItem({
+                        id,
+                        title: decodeVideoText(item.snippet?.title),
+                        channel: decodeVideoText(item.snippet?.channelTitle),
+                        published: item.snippet?.publishedAt
+                    })
+                );
+            }
+
+        } catch (error) {
+
+            console.error(
+                `YouTube API search failed ("${query}"):`,
+                error.message
+            );
+        }
+    }
+
+    return found;
+}
+
+async function resolveYoutubeChannelId(channel) {
+
+    if (/^UC[A-Za-z0-9_-]{22}$/.test(channel)) {
+
+        return channel;
+    }
+
+    if (youtubeChannelIdCache.has(channel)) {
+
+        return youtubeChannelIdCache.get(channel);
+    }
+
+    const handle =
+        channel.startsWith("@")
+            ? channel
+            : `@${channel}`;
+
+    // Only plain handle characters are allowed into the URL
+    // (a handle is letters, numbers, "_", "-" and ".").
+    if (!/^@[\w.-]{3,60}$/.test(handle)) {
+
+        throw new Error(`"${channel}" is not a valid YouTube handle`);
+    }
+
+    const response =
+        await fetch(
+            `https://www.youtube.com/${handle}`,
+            {
+                signal: AbortSignal.timeout(10000),
+                headers: {
+                    "User-Agent":
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    // Skips YouTube's cookie-consent interstitial,
+                    // which otherwise replaces the page for some
+                    // server regions.
+                    "Cookie": "CONSENT=YES+1; SOCS=CAI"
+                }
+            }
+        );
+
+    const html =
+        await response.text();
+
+    const match =
+        html.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/) ||
+        html.match(/"externalId":"(UC[\w-]{22})"/) ||
+        html.match(/"channelId":"(UC[\w-]{22})"/);
+
+    if (!match) {
+
+        throw new Error(`could not find a channel id for ${handle}`);
+    }
+
+    youtubeChannelIdCache.set(channel, match[1]);
+
+    return match[1];
+}
+
+function parseYoutubeFeed(xml) {
+
+    const videos = [];
+
+    for (const entry of String(xml || "").split("<entry>").slice(1)) {
+
+        const id =
+            (entry.match(/<yt:videoId>([^<]+)<\/yt:videoId>/) || [])[1];
+
+        if (!isYoutubeVideoId(id)) continue;
+
+        videos.push(
+            makeVideoItem({
+                id,
+                title: decodeVideoText((entry.match(/<title>([^<]*)<\/title>/) || [])[1]),
+                channel: decodeVideoText((entry.match(/<author>\s*<name>([^<]*)<\/name>/) || [])[1]),
+                published: (entry.match(/<published>([^<]+)<\/published>/) || [])[1]
+            })
+        );
+    }
+
+    return videos;
+}
+
+async function fetchVideosFromChannelFeeds() {
+
+    const found = [];
+
+    for (const channel of YOUTUBE_CHANNELS) {
+
+        try {
+
+            const channelId =
+                await resolveYoutubeChannelId(channel);
+
+            const response =
+                await fetch(
+                    `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`,
+                    { signal: AbortSignal.timeout(10000) }
+                );
+
+            if (!response.ok) {
+
+                throw new Error(`feed status ${response.status}`);
+            }
+
+            found.push(
+                ...parseYoutubeFeed(
+                    await response.text()
+                )
+            );
+
+        } catch (error) {
+
+            console.error(
+                `YouTube channel skipped (${channel}):`,
+                error.message
+            );
+        }
+    }
+
+    return found.filter(
+        video => VIDEO_RELEVANCE.test(video.title)
+    );
+}
+
+async function refreshUniversityVideos() {
+
+    const source =
+        YOUTUBE_API_KEY
+            ? "youtube-api"
+            : "channel-feeds";
+
+    let videos =
+        YOUTUBE_API_KEY
+            ? await fetchVideosFromYoutubeApi()
+            : await fetchVideosFromChannelFeeds();
+
+    const cutoff =
+        Date.now() -
+        YOUTUBE_MAX_AGE_DAYS * 86400000;
+
+    const seen = new Set();
+
+    videos =
+        videos
+            .filter(video => {
+
+                if (seen.has(video.id)) return false;
+
+                seen.add(video.id);
+
+                const time = new Date(video.published).getTime();
+
+                return isNaN(time) || time >= cutoff;
+            })
+            .sort(
+                (a, b) =>
+                    new Date(b.published || 0) -
+                    new Date(a.published || 0)
+            )
+            .slice(0, 30);
+
+    console.log(
+        `University videos: ${videos.length} found (${source}).`
+    );
+
+    return { videos, source };
+}
+
+async function loadUniversityVideos() {
+
+    const age =
+        Date.now() - universityVideosCache.updatedAt;
+
+    if (
+        universityVideosCache.updatedAt &&
+        age < universityVideosCache.retryAfterMs
+    ) {
+
+        return universityVideosCache;
+    }
+
+    if (universityVideosInFlight) {
+
+        return universityVideosInFlight;
+    }
+
+    universityVideosInFlight =
+        refreshUniversityVideos()
+            .then(({ videos, source }) => {
+
+                universityVideosCache = {
+                    videos,
+                    source,
+                    updatedAt: Date.now(),
+                    retryAfterMs:
+                        videos.length
+                            ? UNIVERSITY_VIDEOS_CACHE_MS
+                            : UNIVERSITY_VIDEOS_EMPTY_RETRY_MS
+                };
+
+                return universityVideosCache;
+            })
+            .catch(error => {
+
+                console.error(
+                    "University videos refresh failed:",
+                    error.message
+                );
+
+                // Keep serving the last good list; try again soon.
+                universityVideosCache = {
+                    ...universityVideosCache,
+                    updatedAt: Date.now(),
+                    retryAfterMs: UNIVERSITY_VIDEOS_EMPTY_RETRY_MS
+                };
+
+                return universityVideosCache;
+            })
+            .finally(() => {
+
+                universityVideosInFlight = null;
+            });
+
+    return universityVideosInFlight;
+}
+
+app.get(
+    "/api/university-videos",
+    async (req, res) => {
+
+        try {
+
+            const limit =
+                Math.min(
+                    Math.max(parseInt(req.query.limit, 10) || 12, 1),
+                    30
+                );
+
+            const cache =
+                await loadUniversityVideos();
+
+            res.json({
+                success: true,
+                source: cache.source,
+                updatedAt: cache.updatedAt,
+                count: Math.min(cache.videos.length, limit),
+                videos: cache.videos.slice(0, limit)
+            });
+
+        } catch (error) {
+
+            console.error("University videos API error:", error);
+
+            res.status(500).json({
+                success: false,
+                error: "Unable to load videos right now.",
+                videos: []
+            });
+        }
+    }
+);
+
+// Warm the cache at startup so the first visitor already sees videos.
+setTimeout(
+    () => { loadUniversityVideos(); },
+    5000
+);
+
+
+/*
+=========================================================
 UNIVERSITY RUMOURS STATUS
 =========================================================
 */
