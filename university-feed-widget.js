@@ -214,6 +214,21 @@ on the server — powered by GNews, not AI-generated).
             feedContainer.appendChild(renderSection("announcements", data.announcements));
             feedContainer.appendChild(renderSection("opportunities", data.opportunities));
 
+            if (typeof window.mountCampusVideos === "function") {
+
+                const videoHolder = el("div", "my-campus-videos");
+
+                feedContainer.appendChild(videoHolder);
+
+                const nameEl = document.getElementById("myCampusName");
+
+                window.mountCampusVideos(videoHolder, {
+                    topic: "all",
+                    q: nameEl ? nameEl.textContent : "",
+                    title: "🎥 Videos about your campus"
+                });
+            }
+
         } catch (error) {
 
             console.error("My Campus feed error:", error);
