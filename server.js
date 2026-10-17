@@ -1282,23 +1282,29 @@ const UNIVERSITY_RUMOUR_SEARCHES = [
         category: "University Rumours"
     },
 
+    // The NewsData request already filters with country=ke, so "Kenya"
+    // is not repeated inside these phrases. The old groups required
+    // exact phrases like "university strike Kenya", which real
+    // headlines ("University lecturers begin nationwide strike...")
+    // almost never contain, so this category stayed empty. Every
+    // group stays under NewsData's 100-character q limit.
     {
-        term: '"student protest Kenya" OR "student protests Kenya" OR "university strike Kenya"',
+        term: 'UASU OR "lecturers strike" OR "university strike" OR "varsity strike" OR "lecturers down tools"',
         category: "University Alerts"
     },
 
     {
-        term: '"student strike Kenya" OR "campus strike Kenya" OR "campus demonstration Kenya"',
+        term: '"student protest" OR "students protest" OR "student unrest" OR "campus unrest" OR "students riot"',
         category: "University Alerts"
     },
 
     {
-        term: '"university students demonstration Kenya"',
+        term: '"university closed" OR "university closure" OR "varsity closure" OR "university reopening"',
         category: "University Alerts"
     },
 
     {
-        term: '"university closure Kenya" OR "university reopening Kenya"',
+        term: '"learning suspended" OR "classes suspended" OR "exams postponed" OR "universities shut"',
         category: "University Alerts"
     },
 
@@ -1497,6 +1503,42 @@ Includes both:
     do - not just on the homepage widget.
 =========================================================
 */
+
+
+// Headline-based classification. NewsData's search groups only decide
+// which category a story is *searched* under; a story about a lecturers'
+// strike can easily turn up in the generic "University Rumours" search
+// instead. This moves any disruption story into "University Alerts"
+// based on its own title/description, and drops "Alerts" hits that are
+// not about universities at all (e.g. KCSE exam news).
+const ALERT_WORDS =
+    /\b(strike|strikes|uasu|unrest|protest|protests|demonstration|demonstrations|shut ?down|shutdown|closure|closed|suspend\w*|postpone\w*|reopen\w*|boycott|riot\w*|down tools)\b/i;
+
+const UNIVERSITY_WORDS =
+    /(universit|varsit|campus|lecturer|uasu|undergraduate|kuccps|\bcue\b|student)/i;
+
+function pickUniversityCategory(article, category) {
+
+    const text =
+        `${article.title || ""} ${article.description || ""}`;
+
+    if (
+        category === "University Rumours" &&
+        ALERT_WORDS.test(text) &&
+        UNIVERSITY_WORDS.test(text)
+    ) {
+        return "University Alerts";
+    }
+
+    return category;
+}
+
+function isUniversityRelated(article) {
+
+    return UNIVERSITY_WORDS.test(
+        `${article.title || ""} ${article.description || ""}`
+    );
+}
 
 function normalizeUniversityRumour(
     article,
@@ -1731,30 +1773,48 @@ function pruneExpiredUniversityRumours(
     return articles.filter(
         article => {
 
-            const reference =
-                article.expiresAt ||
-                null;
-
-            if (!reference) {
-
-                return true;
-            }
-
-            const expiry =
-                new Date(reference);
-
-            if (isNaN(expiry)) {
-
-                return true;
-            }
-
-            if (expiry < now) {
+            // Explicit expiresAt, or the category fallback
+            // (University Alerts) - same rule the site uses when
+            // serving articles.
+            if (
+                isArticleExpired(
+                    article,
+                    now
+                )
+            ) {
 
                 console.log(
-                    `University Rumours EXPIRED: ${article.title}`
+                    `${article.category} EXPIRED: ${article.title}`
                 );
 
                 return false;
+            }
+
+            // News rows with no expiresAt (missing pubDate) would
+            // otherwise live forever - age them out too.
+            if (!article.expiresAt) {
+
+                const reference =
+                    new Date(
+                        article.pubDate ||
+                        article.date ||
+                        article.lastChecked ||
+                        0
+                    );
+
+                if (
+                    !isNaN(reference) &&
+                    reference.getTime() > 0 &&
+                    (now - reference) / 86400000 >
+                        UNIVERSITY_RUMOUR_FALLBACK_EXPIRY_DAYS
+                ) {
+
+                    console.log(
+                        `${article.category} EXPIRED (age): ${article.title}`
+                    );
+
+                    return false;
+                }
             }
 
             return true;
@@ -2161,13 +2221,25 @@ async function runUniversityRumoursSweep() {
         ) {
 
             articles.push(
-                ...results.map(
-                    article =>
-                        normalizeUniversityRumour(
-                            article,
-                            category
-                        )
-                )
+                ...results
+                    // Alerts searches can return off-topic news
+                    // (e.g. secondary-school exams) - keep only
+                    // university-related stories.
+                    .filter(
+                        article =>
+                            category !== "University Alerts" ||
+                            isUniversityRelated(article)
+                    )
+                    .map(
+                        article =>
+                            normalizeUniversityRumour(
+                                article,
+                                pickUniversityCategory(
+                                    article,
+                                    category
+                                )
+                            )
+                    )
             );
 
         }
@@ -2377,8 +2449,19 @@ app.get(
             -----------------------------------------
             */
 
+            const nowForExpiry =
+                new Date();
+
             const articles =
-                await loadUniversityRumoursFromNewsData();
+                (
+                    await loadUniversityRumoursFromNewsData()
+                ).filter(
+                    article =>
+                        !isArticleExpired(
+                            article,
+                            nowForExpiry
+                        )
+                );
 
 
             /*
@@ -5402,7 +5485,7 @@ const FALLBACK_EXPIRY_DAYS = {
 
     "Jobs": 45,
 
-    "University Alerts": 30,
+    "University Alerts": 14,
 
     "Internships": 45,
 
@@ -7850,6 +7933,10 @@ server.listen(
                     )
                 );
             }
+
+            // Remove anything that expired while the server was off,
+            // before the first sweep/refresh adds new stories.
+            pruneExpiredArticlesFile();
 
             runUniversityRumoursAutoUpdate();
 

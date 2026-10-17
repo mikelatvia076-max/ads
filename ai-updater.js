@@ -213,7 +213,7 @@ const FALLBACK_EXPIRY_DAYS = {
 
     "Jobs": 45,
 
-    "University Alerts": 30,
+    "University Alerts": 14,
 
     "Internships": 45,
 
@@ -1765,6 +1765,12 @@ async function callTavily(
 
         search_depth: "advanced",
 
+        // Only recent news - without this Tavily returns whatever
+        // ranks best, including months-old strike coverage.
+        topic: "news",
+
+        days: 14,
+
         include_answer: true,
 
         max_results: 10
@@ -3257,6 +3263,38 @@ async function main() {
         );
     }
 
+
+    // The server's NewsData sweep (University Rumours / University
+    // Alerts) writes to the same articles.json while this script is
+    // busy with its slow provider calls. This script loaded its copy
+    // at the start, so saving it as-is would erase whatever the server
+    // saved in the meantime. Merge in anything on disk that this run
+    // doesn't already hold before writing.
+    {
+        const articleKey =
+            a => a.sourceUrl || a.link || a.id || a.title;
+
+        const known =
+            new Set(
+                articles.map(articleKey)
+            );
+
+        for (
+            const onDisk of loadArticles()
+        ) {
+
+            if (
+                !known.has(
+                    articleKey(onDisk)
+                )
+            ) {
+
+                articles.push(
+                    onDisk
+                );
+            }
+        }
+    }
 
     const beforeExpiry =
         articles.length;
