@@ -2517,162 +2517,86 @@ app.get(
 
 /*
 =========================================================
-UNIVERSITY VIDEOS (YouTube)
+UNIVERSITY VIDEOS (YouTube Data API, TV stations only)
 =========================================================
 
-Feeds GET /api/university-videos, which the site's "Latest
-Campus Videos" rail (university-videos.js) reads.
+Feeds GET /api/university-videos (read by university-videos.js).
 
-NewsData almost never returns a video_url, so the news cards
-had no videos to show. This pulls real, recent, university-
-related videos from YouTube instead - two ways:
+Everything comes from the YOUTUBE DATA API v3 (YOUTUBE_API_KEY in
+.env). Nothing else - no other social media, no scraping, no RSS,
+no hard-coded video or channel ids.
 
-  1. YOUTUBE_API_KEY set in .env (recommended, free, no card):
-     searches YouTube for Kenyan university news directly.
-  2. No key: reads the public RSS feeds of Kenyan news
-     channels (YOUTUBE_CHANNELS, default Citizen TV, NTV, KTN,
-     K24) and keeps only university-related uploads. Each feed
-     only lists a channel's last ~15 uploads, so this finds
-     fewer videos than option 1.
+How it works:
+  1. YOUTUBE_STATIONS (.env, comma separated TV station NAMES) is
+     looked up with the API (search + channels) to find each
+     station's official channel. Ids are found by the API and cached.
+  2. Every hour the API's playlistItems endpoint is read for each
+     station's latest uploads (1 quota unit per station), keeping
+     only videos posted in the last 24 hours that can be embedded.
+  3. Each category (HELB, KUCCPS, Jobs...) shows the station videos
+     that match its topic.
+  4. A video disappears 24 hours after it was posted, and newer ones
+     take its place at the next refresh.
 
-Results are cached for 3 hours (same as the news sweep) so
-visitors never trigger YouTube requests themselves.
+.env:
+  YOUTUBE_API_KEY=your key
+  YOUTUBE_STATIONS=Citizen TV Kenya,NTV Kenya,KTN News Kenya,K24 TV,TV47 Kenya,KBC Channel 1
+  VIDEO_MAX_AGE_HOURS=24        (optional)
 =========================================================
 */
 
 const YOUTUBE_API_KEY =
     process.env.YOUTUBE_API_KEY || "";
 
-const SERPER_API_KEY =
-    process.env.SERPER_API_KEY ||
-    process.env.SERPER_KEY ||
-    "";
+const YOUTUBE_STATIONS =
+    (
+        process.env.YOUTUBE_STATIONS ||
+        "Citizen TV Kenya,NTV Kenya,KTN News Kenya,K24 TV,TV47 Kenya,KBC Channel 1"
+    )
+        .split(",")
+        .map(item => item.trim())
+        .filter(Boolean);
 
-/*
-Videos older than this are dropped (default 24 hours), so the
-rows are always fresh and new clips replace expired ones.
-Set VIDEO_MAX_AGE_HOURS in .env to change it.
-*/
+// Videos older than this are dropped (default 24 hours).
 const VIDEO_MAX_AGE_HOURS =
     Number(process.env.VIDEO_MAX_AGE_HOURS || 24);
 
 const VIDEO_MAX_AGE_MS =
     VIDEO_MAX_AGE_HOURS * 3600000;
 
-// How often a topic's list is re-fetched, so new videos come in
-// during the day.
+// How often the stations' uploads are re-read from the API.
+// (Cheap: about 1 quota unit per station per refresh.)
 const UNIVERSITY_VIDEOS_CACHE_MS =
-    3 * 60 * 60 * 1000;
+    60 * 60 * 1000;
 
 // When a refresh finds nothing (or fails), retry sooner.
 const UNIVERSITY_VIDEOS_EMPTY_RETRY_MS =
-    15 * 60 * 1000;
-
-/*
-ONLY these TV stations are shown. "handle" is the station's
-official YouTube channel; "match" recognises the station's
-official pages on TikTok / Facebook / Instagram / X from the
-account name or link, so random uploaders are ignored.
-*/
-const TV_STATIONS = [
-    { id: "citizen", name: "Citizen TV",    handle: "@citizentvkenya", match: /citizen\s*tv|citizentv/i },
-    { id: "ntv",     name: "NTV Kenya",     handle: "@NTVKenya",       match: /\bntv\b|ntvkenya|ntv\s*kenya/i },
-    { id: "ktn",     name: "KTN News",      handle: "@KTNNewsKenya",   match: /\bktn\b|ktnnews|ktnhome/i },
-    { id: "k24",     name: "K24 TV",        handle: "@K24TV",          match: /\bk24\b|k24tv/i },
-    { id: "tv47",    name: "TV47",          handle: "@TV47Kenya",      match: /tv\s*47|tv47/i },
-    { id: "kbc",     name: "KBC Channel 1", handle: "@KBCChannel1",    match: /\bkbc\b|kbcchannel/i }
-];
-
-const YOUTUBE_CHANNELS =
-    (
-        process.env.YOUTUBE_CHANNELS ||
-        TV_STATIONS.map(station => station.handle).join(",")
-    )
-        .split(",")
-        .map(item => item.trim())
-        .filter(Boolean);
-
-const STATION_QUERY_TEXT =
-    "(Citizen TV OR NTV Kenya OR KTN News OR K24 OR TV47 OR KBC)";
-
-function stationFromText(text) {
-
-    const value = String(text || "");
-
-    return TV_STATIONS.find(station => station.match.test(value)) || null;
-}
+    10 * 60 * 1000;
 
 const VIDEO_RELEVANCE =
     /universit|varsit|campus|lecturer|uasu|student|helb|kuccps|tvet|bursar|scholarship|kcse|\bcue\b/i;
 
-/*
-Per-category video topics. "queries" are what we search for,
-"regex" is what a station video title must match. The topic
-names are the same slugs used in category.html?type=...
-*/
-const VIDEO_TOPICS = {
-    all: {
-        queries: ["Kenya university students news"],
-        regex: VIDEO_RELEVANCE
-    },
-    helb: {
-        queries: ["HELB loan Kenya students"],
-        regex: /helb|loan|bursar|disburse/i
-    },
-    kuccps: {
-        queries: ["KUCCPS placement Kenya"],
-        regex: /kuccps|placement|kcse|cluster/i
-    },
-    jobs: {
-        queries: ["jobs for Kenyan graduates"],
-        regex: /job|vacanc|recruit|graduate|career|employ|intern/i
-    },
-    scholarships: {
-        queries: ["scholarships for Kenyan students"],
-        regex: /scholarship|bursar|sponsor/i
-    },
-    rumours: {
-        queries: ["Kenya university students news"],
-        regex: VIDEO_RELEVANCE
-    },
-    "university-alerts": {
-        queries: ["Kenya university students lecturers strike"],
-        regex: VIDEO_RELEVANCE
-    },
-    internships: {
-        queries: ["internship opportunities Kenya students"],
-        regex: /intern/i
-    },
-    attachments: {
-        queries: ["industrial attachment Kenya students"],
-        regex: /attachment|intern|placement/i
-    },
-    competitions: {
-        queries: ["student competition Kenya university"],
-        regex: /competition|contest|hackathon|challenge|award/i
-    },
-    courses: {
-        queries: ["university courses Kenya"],
-        regex: /course|degree|career|programme|program|student/i
-    }
+// What each category page looks for in station video titles/descriptions.
+// The names are the same slugs used in category.html?type=...
+const VIDEO_TOPIC_REGEX = {
+    all: VIDEO_RELEVANCE,
+    helb: /helb|higher education loan|bursar|disburse/i,
+    kuccps: /kuccps|placement|kcse|cluster|admission/i,
+    jobs: /job|vacanc|recruit|graduate|career|employ|hiring|intern/i,
+    scholarships: /scholarship|bursar|sponsor|fully funded/i,
+    rumours: VIDEO_RELEVANCE,
+    "university-alerts": VIDEO_RELEVANCE,
+    internships: /intern/i,
+    attachments: /attachment|intern|placement/i,
+    competitions: /competition|contest|hackathon|challenge|award|tournament/i,
+    courses: /course|degree|diploma|programme|program|career|student/i
 };
-
-const SOCIAL_SITES = [
-    "tiktok.com",
-    "facebook.com",
-    "instagram.com",
-    "x.com"
-];
 
 const universityVideosCache = new Map();
 const universityVideosInFlight = new Map();
 const MAX_VIDEO_CACHE_ENTRIES = 80;
 
-// First time we saw a video that has no usable publish date; it
-// expires VIDEO_MAX_AGE_HOURS after this.
-const videoFirstSeen = new Map();
-
-const youtubeChannelIdCache = new Map();
+const youtubeStationCache = new Map();
 
 function decodeVideoText(text) {
 
@@ -2691,62 +2615,6 @@ function isYoutubeVideoId(value) {
     return /^[A-Za-z0-9_-]{11}$/.test(String(value || ""));
 }
 
-function shortHash(text) {
-
-    let hash = 5381;
-
-    for (let i = 0; i < text.length; i++) {
-
-        hash = ((hash << 5) + hash + text.charCodeAt(i)) >>> 0;
-    }
-
-    return hash.toString(36);
-}
-
-// "3 hours ago" / "Oct 16, 2026" -> ISO date, or "" if unknown.
-function parseVideoDate(text) {
-
-    const value = String(text || "").trim();
-
-    if (!value) return "";
-
-    const relative =
-        value.match(/(\d+)\s*(second|minute|hour|day|week|month|year)s?\s+ago/i);
-
-    if (relative) {
-
-        const unit = {
-            second: 1000,
-            minute: 60000,
-            hour: 3600000,
-            day: 86400000,
-            week: 604800000,
-            month: 2592000000,
-            year: 31536000000
-        }[relative[2].toLowerCase()];
-
-        return new Date(Date.now() - Number(relative[1]) * unit).toISOString();
-    }
-
-    const date = new Date(value);
-
-    return isNaN(date.getTime()) ? "" : date.toISOString();
-}
-
-function makeVideoItem({ id, title, channel, published, station }) {
-
-    return {
-        id,
-        platform: "youtube",
-        station: station ? { id: station.id, name: station.name } : null,
-        title,
-        channel: channel || "YouTube",
-        published: published || "",
-        url: `https://www.youtube.com/watch?v=${id}`,
-        thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`
-    };
-}
-
 function videoKey(video) {
 
     return `${video.platform}:${video.id}`;
@@ -2757,124 +2625,32 @@ function isFreshVideo(video) {
 
     const published = new Date(video.published).getTime();
 
-    let start = published;
-
-    if (isNaN(start)) {
-
-        start = videoFirstSeen.get(videoKey(video)) || Date.now();
-    }
-
-    return Date.now() - start < VIDEO_MAX_AGE_MS;
+    return !isNaN(published) && Date.now() - published < VIDEO_MAX_AGE_MS;
 }
 
 function videoExpiresAt(video) {
 
-    const published = new Date(video.published).getTime();
-
-    const start =
-        isNaN(published)
-            ? videoFirstSeen.get(videoKey(video)) || Date.now()
-            : published;
-
-    return new Date(start + VIDEO_MAX_AGE_MS).toISOString();
+    return new Date(
+        new Date(video.published).getTime() + VIDEO_MAX_AGE_MS
+    ).toISOString();
 }
 
-/*
-Works out which social platform a video link belongs to and
-pulls out its id. Returns null for anything that is not a video
-on YouTube, TikTok, Facebook, Instagram or X.
-*/
-function parseSocialVideoLink(link) {
+async function youtubeApi(endpoint, params) {
 
-    let url;
+    const url =
+        new URL(`https://www.googleapis.com/youtube/v3/${endpoint}`);
 
-    try {
+    for (const [name, value] of Object.entries(params)) {
 
-        url = new URL(String(link || ""));
-
-    } catch {
-
-        return null;
+        url.searchParams.set(name, String(value));
     }
 
-    if (!/^https?:$/.test(url.protocol)) return null;
-
-    const host = url.hostname.replace(/^(www|m|mobile|web|vm)\./, "").toLowerCase();
-    const path = url.pathname;
-    let match;
-
-    if (host === "youtube.com" || host === "youtu.be") {
-
-        const id =
-            host === "youtu.be"
-                ? path.slice(1).split("/")[0]
-                : url.searchParams.get("v") ||
-                  (path.match(/^\/(?:shorts|embed|live)\/([\w-]{11})/) || [])[1];
-
-        return isYoutubeVideoId(id) ? { platform: "youtube", id } : null;
-    }
-
-    if (host.endsWith("tiktok.com")) {
-
-        match = path.match(/\/video\/(\d{8,25})/);
-
-        return match
-            ? { platform: "tiktok", id: match[1], url: `https://www.tiktok.com${path}` }
-            : null;
-    }
-
-    if (host === "facebook.com" || host === "fb.watch" || host.endsWith(".facebook.com")) {
-
-        if (host !== "fb.watch" && !/\/(videos?|reel|reels|watch)\b/.test(path + url.search)) {
-
-            return null;
-        }
-
-        return { platform: "facebook", id: shortHash(link), url: url.href };
-    }
-
-    if (host === "instagram.com" || host.endsWith(".instagram.com")) {
-
-        match = path.match(/\/(?:reel|reels|p|tv)\/([\w-]+)/);
-
-        return match
-            ? { platform: "instagram", id: match[1], url: `https://www.instagram.com/reel/${match[1]}/` }
-            : null;
-    }
-
-    if (host === "x.com" || host === "twitter.com") {
-
-        match = path.match(/\/status\/(\d+)/);
-
-        return match
-            ? { platform: "x", id: match[1], url: `https://x.com${path}` }
-            : null;
-    }
-
-    return null;
-}
-
-async function serperVideoSearch(query) {
-
-    const tbs =
-        VIDEO_MAX_AGE_HOURS <= 24
-            ? "qdr:d"
-            : VIDEO_MAX_AGE_HOURS <= 168
-                ? "qdr:w"
-                : "qdr:m";
+    url.searchParams.set("key", YOUTUBE_API_KEY);
 
     const response =
         await fetch(
-            "https://google.serper.dev/videos",
-            {
-                method: "POST",
-                headers: {
-                    "X-API-KEY": SERPER_API_KEY,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ q: query, gl: "ke", hl: "en", num: 10, tbs }),
-                signal: AbortSignal.timeout(12000)
-            }
+            url,
+            { signal: AbortSignal.timeout(12000) }
         );
 
     const data =
@@ -2883,347 +2659,263 @@ async function serperVideoSearch(query) {
     if (!response.ok) {
 
         throw new Error(
-            data?.message ||
-            `Serper status ${response.status}`
+            data?.error?.message ||
+            `YouTube API status ${response.status}`
         );
     }
 
-    return Array.isArray(data.videos) ? data.videos : [];
+    return data;
 }
 
 /*
-TikTok / Facebook / Instagram / X videos, last 24 hours only,
-kept ONLY when the account is one of the TV stations above.
+Finds a station's official channel with the API: searches channels
+by name, then picks the matching one with the most subscribers.
+Cached for the life of the server.
 */
-async function fetchStationSocialVideos(baseQuery) {
+async function resolveStationChannel(name) {
 
-    const searches =
-        SOCIAL_SITES.map(
-            site => `${baseQuery} ${STATION_QUERY_TEXT} site:${site}`
-        );
+    if (youtubeStationCache.has(name)) {
 
-    const results =
-        await Promise.allSettled(
-            searches.map(serperVideoSearch)
-        );
-
-    const found = [];
-
-    results.forEach((result, index) => {
-
-        if (result.status === "rejected") {
-
-            console.error(
-                `Serper video search failed ("${searches[index]}"):`,
-                result.reason?.message
-            );
-
-            return;
-        }
-
-        for (const item of result.value) {
-
-            const parsed = parseSocialVideoLink(item.link);
-
-            if (!parsed || parsed.platform === "youtube") continue;
-
-            // Station must show up in the account name or link,
-            // not just somewhere in the title.
-            const station =
-                stationFromText(
-                    `${item.channel || ""} ${item.source || ""} ${item.link || ""}`
-                );
-
-            if (!station) continue;
-
-            const title = decodeVideoText(item.title);
-
-            if (!title) continue;
-
-            found.push({
-                id: parsed.id,
-                platform: parsed.platform,
-                station: { id: station.id, name: station.name },
-                title,
-                channel: station.name,
-                published: parseVideoDate(item.date),
-                url: parsed.url,
-                thumbnail: /^https:\/\//.test(item.imageUrl || "") ? item.imageUrl : ""
-            });
-        }
-    });
-
-    return found;
-}
-
-async function resolveYoutubeChannelId(channel) {
-
-    if (/^UC[A-Za-z0-9_-]{22}$/.test(channel)) {
-
-        return channel;
+        return youtubeStationCache.get(name);
     }
 
-    if (youtubeChannelIdCache.has(channel)) {
+    const search =
+        await youtubeApi("search", {
+            part: "snippet",
+            type: "channel",
+            q: name,
+            regionCode: "KE",
+            maxResults: 5
+        });
 
-        return youtubeChannelIdCache.get(channel);
+    const ids =
+        (search.items || [])
+            .map(item => item?.snippet?.channelId || item?.id?.channelId)
+            .filter(Boolean);
+
+    if (!ids.length) {
+
+        throw new Error(`no YouTube channel found for "${name}"`);
     }
 
-    const handle =
-        channel.startsWith("@")
-            ? channel
-            : `@${channel}`;
+    const details =
+        await youtubeApi("channels", {
+            part: "snippet,statistics,contentDetails",
+            id: ids.join(",")
+        });
 
-    // Only plain handle characters are allowed (letters, numbers,
-    // "_", "-" and ".").
-    if (!/^@[\w.-]{3,60}$/.test(handle)) {
-
-        throw new Error(`"${channel}" is not a valid YouTube handle`);
-    }
-
-    // Most reliable: the official API (1 quota unit).
-    if (YOUTUBE_API_KEY) {
-
-        try {
-
-            const response =
-                await fetch(
-                    "https://www.googleapis.com/youtube/v3/channels?part=id" +
-                    `&forHandle=${encodeURIComponent(handle)}` +
-                    `&key=${encodeURIComponent(YOUTUBE_API_KEY)}`,
-                    { signal: AbortSignal.timeout(10000) }
-                );
-
-            const data = await response.json();
-
-            const id = data?.items?.[0]?.id;
-
-            if (/^UC[\w-]{22}$/.test(id || "")) {
-
-                youtubeChannelIdCache.set(channel, id);
-
-                return id;
-            }
-
-        } catch (error) {
-
-            console.error(`YouTube handle lookup failed (${handle}):`, error.message);
-        }
-    }
-
-    // Fallback: read the channel page.
-    const response =
-        await fetch(
-            `https://www.youtube.com/${handle}`,
-            {
-                signal: AbortSignal.timeout(10000),
-                headers: {
-                    "User-Agent":
-                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-                    "Accept-Language": "en-US,en;q=0.9",
-                    "Cookie": "CONSENT=YES+1; SOCS=CAI"
-                }
-            }
-        );
-
-    const html =
-        await response.text();
+    // The station's main word, e.g. "citizen", "ntv", "ktn", "k24".
+    const norm = text => String(text || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const keyword = norm(name.split(/\s+/)[0]);
 
     const match =
-        html.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/) ||
-        html.match(/"externalId":"(UC[\w-]{22})"/) ||
-        html.match(/"channelId":"(UC[\w-]{22})"/);
+        (details.items || [])
+            .filter(channel => norm(channel.snippet?.title).includes(keyword))
+            .sort(
+                (a, b) =>
+                    Number(b.statistics?.subscriberCount || 0) -
+                    Number(a.statistics?.subscriberCount || 0)
+            )[0];
 
-    if (!match) {
+    const uploads = match?.contentDetails?.relatedPlaylists?.uploads;
 
-        throw new Error(`could not find a channel id for ${handle}`);
+    if (!match || !uploads) {
+
+        throw new Error(`could not match a channel for "${name}"`);
     }
 
-    youtubeChannelIdCache.set(channel, match[1]);
+    const station = {
+        id: match.id,
+        name: decodeVideoText(match.snippet.title),
+        uploads
+    };
 
-    return match[1];
+    youtubeStationCache.set(name, station);
+
+    console.log(`YouTube station "${name}" -> ${station.name} (${station.id})`);
+
+    return station;
 }
 
-function parseYoutubeFeed(xml, channelHandle) {
+// Latest uploads of one station from the last 24h, embeddable only.
+async function fetchStationUploads(stationName) {
 
-    const videos = [];
+    const station =
+        await resolveStationChannel(stationName);
 
-    for (const entry of String(xml || "").split("<entry>").slice(1)) {
+    const list =
+        await youtubeApi("playlistItems", {
+            part: "snippet,contentDetails",
+            playlistId: station.uploads,
+            maxResults: 50
+        });
 
-        const id =
-            (entry.match(/<yt:videoId>([^<]+)<\/yt:videoId>/) || [])[1];
+    const fresh = [];
+
+    for (const item of list.items || []) {
+
+        const id = item?.contentDetails?.videoId;
 
         if (!isYoutubeVideoId(id)) continue;
 
-        const author =
-            decodeVideoText((entry.match(/<author>\s*<name>([^<]*)<\/name>/) || [])[1]);
+        const published =
+            item.contentDetails?.videoPublishedAt ||
+            item.snippet?.publishedAt ||
+            "";
 
-        const station =
-            stationFromText(`${author} ${channelHandle}`) ||
-            { id: shortHash(channelHandle), name: author || channelHandle };
+        const video = {
+            id,
+            platform: "youtube",
+            station: { id: station.id, name: station.name },
+            title: decodeVideoText(item.snippet?.title),
+            channel: station.name,
+            published,
+            url: `https://www.youtube.com/watch?v=${id}`,
+            thumbnail:
+                item.snippet?.thumbnails?.high?.url ||
+                item.snippet?.thumbnails?.medium?.url ||
+                `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+            text:
+                `${item.snippet?.title || ""} ${item.snippet?.description || ""}`
+        };
 
-        videos.push(
-            makeVideoItem({
-                id,
-                station,
-                title: decodeVideoText((entry.match(/<title>([^<]*)<\/title>/) || [])[1]),
-                channel: author,
-                published: (entry.match(/<published>([^<]+)<\/published>/) || [])[1]
-            })
-        );
+        if (video.title && video.title !== "Private video" && video.title !== "Deleted video" && isFreshVideo(video)) {
+
+            fresh.push(video);
+        }
     }
 
-    return videos;
+    if (!fresh.length) return [];
+
+    // Keep only videos that are public and allowed to be embedded.
+    const status =
+        await youtubeApi("videos", {
+            part: "status",
+            id: fresh.map(video => video.id).join(",")
+        });
+
+    const playable = new Set(
+        (status.items || [])
+            .filter(item =>
+                item.status?.embeddable &&
+                item.status?.privacyStatus === "public"
+            )
+            .map(item => item.id)
+    );
+
+    return fresh.filter(video => playable.has(video.id));
 }
 
-// The station channel feeds are the same for every topic, so they
-// are fetched once per cache window and filtered per topic.
-let channelFeedCache = { videos: [], updatedAt: 0 };
-let channelFeedInFlight = null;
+// Station uploads are the same for every topic: read them once per
+// cache window and filter per topic.
+let stationVideosCache = { videos: [], updatedAt: 0 };
+let stationVideosInFlight = null;
 
-async function fetchAllStationYoutubeVideos() {
+async function fetchAllStationVideos() {
 
     if (
-        channelFeedCache.updatedAt &&
-        Date.now() - channelFeedCache.updatedAt < UNIVERSITY_VIDEOS_CACHE_MS
+        stationVideosCache.updatedAt &&
+        Date.now() - stationVideosCache.updatedAt < UNIVERSITY_VIDEOS_CACHE_MS
     ) {
 
-        return channelFeedCache.videos;
+        return stationVideosCache.videos;
     }
 
-    if (channelFeedInFlight) return channelFeedInFlight;
+    if (stationVideosInFlight) return stationVideosInFlight;
 
-    channelFeedInFlight = (async () => {
+    stationVideosInFlight = (async () => {
+
+        const settled =
+            await Promise.allSettled(
+                YOUTUBE_STATIONS.map(fetchStationUploads)
+            );
 
         const found = [];
 
-        for (const channel of YOUTUBE_CHANNELS) {
+        settled.forEach((result, index) => {
 
-            try {
+            if (result.status === "fulfilled") {
 
-                const channelId =
-                    await resolveYoutubeChannelId(channel);
+                found.push(...result.value);
 
-                const response =
-                    await fetch(
-                        `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`,
-                        { signal: AbortSignal.timeout(10000) }
-                    );
-
-                if (!response.ok) {
-
-                    throw new Error(`feed status ${response.status}`);
-                }
-
-                found.push(
-                    ...parseYoutubeFeed(
-                        await response.text(),
-                        channel
-                    )
-                );
-
-            } catch (error) {
+            } else {
 
                 console.error(
-                    `YouTube channel skipped (${channel}):`,
-                    error.message
+                    `YouTube station skipped (${YOUTUBE_STATIONS[index]}):`,
+                    result.reason?.message
                 );
             }
-        }
+        });
 
-        channelFeedCache = { videos: found, updatedAt: Date.now() };
+        stationVideosCache = {
+            videos: found,
+            // Failed/empty reads are retried sooner.
+            updatedAt:
+                found.length
+                    ? Date.now()
+                    : Date.now() - UNIVERSITY_VIDEOS_CACHE_MS + UNIVERSITY_VIDEOS_EMPTY_RETRY_MS
+        };
 
         return found;
 
-    })().finally(() => { channelFeedInFlight = null; });
+    })().finally(() => { stationVideosInFlight = null; });
 
-    return channelFeedInFlight;
-}
-
-function resolveVideoTopic(topic, extra) {
-
-    const key = VIDEO_TOPICS[topic] ? topic : "all";
-    const config = VIDEO_TOPICS[key];
-
-    const queries =
-        extra
-            ? [`${extra} ${key === "courses" ? "course " : ""}Kenya`]
-            : config.queries;
-
-    return { key, config, queries };
+    return stationVideosInFlight;
 }
 
 async function refreshUniversityVideos(topic, extra) {
 
-    const { config, queries } = resolveVideoTopic(topic, extra);
+    if (!YOUTUBE_API_KEY) {
 
-    const tasks = [
-        fetchAllStationYoutubeVideos().then(
-            videos => extra
-                ? videos.filter(v => v.title.toLowerCase().includes(extra.toLowerCase()))
-                : videos.filter(v => config.regex.test(v.title))
-        )
-    ];
+        console.error(
+            "University videos: YOUTUBE_API_KEY is not set in .env, so no videos can load."
+        );
 
-    if (SERPER_API_KEY) {
-
-        tasks.push(fetchStationSocialVideos(queries[0]));
+        return { videos: [], source: "missing-youtube-api-key" };
     }
 
-    const settled = await Promise.allSettled(tasks);
+    const regex =
+        VIDEO_TOPIC_REGEX[topic] || VIDEO_TOPIC_REGEX.all;
 
-    let videos = [];
+    const all =
+        await fetchAllStationVideos();
 
-    for (const result of settled) {
-
-        if (result.status === "fulfilled") videos.push(...result.value);
-    }
+    const wanted =
+        extra
+            ? all.filter(video => video.text.toLowerCase().includes(extra.toLowerCase()))
+            : all.filter(video => regex.test(video.text));
 
     const seen = new Set();
 
-    videos =
-        videos.filter(video => {
+    const videos =
+        wanted
+            .filter(video => {
 
-            const key = videoKey(video);
+                const key = videoKey(video);
 
-            if (seen.has(key)) return false;
+                if (seen.has(key)) return false;
 
-            seen.add(key);
+                seen.add(key);
 
-            if (isNaN(new Date(video.published).getTime()) && !videoFirstSeen.has(key)) {
-
-                videoFirstSeen.set(key, Date.now());
-            }
-
-            return isFreshVideo(video);
-        });
-
-    // Newest first (videos with no date go last).
-    videos.sort(
-        (a, b) =>
-            (new Date(b.published).getTime() || 0) -
-            (new Date(a.published).getTime() || 0)
-    );
-
-    videos = videos.slice(0, 60);
-
-    const source =
-        [
-            "station-youtube",
-            SERPER_API_KEY ? "station-social" : ""
-        ]
-            .filter(Boolean)
-            .join("+");
+                return isFreshVideo(video);
+            })
+            .sort(
+                (a, b) =>
+                    new Date(b.published) -
+                    new Date(a.published)
+            )
+            .slice(0, 60);
 
     console.log(
         `Videos [${topic}${extra ? ` / ${extra}` : ""}]: ${videos.length} from TV stations in last ${VIDEO_MAX_AGE_HOURS}h.`
     );
 
-    return { videos, source };
+    return { videos, source: "youtube-api" };
 }
 
 async function loadUniversityVideos(topic = "all", extra = "") {
 
-    const key = `${VIDEO_TOPICS[topic] ? topic : "all"}|${extra.toLowerCase()}`;
+    const key = `${VIDEO_TOPIC_REGEX[topic] ? topic : "all"}|${extra.toLowerCase()}`;
 
     const cached = universityVideosCache.get(key);
 
@@ -3241,7 +2933,10 @@ async function loadUniversityVideos(topic = "all", extra = "") {
     }
 
     const job =
-        refreshUniversityVideos(topic, extra)
+        refreshUniversityVideos(
+            VIDEO_TOPIC_REGEX[topic] ? topic : "all",
+            extra
+        )
             .then(({ videos, source }) => {
 
                 const entry = {
@@ -3293,29 +2988,13 @@ async function loadUniversityVideos(topic = "all", extra = "") {
     return job;
 }
 
-// Once an hour: forget old "first seen" timestamps and drop
-// expired videos from memory.
-setInterval(() => {
-
-    for (const [key, time] of videoFirstSeen) {
-
-        if (Date.now() - time > VIDEO_MAX_AGE_MS * 2) videoFirstSeen.delete(key);
-    }
-
-    for (const entry of universityVideosCache.values()) {
-
-        entry.videos = entry.videos.filter(isFreshVideo);
-    }
-
-}, 60 * 60 * 1000).unref?.();
-
 /*
 GET /api/university-videos
     ?topic=helb|kuccps|jobs|scholarships|rumours|university-alerts|
            internships|attachments|competitions|courses|all
-    &q=optional extra keyword (e.g. a course or university name)
+    &q=optional extra keyword (e.g. a course name)
     &limit=1..60
-Only TV-station videos from the last VIDEO_MAX_AGE_HOURS hours.
+Only TV-station YouTube videos from the last VIDEO_MAX_AGE_HOURS hours.
 */
 app.get(
     "/api/university-videos",
@@ -3346,12 +3025,15 @@ app.get(
                 await loadUniversityVideos(topic, extra);
 
             // Expiry is checked on every request, so a video
-            // disappears 24h after it was posted even between refreshes.
+            // disappears 24h after it was posted, even between refreshes.
             const videos =
                 cache.videos
                     .filter(isFreshVideo)
                     .slice(0, limit)
-                    .map(video => ({ ...video, expiresAt: videoExpiresAt(video) }));
+                    .map(({ text, ...video }) => ({
+                        ...video,
+                        expiresAt: videoExpiresAt(video)
+                    }));
 
             res.json({
                 success: true,
@@ -3376,7 +3058,7 @@ app.get(
     }
 );
 
-// Warm the general list at startup so the first visitor sees videos.
+// Warm the cache at startup so the first visitor already sees videos.
 setTimeout(
     () => { loadUniversityVideos("all"); },
     5000

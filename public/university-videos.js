@@ -4,7 +4,7 @@ CAMPUS VIDEOS - TV STATIONS ONLY (last 24 hours)
 =========================================================
 
 Videos from Kenyan TV stations (Citizen TV, NTV, KTN, K24, TV47,
-KBC) on YouTube / TikTok / Facebook / Instagram / X. Each station
+KBC) on YouTube, loaded with the YouTube Data API. Each station
 gets its own row that scrolls sideways, newest first. Videos
 expire 24 hours after they were posted and new ones replace them.
 Reads  GET /api/university-videos?topic=...
@@ -438,7 +438,7 @@ Clips play inside the page when tapped (X posts open on X).
         section.innerHTML = `
             <div class="hs-videos-head">
                 <h3>${esc(title)}</h3>
-                <span class="hs-videos-note">From Kenyan TV stations · last 24 hours</span>
+                <span class="hs-videos-note">Kenyan TV stations on YouTube · last 24 hours</span>
             </div>
             <p class="hs-videos-empty">⏳ Loading videos...</p>
         `;
