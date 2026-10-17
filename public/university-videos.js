@@ -1,17 +1,19 @@
 /*
 =========================================================
-CAMPUS VIDEOS (YouTube, TikTok, Facebook, Instagram, X)
+CAMPUS VIDEOS - TV STATIONS ONLY (last 24 hours)
 =========================================================
 
-A horizontally scrolling row of videos that match the page the
-visitor is on. Reads  GET /api/university-videos?topic=...
+Videos from Kenyan TV stations (Citizen TV, NTV, KTN, K24, TV47,
+KBC) on YouTube / TikTok / Facebook / Instagram / X. Each station
+gets its own row that scrolls sideways, newest first. Videos
+expire 24 hours after they were posted and new ones replace them.
+Reads  GET /api/university-videos?topic=...
 
 Self-mounting - add this one script to a page and it works:
   - index.html:      fills <div id="homeVideos">  (all topics)
-  - category.html:   inserts a row above #articlesList for EVERY
-                     category (HELB, KUCCPS, Jobs, Scholarships,
-                     Rumours, University Alerts, Internships,
-                     Attachments, Competitions, Courses, search)
+  - category.html:   adds a "News | Videos" switch above #articlesList
+                     for EVERY category, so videos are kept apart
+                     from the news list (open with #videos)
   - article.html:    adds a row under the article, matched to the
                      article's category (article.js calls
                      window.mountCampusVideos)
@@ -19,8 +21,7 @@ Self-mounting - add this one script to a page and it works:
 Manual use:
   mountCampusVideos(element, { topic: "helb", q: "", title: "", before: false })
 
-YouTube and TikTok/Instagram/Facebook clips play inside the
-page when tapped. X posts open on X.
+Clips play inside the page when tapped (X posts open on X).
 =========================================================
 */
 
@@ -80,6 +81,21 @@ page when tapped. X posts open on X.
             .test(String(value || ""))
             ? value
             : "";
+    }
+
+    function ageText(video) {
+
+        const time = new Date(video.published).getTime();
+
+        if (isNaN(time)) return "New";
+
+        const minutes = Math.max(1, Math.round((Date.now() - time) / 60000));
+
+        if (minutes < 60) return `${minutes} min ago`;
+
+        const hours = Math.round(minutes / 60);
+
+        return hours < 24 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
     }
 
     function formatDate(video) {
@@ -151,6 +167,21 @@ page when tapped. X posts open on X.
             }
             .hs-videos-head h3 { margin: 0; font-size: 1.15rem; }
             .hs-videos-note { font-size: 0.82rem; opacity: 0.7; }
+            .hs-station { margin: 0 0 18px; }
+            .hs-station-head {
+                display: flex; align-items: center; justify-content: space-between;
+                gap: 8px; margin: 0 0 8px; padding-bottom: 6px;
+                border-bottom: 1px solid rgba(127,127,127,0.25);
+            }
+            .hs-station-head h4 { margin: 0; font-size: 1rem; }
+            .hs-station-count { font-size: 0.8rem; opacity: 0.7; }
+            .hs-video-age { font-weight: 600; }
+            .hs-view-tabs { display: flex; gap: 8px; margin: 0 0 14px; }
+            .hs-view-tab {
+                border: 1px solid rgba(127,127,127,0.4); background: transparent; color: inherit;
+                border-radius: 999px; padding: 8px 18px; font-size: 0.95rem; cursor: pointer;
+            }
+            .hs-view-tab.is-active { background: rgba(127,127,127,0.28); font-weight: 700; }
             .hs-video-filters { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
             .hs-video-filter {
                 border: 1px solid rgba(127,127,127,0.4); background: transparent; color: inherit;
@@ -230,7 +261,7 @@ page when tapped. X posts open on X.
         const title = esc(video.title || "Campus video");
         const url = safeUrl(video.url);
         const canEmbed = Boolean(embedUrl(video));
-        const meta = [video.channel, formatDate(video)].filter(Boolean).map(esc).join(" · ");
+        const meta = [video.channel, ageText(video)].filter(Boolean).map(esc).join(" · ");
         const thumb = video.thumbnail && /^https:\/\//.test(video.thumbnail) ? video.thumbnail : "";
 
         const inner = `
@@ -300,70 +331,56 @@ page when tapped. X posts open on X.
         });
     }
 
-    function buildRail(section, videos) {
+    function wireRail(wrap) {
 
-        const counts = {};
-
-        videos.forEach(v => {
-
-            const p = platformOf(v);
-
-            counts[p] = (counts[p] || 0) + 1;
-        });
-
-        const present = Object.keys(PLATFORMS).filter(p => counts[p]);
-
-        const filters =
-            present.length > 1
-                ? `<div class="hs-video-filters">
-                        <button type="button" class="hs-video-filter is-active" data-platform="all">All (${videos.length})</button>
-                        ${present.map(p =>
-                            `<button type="button" class="hs-video-filter" data-platform="${p}">${PLATFORMS[p].label} (${counts[p]})</button>`
-                        ).join("")}
-                   </div>`
-                : "";
-
-        section.querySelector(".hs-videos-empty").outerHTML = `
-            ${filters}
-            <div class="hs-videos-wrap">
-                <button type="button" class="hs-rail-arrow hs-rail-prev" aria-label="Scroll left">‹</button>
-                <div class="hs-videos-rail"></div>
-                <button type="button" class="hs-rail-arrow hs-rail-next" aria-label="Scroll right">›</button>
-            </div>
-        `;
-
-        const rail = section.querySelector(".hs-videos-rail");
-
-        function paint(platform) {
-
-            const list = platform === "all"
-                ? videos
-                : videos.filter(v => platformOf(v) === platform);
-
-            rail.innerHTML = list.map(cardHTML).join("");
-            rail.scrollLeft = 0;
-        }
-
-        paint("all");
-
-        section.querySelectorAll(".hs-video-filter").forEach(button => {
-
-            button.addEventListener("click", () => {
-
-                section.querySelectorAll(".hs-video-filter")
-                    .forEach(b => b.classList.toggle("is-active", b === button));
-
-                paint(button.getAttribute("data-platform"));
-            });
-        });
+        const rail = wrap.querySelector(".hs-videos-rail");
 
         const step = () => Math.max(260, Math.round(rail.clientWidth * 0.85));
 
-        section.querySelector(".hs-rail-prev")
+        wrap.querySelector(".hs-rail-prev")
             .addEventListener("click", () => rail.scrollBy({ left: -step() }));
 
-        section.querySelector(".hs-rail-next")
+        wrap.querySelector(".hs-rail-next")
             .addEventListener("click", () => rail.scrollBy({ left: step() }));
+    }
+
+    // One row per TV station, newest video first, stations with the
+    // most recent video at the top.
+    function buildRail(section, videos) {
+
+        const groups = new Map();
+
+        videos.forEach(video => {
+
+            const name = (video.station && video.station.name) || video.channel || "TV";
+
+            if (!groups.has(name)) groups.set(name, []);
+
+            groups.get(name).push(video);
+        });
+
+        const newest = list =>
+            Math.max(...list.map(v => new Date(v.published).getTime() || 0));
+
+        const ordered = [...groups.entries()].sort((a, b) => newest(b[1]) - newest(a[1]));
+
+        const html = ordered.map(([name, list]) => `
+            <div class="hs-station">
+                <div class="hs-station-head">
+                    <h4>📺 ${esc(name)}</h4>
+                    <span class="hs-station-count">${list.length} video${list.length === 1 ? "" : "s"} · scroll →</span>
+                </div>
+                <div class="hs-videos-wrap">
+                    <button type="button" class="hs-rail-arrow hs-rail-prev" aria-label="Scroll left">‹</button>
+                    <div class="hs-videos-rail">${list.map(cardHTML).join("")}</div>
+                    <button type="button" class="hs-rail-arrow hs-rail-next" aria-label="Scroll right">›</button>
+                </div>
+            </div>
+        `).join("");
+
+        section.querySelector(".hs-videos-empty").outerHTML = html;
+
+        section.querySelectorAll(".hs-videos-wrap").forEach(wireRail);
 
         attachHandlers(section, videos);
     }
@@ -396,7 +413,7 @@ page when tapped. X posts open on X.
 
     async function mountVideoRail(target, options) {
 
-        if (!target || target.dataset.hsVideosMounted === "1") return;
+        if (!target || target.dataset.hsVideosMounted === "1") return 0;
 
         const settings = Object.assign(
             { topic: "all", q: "", title: "", limit: 20, before: false },
@@ -421,7 +438,7 @@ page when tapped. X posts open on X.
         section.innerHTML = `
             <div class="hs-videos-head">
                 <h3>${esc(title)}</h3>
-                <span class="hs-videos-note">YouTube, TikTok, Facebook, Instagram &amp; X · scroll →</span>
+                <span class="hs-videos-note">From Kenyan TV stations · last 24 hours</span>
             </div>
             <p class="hs-videos-empty">⏳ Loading videos...</p>
         `;
@@ -442,12 +459,14 @@ page when tapped. X posts open on X.
             if (!videos.length) {
 
                 section.querySelector(".hs-videos-empty").textContent =
-                    "No recent videos for this topic right now — check back soon.";
+                    "No new TV station videos on this topic in the last 24 hours — check back soon.";
 
-                return;
+                return 0;
             }
 
             buildRail(section, videos);
+
+            return videos.length;
 
         } catch (error) {
 
@@ -455,7 +474,67 @@ page when tapped. X posts open on X.
 
             section.querySelector(".hs-videos-empty").textContent =
                 "Couldn't load videos right now. Please try again later.";
+
+            return 0;
         }
+    }
+
+    /*
+    Keeps videos apart from the news: a "News | Videos" switch above
+    the article list. News is shown first; Videos opens the station rows.
+    */
+    function mountNewsVideoTabs(list, topic, q) {
+
+        if (list.dataset.hsTabs === "1") return;
+
+        list.dataset.hsTabs = "1";
+
+        injectStyles();
+
+        const tabs = document.createElement("div");
+
+        tabs.className = "hs-view-tabs";
+        tabs.innerHTML = `
+            <button type="button" class="hs-view-tab is-active" data-view="news">📰 News</button>
+            <button type="button" class="hs-view-tab" data-view="videos">📺 Videos</button>
+        `;
+
+        const panel = document.createElement("div");
+
+        panel.className = "hs-video-panel";
+        panel.hidden = true;
+
+        list.parentNode.insertBefore(tabs, list);
+        list.parentNode.insertBefore(panel, list);
+
+        const videosTab = tabs.querySelector('[data-view="videos"]');
+
+        function show(view) {
+
+            const showVideos = view === "videos";
+
+            tabs.querySelectorAll(".hs-view-tab").forEach(button =>
+                button.classList.toggle("is-active", button.dataset.view === view)
+            );
+
+            list.style.display = showVideos ? "none" : "";
+            panel.hidden = !showVideos;
+        }
+
+        tabs.addEventListener("click", event => {
+
+            const button = event.target.closest(".hs-view-tab");
+
+            if (button) show(button.dataset.view);
+        });
+
+        mountVideoRail(panel, { topic, q, title: TOPIC_TITLES[topic] || TOPIC_TITLES.all })
+            .then(count => {
+
+                if (count) videosTab.textContent = `📺 Videos (${count})`;
+            });
+
+        if (window.location.hash === "#videos") show("videos");
     }
 
     function autoMount() {
@@ -495,7 +574,7 @@ page when tapped. X posts open on X.
                 q = String(params.get("field") || "").replace(/-/g, " ").trim();
             }
 
-            mountVideoRail(list, { topic, q, before: true });
+            mountNewsVideoTabs(list, topic, q);
         }
     }
 
